@@ -217,6 +217,42 @@ Proof.
         specialize (IHCEval2 _ H9). subst. reflexivity.
 Defined.
 
+Require Import Recdef.
+
+Function ceval (n : nat) (c : Com) (s : State) : option State :=
+match n with
+    | 0 => None
+    | S n' =>
+        match c with
+            | Skip => Some s
+            | Asgn x a => Some (changeState s x (aeval a s))
+            | Seq c1 c2 =>
+                match ceval n' c1 s with
+                    | None => None
+                    | Some s' => ceval n' c2 s'
+                end
+            | If b c1 c2 =>
+                if beval b s then ceval n' c1 s else ceval n' c2 s
+            | While b c =>
+                if beval b s
+                then
+                  match ceval n' c s with
+                      | None => None
+                      | Some s' => ceval n' (While b c) s'
+                  end
+                else Some s
+        end
+end.
+
+Hint Immediate aeval_AEval beval_BEval.
+
+Lemma ceval_CEval :
+  forall (n : nat) (c : Com) (s1 s2 : State),
+    ceval n c s1 = Some s2 -> CEval c s1 s2.
+Proof.
+  intros n c s1. functional induction ceval n c s1; intros; inv H; eauto.
+Qed.
+
 Lemma while_true_do_skip :
   forall s1 s2 : State,
     ~ CEval (While BTrue Skip) s1 s2.
@@ -270,20 +306,255 @@ Lemma equivalent_in_Context :
   forall c1 c2 : Com,
     c1 ~ c2 -> forall G : Context, put G c1 ~ put G c2.
 Proof.
-  unfold equivalent. intros c1 c2 H G. revert c1 c2 H.
+  intros c1 c2 H G. revert c1 c2 H.
   induction G; cbn; intros.
-    rewrite H. reflexivity.
-    split; intro; inv H0.
-      econstructor; eauto. rewrite <- IHG; eauto.
-      econstructor; eauto. rewrite IHG; eauto.
-    split; intro; inv H0.
-      econstructor; eauto. rewrite <- IHG; eauto.
-      econstructor; eauto. rewrite IHG; eauto.
-    split; intro; inv H0; eauto.
-      apply EvalIfTrue; auto. rewrite <- IHG; eauto.
-      apply EvalIfTrue; auto. rewrite IHG; eauto.
-    split; intro; inv H0; eauto.
-      constructor; auto. rewrite <- IHG; eauto.
-      constructor; auto. rewrite IHG; eauto.
-    split; intro.
-Abort.
+    assumption.
+    all: unfold equivalent in *; split; intros.
+      inv H0. econstructor.
+        rewrite IHG; eauto. firstorder.
+        assumption.
+      inv H0. econstructor; rewrite 1?IHG; eauto.
+      inv H0. econstructor; rewrite 1?IHG; eauto. firstorder.
+      inv H0. econstructor; rewrite 1?IHG; eauto.
+      inv H0.
+        econstructor; rewrite 1?IHG; eauto.
+        apply EvalIfTrue; eauto. rewrite IHG; eauto. firstorder.
+      inv H0.
+        econstructor; rewrite 1?IHG; eauto.
+        apply EvalIfTrue; eauto. rewrite IHG; eauto.
+      inv H0.
+        econstructor; rewrite 1?IHG; eauto. firstorder.
+        apply EvalIfTrue; eauto.
+      inv H0.
+        econstructor; rewrite 1?IHG; eauto.
+        firstorder.
+      remember (While b (put G c1)) as w. revert Heqw.
+      induction H0; intro; inv Heqw.
+        eauto.
+        econstructor; eauto. rewrite IHG; eauto. firstorder.
+      remember (While b (put G c2)) as w. revert Heqw.
+      induction H0; intro; inv Heqw.
+        eauto.
+        econstructor; eauto. rewrite IHG; eauto.
+Qed.
+
+(* [equivalent is congruence] *)
+
+Print Com.
+
+Lemma equivalent_Seq_l :
+  forall c c1 c2 : Com,
+    c1 ~ c2 -> Seq c1 c ~ Seq c2 c.
+Proof.
+  unfold equivalent. split; intros.
+    inv H0. econstructor.
+      rewrite <- H. eassumption.
+      assumption.
+    inv H0. econstructor.
+      rewrite H. eassumption.
+      assumption.
+Qed.
+
+Lemma equivalent_Seq_r :
+  forall c c1 c2 : Com,
+    c1 ~ c2 -> Seq c c1 ~ Seq c c2.
+Proof.
+  unfold equivalent. split; intros.
+    inv H0. econstructor.
+      eassumption.
+      rewrite <- H. eassumption.
+    inv H0. econstructor.
+      eassumption.
+      rewrite H. eassumption.
+Qed.
+
+Lemma equivalent_If_l :
+  forall (b : BExp) (c c1 c2 : Com),
+    c1 ~ c2 -> If b c1 c ~ If b c2 c.
+Proof.
+  unfold equivalent. split; intros.
+    inv H0.
+      constructor; assumption.
+      apply EvalIfTrue.
+        assumption.
+        rewrite <- H. assumption.
+    inv H0.
+      constructor; assumption.
+      apply EvalIfTrue.
+        assumption.
+        rewrite H. assumption.
+Qed.
+
+Lemma equivalent_If_r :
+  forall (b : BExp) (c c1 c2 : Com),
+    c1 ~ c2 -> If b c c1 ~ If b c c2.
+Proof.
+  unfold equivalent. split; intros.
+    inv H0.
+      constructor.
+        assumption.
+        rewrite <- H. assumption.
+      apply EvalIfTrue; assumption.
+    inv H0.
+      constructor.
+        assumption.
+        rewrite H. assumption.
+      apply EvalIfTrue; assumption.
+Qed.
+
+Lemma equivalent_While :
+  forall (b : BExp) (c c1 c2 : Com),
+    c1 ~ c2 -> While b c1 ~ While b c2.
+Proof.
+  unfold equivalent. split; intros.
+    remember (While b c1) as w. revert Heqw. induction H0; intro; inv Heqw.
+      constructor. assumption.
+      eapply EvalWhileTrue.
+        assumption.
+        rewrite <- H. eassumption.
+        apply IHCEval2. reflexivity.
+    remember (While b c2) as w. revert Heqw. induction H0; intro; inv Heqw.
+      constructor. assumption.
+      eapply EvalWhileTrue.
+        assumption.
+        rewrite H. eassumption.
+        apply IHCEval2. reflexivity.
+Qed.
+
+Fixpoint loc (c : Com) : list Loc :=
+match c with
+    | Skip => []
+    | Asgn v _ => [v]
+    | Seq c1 c2 => loc c1 ++ loc c2
+    | If _ c1 c2 => loc c1 ++ loc c2
+    | While _ c => loc c
+end.
+
+Lemma CEval_not_In_eq :
+  forall (c : Com) (s1 s2 : State),
+    CEval c s1 s2 -> forall x : Loc, ~ In x (loc c) -> s1 x = s2 x.
+Proof.
+  induction 1; cbn; intros.
+    reflexivity.
+    unfold changeState. destruct (dec_spec v x).
+      subst. contradiction H0. left. reflexivity.
+      reflexivity.
+    rewrite IHCEval1, IHCEval2.
+      reflexivity.
+      intro. apply H1. apply in_or_app. right. assumption.
+      intro. apply H1. apply in_or_app. left. assumption.
+    rewrite IHCEval.
+      reflexivity.
+      intro. apply H1. apply in_or_app. right. assumption.
+    rewrite IHCEval.
+      reflexivity.
+      intro. apply H1. apply in_or_app. left. assumption.
+    reflexivity.
+    rewrite IHCEval1, IHCEval2.
+      reflexivity.
+      intro. apply H2. cbn in H3. assumption.
+      assumption.
+Qed.
+
+(* TODO: division and errors, for loop *)
+
+(* Zadania *)
+
+Fixpoint loca (a : AExp) : list Loc :=
+match a with
+    | Const _ => []
+    | Var x => [x]
+    | Add a1 a2 => loca a1 ++ loca a2
+    | Sub a1 a2 => loca a1 ++ loca a2
+    | Mul a1 a2 => loca a1 ++ loca a2
+end.
+
+Lemma loca_same :
+  forall (a : AExp) (s1 s2 : State) (n : nat),
+    (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
+      AEval a s1 n -> AEval a s2 n.
+Proof.
+  induction 2.
+    constructor.
+    rewrite H.
+      constructor.
+      cbn. left. reflexivity.
+    constructor.
+      apply IHAEval1. intros. apply H. cbn. apply in_or_app.
+        left. assumption.
+      apply IHAEval2. intros. apply H. cbn. apply in_or_app.
+        right. assumption.
+    constructor.
+      apply IHAEval1. intros. apply H. cbn. apply in_or_app.
+        left. assumption.
+      apply IHAEval2. intros. apply H. cbn. apply in_or_app.
+        right. assumption.
+    constructor.
+      apply IHAEval1. intros. apply H. cbn. apply in_or_app.
+        left. assumption.
+      apply IHAEval2. intros. apply H. cbn. apply in_or_app.
+        right. assumption.
+Qed.
+
+Lemma loca_same' :
+  forall (a : AExp) (s1 s2 : State) (n : nat),
+    (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
+      AEval a s1 n <-> AEval a s2 n.
+Proof.
+  split; intro.
+    apply loca_same with s1; firstorder.
+    apply loca_same with s2; firstorder.
+Qed.
+
+Print BExp.
+
+Fixpoint locb (b : BExp) : list Loc :=
+match b with
+    | BTrue => []
+    | BFalse => []
+    | Eq a1 a2 => loca a1 ++ loca a2
+    | Le a1 a2 => loca a1 ++ loca a2
+    | Not b' => locb b'
+    | And b1 b2 => locb b1 ++ locb b2
+    | Or b1 b2 => locb b1 ++ locb b2
+end.
+
+Lemma locb_same :
+  forall (e : BExp) (s1 s2 : State) (b : bool),
+    (forall x : Loc, In x (locb e) -> s1 x = s2 x) ->
+      BEval e s1 b -> BEval e s2 b.
+Proof.
+  induction 2.
+    constructor.
+    constructor.
+    constructor.
+      apply loca_same with s.
+        intros. apply H. cbn. apply in_or_app. left. assumption.
+        assumption.
+      apply loca_same with s.
+        intros. apply H. cbn. apply in_or_app. right. assumption.
+        assumption.
+    constructor.
+      apply loca_same with s.
+        intros. apply H. cbn. apply in_or_app. left. assumption.
+        assumption.
+      apply loca_same with s.
+        intros. apply H. cbn. apply in_or_app. right. assumption.
+        assumption.
+    constructor. apply IHBEval. intros. apply H. cbn. assumption.
+    constructor.
+      apply IHBEval1. intros. apply H. cbn. apply in_or_app.
+        left. assumption.
+      apply IHBEval2. intros. apply H. cbn. apply in_or_app.
+        right. assumption.
+    constructor.
+      apply IHBEval1. intros. apply H. cbn. apply in_or_app.
+        left. assumption.
+      apply IHBEval2. intros. apply H. cbn. apply in_or_app.
+        right. assumption.
+Qed.
+
+Lemma loc_same :
+  forall (c : Com) (s1 s1' s2 : State),
+    (forall x : Loc, In x (loc c) -> s1 x = s1' x) ->
+      
