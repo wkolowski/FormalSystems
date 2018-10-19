@@ -72,7 +72,7 @@ Proof.
     rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
     rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
     rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-Defined.
+Qed.
 
 Fixpoint aeval (a : AExp) (s : State) : nat :=
 match a with
@@ -555,6 +555,16 @@ Proof.
 Qed.
 
 Lemma loc_same :
-  forall (c : Com) (s1 s1' s2 : State),
+  forall (c : Com) (s1 s1' s2 s2' : State),
     (forall x : Loc, In x (loc c) -> s1 x = s1' x) ->
-      
+      CEval c s1 s2 -> CEval c s1' s2' ->
+        forall x : Loc, In x (loc c) -> s2 x = s2' x.
+Proof.
+  intros c s1 s1' s2 s2' H H1. revert s1' s2' H.
+  induction H1; cbn; intros.
+    inv H1.
+    inv H1. assert (n = n0).
+      assert (AEval a s1' n).
+        apply loca_same with s.
+          intros. apply H0. 
+Abort.
