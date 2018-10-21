@@ -12,6 +12,9 @@ Require Import Arith.
 
 Notation "x =? y" := (dec x y) (at level 70).
 
+Ltac inv H :=
+  inversion H; subst; clear H.
+
 Inductive AExp : Type :=
     | Const : nat -> AExp
     | Var : Loc -> AExp
@@ -59,21 +62,6 @@ Inductive AEval : AExp -> State -> nat -> Prop :=
 
 Hint Constructors AEval.
 
-Ltac inv H :=
-  inversion H; subst; clear H.
-
-Lemma AEval_det :
-  forall {a : AExp} {s : State} {n m : nat},
-    AEval a s n -> AEval a s m -> n = m.
-Proof.
-  intros a s n m H. revert m.
-  induction H; inversion 1; subst; clear H.
-    1-2: reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-Qed.
-
 Fixpoint aeval (a : AExp) (s : State) : nat :=
 match a with
     | Const n => n
@@ -97,6 +85,63 @@ Proof.
   induction a; cbn; intros; rewrite <- H; auto.
 Defined.
 
+Lemma AEval_det :
+  forall {a : AExp} {s : State} {n m : nat},
+    AEval a s n -> AEval a s m -> n = m.
+Proof.
+  intros a s n m H. revert m.
+  induction H; inversion 1; subst; clear H.
+    1-2: reflexivity.
+    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
+    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
+    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
+Restart.
+  intros.
+  apply AEval_aeval in H.
+  apply AEval_aeval in H0.
+  rewrite <- H, <- H0.
+  reflexivity.
+Qed.
+
+Fixpoint loca (a : AExp) : list Loc :=
+match a with
+    | Const _ => []
+    | Var x => [x]
+    | Add a1 a2 => loca a1 ++ loca a2
+    | Sub a1 a2 => loca a1 ++ loca a2
+    | Mul a1 a2 => loca a1 ++ loca a2
+end.
+
+Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
+  forall x : Loc, In x (loca a) -> s1 x = s2 x.
+
+Lemma AEval_acompatible :
+  forall {a : AExp} {s1 : State} {n : nat},
+    AEval a s1 n -> forall {s2 : State},
+      acompatible a s1 s2 ->
+        AEval a s2 n.
+Proof.
+  Hint Resolve in_or_app.
+  unfold acompatible.
+  induction 1; cbn in *; intros; try rewrite H; auto 6.
+Qed.
+
+Lemma AEval_acompatible_det :
+  forall {a : AExp} {s1 : State} {n1 : nat},
+    AEval a s1 n1 ->
+    forall {s2 : State} {n2 : nat},
+      AEval a s2 n2 ->
+      (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
+        n1 = n2.
+Proof.
+  induction 1; cbn; intros; auto.
+    inv H. reflexivity.
+    inv H. apply H0. left. reflexivity.
+    inv H1. erewrite IHAEval1, IHAEval2; eauto.
+    inv H1. erewrite IHAEval1, IHAEval2; eauto.
+    inv H1. erewrite IHAEval1, IHAEval2; eauto.
+Qed.
+
 Inductive BEval : BExp -> State -> bool -> Prop :=
     | EvalTrue :
         forall s : State, BEval BTrue s true
@@ -119,20 +164,6 @@ Inductive BEval : BExp -> State -> bool -> Prop :=
           BEval e1 s b1 -> BEval e2 s b2 -> BEval (Or e1 e2) s (orb b1 b2).
 
 Hint Constructors BEval.
-
-Lemma BEval_det :
-  forall {e : BExp} {s : State} {b1 : bool},
-    BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
-Proof.
-  induction 1; intros.
-    inv H. reflexivity.
-    inv H. reflexivity.
-    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
-    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
-    inv H0. rewrite (IHBEval _ H2). reflexivity.
-    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
-    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
-Qed.
 
 Fixpoint beval (e : BExp) (s : State) : bool :=
 match e with
@@ -165,6 +196,63 @@ Proof.
   induction e; cbn; intros; subst; auto.
     constructor; apply aeval_AEval; reflexivity.
     constructor; apply aeval_AEval; reflexivity.
+Qed.
+
+Lemma BEval_det :
+  forall {e : BExp} {s : State} {b1 : bool},
+    BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
+Proof.
+  induction 1; intros.
+    inv H. reflexivity.
+    inv H. reflexivity.
+    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
+    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
+    inv H0. rewrite (IHBEval _ H2). reflexivity.
+    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
+    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
+Restart.
+  intros.
+  apply BEval_beval in H.
+  apply BEval_beval in H0.
+  rewrite <- H, <- H0.
+  reflexivity.
+Qed.
+
+Fixpoint locb (b : BExp) : list Loc :=
+match b with
+    | BTrue => []
+    | BFalse => []
+    | Eq a1 a2 => loca a1 ++ loca a2
+    | Le a1 a2 => loca a1 ++ loca a2
+    | Not b' => locb b'
+    | And b1 b2 => locb b1 ++ locb b2
+    | Or b1 b2 => locb b1 ++ locb b2
+end.
+
+Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
+  forall x : Loc, In x (locb b) -> s1 x = s2 x.
+
+Lemma BEval_bcompatible :
+  forall {e : BExp} {s1 : State} {b : bool},
+    BEval e s1 b -> forall {s2 : State},
+      bcompatible e s1 s2 -> BEval e s2 b.
+Proof.
+  Hint Resolve AEval_acompatible.
+  Hint Unfold acompatible.
+  unfold bcompatible.
+  induction 1; cbn in *; intros; constructor; eauto 6.
+Qed.
+
+Lemma BEval_bcompatible_det :
+  forall {e : BExp} {s1 : State} {b1 : bool},
+    BEval e s1 b1 -> forall {s2 : State} {b2 : bool},
+    BEval e s2 b2 ->
+      bcompatible e s1 s2 -> b1 = b2.
+Proof.
+  intros.
+  assert (BEval e s2 b1).
+    eapply BEval_bcompatible; eauto.
+  eapply BEval_det; eauto.
 Qed.
 
 Inductive CEval : Com -> State -> State -> Prop :=
@@ -215,7 +303,24 @@ Proof.
       pose (BEval_det H H7). congruence.
       specialize (IHCEval1 _ H6). subst.
         specialize (IHCEval2 _ H9). subst. reflexivity.
-Defined.
+Restart.
+  Hint Rewrite @AEval_det.
+  Hint Resolve AEval_det BEval_det.
+  induction 1; intros.
+  Ltac wut :=
+  match goal with
+      | H : CEval ?c _ _ |- _ => is_var c + inv H
+  end;
+  repeat match goal with
+      | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
+          let H' := fresh "H" in
+            assert (H' := IH _ H); clear H; rename H' into H; subst
+      | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
+          let H'' := fresh "H" in
+            assert (H'' := BEval_det H H'); clear H H'
+  end; eauto; try congruence.
+  all: wut.
+Qed.
 
 Require Import Recdef.
 
@@ -264,6 +369,107 @@ Proof.
     apply IHCEval2. reflexivity.
 Qed.
 
+(* The list of all variables which are assigned to by the instruction c. *)
+Fixpoint locw (c : Com) : list Loc :=
+match c with
+    | Skip => []
+    | Asgn v _ => [v]
+    | Seq c1 c2 => locw c1 ++ locw c2
+    | If _ c1 c2 => locw c1 ++ locw c2
+    | While _ c => locw c
+end.
+
+Definition wcompatible (c : Com) (s1 s2 : State) : Prop :=
+  forall x : Loc, In x (locw c) -> s1 x = s2 x.
+
+Lemma CEval_not_In_locw_eq :
+  forall (c : Com) (s1 s2 : State),
+    CEval c s1 s2 -> forall x : Loc, ~ In x (locw c) -> s1 x = s2 x.
+Proof.
+  induction 1; cbn in *; intros; auto.
+    unfold changeState. destruct (dec_spec v x).
+      subst. contradiction H0. left. reflexivity.
+      reflexivity.
+    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto.
+Qed.
+
+(* The list of all variables mentioned in c. *)
+Fixpoint loc (c : Com) : list Loc :=
+match c with
+    | Skip => []
+    | Asgn v a => v :: loca a
+    | Seq c1 c2 => loc c1 ++ loc c2
+    | If b c1 c2 => locb b ++ loc c1 ++ loc c2
+    | While b c => locb b ++ loc c
+end.
+
+Definition ccompatible (c : Com) (s1 s2 : State) : Prop :=
+  forall x : Loc, In x (loc c) -> s1 x = s2 x.
+
+Lemma CEval_not_In_loc_eq :
+  forall (c : Com) (s1 s2 : State),
+    CEval c s1 s2 -> forall x : Loc, ~ In x (loc c) -> s1 x = s2 x.
+Proof.
+  induction 1; cbn in *; intros; auto.
+    unfold changeState. destruct (dec_spec v x).
+      subst. contradiction H0. left. reflexivity.
+      reflexivity.
+    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto 7.
+Qed.
+
+Lemma CEval_ccompatible :
+  forall (c : Com) (s1 s2 : State),
+    CEval c s1 s2 ->
+    forall {s1' s2' : State},
+      CEval c s1' s2' ->
+        ccompatible c s1 s1' -> ccompatible c s2 s2'.
+Proof.
+  unfold ccompatible.
+  Hint Unfold bcompatible.
+  induction 1; cbn; intros.
+    inv H1.
+    inv H0. unfold changeState. inv H2.
+      destruct (dec_spec x x).
+        eapply AEval_acompatible_det; eauto.
+        contradiction.
+      destruct (dec_spec v x).
+        eapply AEval_acompatible_det; eauto.
+        auto.
+    Focus 4. inv H0.
+      apply H1. assumption.
+      assert (false = true).
+        eapply BEval_bcompatible_det; eauto. congruence.
+(* If *)
+(*
+    Focus 2. inv H1.
+      eapply IHCEval; eauto 6.
+*)
+(* Seq *)
+(*
+    inv H1. apply in_app_or in H3. destruct H3.
+      assert (In x (loc c2) \/ ~ In x (loc c2)).
+        admit.
+        destruct H3.
+          assert (ccompatible c1 s2 s4).
+            red. intros. eapply IHCEval1; eauto.
+            red in H4. eapply IHCEval2; eauto. intros.
+              apply H4. assumption.
+*)
+(* While *)
+(*
+    Focus 4. inv H2; cbn in *.
+      assert (false = true); try congruence.
+        eapply BEval_bcompatible_det; eauto. unfold bcompatible.
+          intros. symmetry. auto.
+      assert (s1 x = s1' x).
+        apply H3. assumption.
+        assert (s3 x = s2' x).
+          eapply IHCEval2; eauto. intros. apply in_app_or in H5. inv H5.
+*)
+Abort.
+
+(* Program equivalence. *)
+
 Definition equivalent (c1 c2 : Com) : Prop :=
   forall s1 s2 : State,
     CEval c1 s1 s2 <-> CEval c2 s1 s2.
@@ -280,9 +486,7 @@ Proof.
     inv H; inv H6; eauto.
 Defined.
 
-(* Let's prove that ~ is a congruence. *)
-
-Print Com.
+(* TODO: for loop *)
 
 Inductive Context : Type :=
     | CContext : Context
@@ -336,11 +540,24 @@ Proof.
       induction H0; intro; inv Heqw.
         eauto.
         econstructor; eauto. rewrite IHG; eauto.
+Restart.
+  intros c1 c2 H G. revert c1 c2 H.
+  induction G; cbn; intros; eauto.
+  Ltac wut :=
+  unfold equivalent in *; split; intros;
+  match goal with
+      | H : CEval ?c _ _ |- _ =>
+          let c' := fresh "c" in
+          let Heqc' := fresh "Heq" c' in
+            remember c as c'; revert Heqc';
+            induction H; intros; inv Heqc'
+  end; eauto.
+  all: wut.
+    5-6: apply EvalIfTrue; rewrite 1?IHG; eauto; firstorder.
+    all: econstructor; rewrite 1?IHG; eauto; firstorder.
 Qed.
 
-(* [equivalent is congruence] *)
-
-Print Com.
+(** [equivalent] is a congruence *)
 
 Lemma equivalent_Seq_l :
   forall c c1 c2 : Com,
@@ -420,183 +637,3 @@ Proof.
         rewrite H. eassumption.
         apply IHCEval2. reflexivity.
 Qed.
-
-(* TODO: division and errors, for loop *)
-
-Fixpoint loca (a : AExp) : list Loc :=
-match a with
-    | Const _ => []
-    | Var x => [x]
-    | Add a1 a2 => loca a1 ++ loca a2
-    | Sub a1 a2 => loca a1 ++ loca a2
-    | Mul a1 a2 => loca a1 ++ loca a2
-end.
-
-Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loca a) -> s1 x = s2 x.
-
-Lemma AEval_acompatible :
-  forall {a : AExp} {s1 : State} {n : nat},
-    AEval a s1 n -> forall {s2 : State},
-      acompatible a s1 s2 ->
-        AEval a s2 n.
-Proof.
-  Hint Resolve in_or_app.
-  unfold acompatible.
-  induction 1; cbn in *; intros; try rewrite H; auto 6.
-Qed.
-
-Lemma AEval_acompatible_det :
-  forall {a : AExp} {s1 : State} {n1 : nat},
-    AEval a s1 n1 ->
-    forall {s2 : State} {n2 : nat},
-      AEval a s2 n2 ->
-      (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
-        n1 = n2.
-Proof.
-  induction 1; cbn; intros; auto.
-    inv H. reflexivity.
-    inv H. apply H0. left. reflexivity.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-Qed.
-
-(*
-Lemma AEval_acompatible' :
-  forall (a : AExp) (s1 s2 : State) (n : nat),
-    (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
-      AEval a s1 n <-> AEval a s2 n.
-Proof.
-  split; intro.
-    apply AEval_acompatible with s1; firstorder.
-    apply AEval_acompatible with s2; firstorder.
-Qed.
-*)
-
-Fixpoint locb (b : BExp) : list Loc :=
-match b with
-    | BTrue => []
-    | BFalse => []
-    | Eq a1 a2 => loca a1 ++ loca a2
-    | Le a1 a2 => loca a1 ++ loca a2
-    | Not b' => locb b'
-    | And b1 b2 => locb b1 ++ locb b2
-    | Or b1 b2 => locb b1 ++ locb b2
-end.
-
-Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locb b) -> s1 x = s2 x.
-
-Lemma BEval_bcompatible :
-  forall {e : BExp} {s1 : State} {b : bool},
-    BEval e s1 b -> forall {s2 : State},
-      bcompatible e s1 s2 -> BEval e s2 b.
-Proof.
-  Hint Resolve AEval_acompatible.
-  Hint Unfold acompatible.
-  unfold bcompatible.
-  induction 1; cbn in *; intros; constructor; eauto 6.
-Qed.
-
-Lemma BEval_bcompatible_det :
-  forall {e : BExp} {s1 : State} {b1 : bool},
-    BEval e s1 b1 -> forall {s2 : State} {b2 : bool},
-    BEval e s2 b2 ->
-      bcompatible e s1 s2 -> b1 = b2.
-Proof.
-  intros.
-  assert (BEval e s2 b1).
-    eapply BEval_bcompatible; eauto.
-  eapply BEval_det; eauto.
-Qed.
-
-(* The list of all variables which are assigned to by the instruction c. *)
-Fixpoint locw (c : Com) : list Loc :=
-match c with
-    | Skip => []
-    | Asgn v _ => [v]
-    | Seq c1 c2 => locw c1 ++ locw c2
-    | If _ c1 c2 => locw c1 ++ locw c2
-    | While _ c => locw c
-end.
-
-Definition wcompatible (c : Com) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locw c) -> s1 x = s2 x.
-
-Lemma CEval_not_In_locw_eq :
-  forall (c : Com) (s1 s2 : State),
-    CEval c s1 s2 -> forall x : Loc, ~ In x (locw c) -> s1 x = s2 x.
-Proof.
-  induction 1; cbn in *; intros; auto.
-    unfold changeState. destruct (dec_spec v x).
-      subst. contradiction H0. left. reflexivity.
-      reflexivity.
-    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto.
-Qed.
-
-(* The list of all variables mentioned in c. *)
-Fixpoint loc (c : Com) : list Loc :=
-match c with
-    | Skip => []
-    | Asgn v a => v :: loca a
-    | Seq c1 c2 => loc c1 ++ loc c2
-    | If b c1 c2 => locb b ++ loc c1 ++ loc c2
-    | While b c => locb b ++ loc c
-end.
-
-Definition ccompatible (c : Com) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loc c) -> s1 x = s2 x.
-
-Lemma CEval_not_In_loc_eq :
-  forall (c : Com) (s1 s2 : State),
-    CEval c s1 s2 -> forall x : Loc, ~ In x (loc c) -> s1 x = s2 x.
-Proof.
-  induction 1; cbn in *; intros; auto.
-    unfold changeState. destruct (dec_spec v x).
-      subst. contradiction H0. left. reflexivity.
-      reflexivity.
-    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto 7.
-Qed.
-
-Check CEval_det.
-
-(*
-Lemma CEval_ccompatible_det :
-  forall (c : Com) (s1 s2 : State),
-    CEval c s s1 ->
-    forall {s1' s2' : State},
-      CEval c s1' s2' ->
-*)
-
-Lemma CEval_ccompatible :
-  forall (c : Com) (s1 s2 : State),
-    CEval c s1 s2 ->
-    forall {s1' s2' : State},
-      CEval c s1' s2' ->
-        ccompatible c s1 s1' -> ccompatible c s2 s2'.
-Proof.
-  unfold ccompatible.
-  Hint Unfold bcompatible.
-  induction 1; cbn; intros.
-    inv H1.
-    inv H0. unfold changeState. inv H2.
-      destruct (dec_spec x x).
-        eapply AEval_acompatible_det; eauto.
-        contradiction.
-      destruct (dec_spec v x).
-        eapply AEval_acompatible_det; eauto.
-        auto.
-    Focus 4. inv H0.
-      apply H1. assumption.
-      assert (false = true).
-        eapply BEval_bcompatible_det; eauto. congruence.
-    Focus 4. inv H2; cbn in *.
-      assert (false = true); try congruence.
-        eapply BEval_bcompatible_det; eauto. unfold bcompatible.
-          intros. symmetry. auto.
-      assert (s1 x = s1' x).
-        apply H3. assumption.
-        assert (s3 x = s2' x).
-          eapply IHCEval2; eauto. intros. apply in_app_or in H5. inv H5.
-Abort.
