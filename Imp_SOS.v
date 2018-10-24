@@ -1,3 +1,5 @@
+(** * Structural operational semantics for IMP *)
+
 Require Import List.
 Import ListNotations.
 
@@ -16,8 +18,8 @@ Ltac inv H :=
   inversion H; subst; clear H.
 
 Inductive AExp : Type :=
-    | Const : nat -> AExp
     | Var : Loc -> AExp
+    | Const : nat -> AExp
     | Add : AExp -> AExp -> AExp
     | Sub : AExp -> AExp -> AExp
     | Mul : AExp -> AExp -> AExp.
@@ -45,64 +47,70 @@ Definition initialState : State := fun _ => 0.
 Definition changeState (s : State) (x : Loc) (n : nat) : State :=
   fun y : Loc => if x =? y then n else s y.
 
-Inductive AEval : AExp -> State -> nat -> Prop :=
-    | EvalConst :
-        forall (n : nat) (s : State), AEval (Const n) s n
+Inductive AEval (s : State) : AExp -> AExp -> Prop :=
     | EvalVar :
-        forall (v : Loc) (s : State), AEval (Var v) s (s v)
+        forall x : Loc, AEval s (Var x) (Const (s x))
+(*    | EvalConst :
+        forall n : nat, AEval s (Const n) (Const n)*)
+    | EvalAddL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Add a1 a2) (Add a1' a2)
+    | EvalAddR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Add (Const n) a2) (Add (Const n) a2')
     | EvalAdd :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
+        forall (a1 a2 : AExp) (n1 n2 : nat),
+          AEval s (Add (Const n1) (Const n2)) (Const (n1 + n2))
+    | EvalSubL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Sub a1 a2) (Sub a1' a2)
+    | EvalSubR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Sub (Const n) a2) (Sub (Const n) a2')
     | EvalSub :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Sub a1 a2) s (n1 - n2)
+        forall (a1 a2 : AExp) (n1 n2 : nat),
+          AEval s (Sub (Const n1) (Const n2)) (Const (n1 - n2))
+    | EvalMulL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Mul a1 a2) (Mul a1' a2)
+    | EvalMulR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Mul (Const n) a2) (Mul (Const n) a2')
     | EvalMul :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Mul a1 a2) s (n1 * n2).
+        forall (a1 a2 : AExp) (n1 n2 : nat),
+          AEval s (Mul (Const n1) (Const n2)) (Const (n1 * n2)).
 
 Hint Constructors AEval.
 
-Fixpoint aeval (a : AExp) (s : State) : nat :=
+Fixpoint aeval (s : State) (a : AExp) : nat :=
 match a with
     | Const n => n
     | Var v => s v
-    | Add a1 a2 => aeval a1 s + aeval a2 s
-    | Sub a1 a2 => aeval a1 s - aeval a2 s
-    | Mul a1 a2 => aeval a1 s * aeval a2 s
+    | Add a1 a2 => aeval s a1 + aeval s a2
+    | Sub a1 a2 => aeval s a1 - aeval s a2
+    | Mul a1 a2 => aeval s a1 * aeval s a2
 end.
 
 Lemma AEval_aeval :
-  forall {a : AExp} {s : State} {n : nat},
-    AEval a s n -> aeval a s = n.
+  forall {s : State} {a1 a2 : AExp},
+    AEval s a1 a2 -> aeval s a1 = aeval s a2.
 Proof.
-  induction 1; cbn; rewrite ?IHAEval1, ?IHAEval2; reflexivity.
+  induction 1; cbn; auto.
 Qed.
-
-Lemma aeval_AEval :
-  forall {a : AExp} {s : State} {n : nat},
-    aeval a s = n -> AEval a s n.
-Proof.
-  induction a; cbn; intros; rewrite <- H; auto.
-Defined.
 
 Lemma AEval_det :
-  forall {a : AExp} {s : State} {n m : nat},
-    AEval a s n -> AEval a s m -> n = m.
+  forall {s : State} {a a1 a2 : AExp},
+    AEval s a a1 -> AEval s a a2 -> a1 = a2.
 Proof.
-  intros a s n m H. revert m.
-  induction H; inversion 1; subst; clear H.
-    1-2: reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-Restart.
-  intros.
-  apply AEval_aeval in H.
-  apply AEval_aeval in H0.
-  rewrite <- H, <- H0.
-  reflexivity.
+  intros s a a1 a2 H. revert a2.
+  induction H; intros; repeat
+  match goal with
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | |- ?f _ _ = ?f _ _ => f_equal
+  end; auto.
 Qed.
 
+(*
 Fixpoint loca (a : AExp) : list Loc :=
 match a with
     | Const _ => []
@@ -115,11 +123,12 @@ end.
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (loca a) -> s1 x = s2 x.
 
+
 Lemma AEval_acompatible :
   forall {a : AExp} {s1 : State} {n : nat},
-    AEval a s1 n -> forall {s2 : State},
+    AEval s1 a n -> forall {s2 : State},
       acompatible a s1 s2 ->
-        AEval a s2 n.
+        AEval s2 a n.
 Proof.
   Hint Resolve in_or_app.
   unfold acompatible.
@@ -141,15 +150,33 @@ Proof.
     inv H1. erewrite IHAEval1, IHAEval2; eauto.
     inv H1. erewrite IHAEval1, IHAEval2; eauto.
 Qed.
+*)
 
-Inductive BEval : BExp -> State -> bool -> Prop :=
-    | EvalTrue :
-        forall s : State, BEval BTrue s true
-    | EvalFalse :
-        forall s : State, BEval BFalse s false
+Print BExp.
+
+(* TODO
+
+Inductive BEval (s : State) : BExp -> BExp -> Prop :=
+    | EvalEqL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> BEval s (Eq a1 a2) (Eq a1' a2)
+    | EvalEqR :
+        forall (a1 a2 a2' : AExp) (n : nat),
+          BEval s (Eq (Const n) a2) (Eq (Const n) a2')
     | EvalEq :
-        forall (a1 a2 : AExp) (s : State) (n m : nat),
-          AEval a1 s n -> AEval a2 s m -> BEval (Eq a1 a2) s (Nat.eqb n m)
+        forall n1 n2 : nat,
+          BEval s (Eq (Const n1) (Const n2))
+                  (if Nat.eqb n1 n2 then BTrue else BFalse)
+    | EvalLeL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> BEval s (Le a1 a2) (Le a1' a2)
+    | EvalLeR :
+        forall (a1 a2 a2' : AExp) (n : nat),
+          BEval s (Eq (Const n) a2) (Eq (Const n) a2')
+    | EvalEq :
+        forall n1 n2 : nat,
+          BEval s (Eq (Const n1) (Const n2))
+                  (if Nat.eqb n1 n2 then BTrue else BFalse)
     | EvalLe :
         forall (a1 a2 : AExp) (s : State) (n m : nat),
           AEval a1 s n -> AEval a2 s m -> BEval (Le a1 a2) s (Nat.leb n m)
@@ -683,3 +710,4 @@ Definition Observation (A : Type) : Type := Com -> A.
 Definition oequiv {A : Type} (c1 c2 : Com) : Prop :=
   forall (G : Context) (f : Observation A),
     f (put G c1) = f (put G c2).
+*)

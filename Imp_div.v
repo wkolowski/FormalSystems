@@ -101,10 +101,7 @@ Lemma aeval_AEval :
     aeval a s = Some n -> AEval a s n.
 Proof.
   induction a; cbn; intros; inv H; auto.
-    destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
-    destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
-    destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
-    destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
+    1-4: destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
       destruct n1.
         inv H0.
         assert (n0 / S n1 = n) by (inv H0; auto). rewrite <- H. auto.
@@ -115,13 +112,6 @@ Lemma AEval_det :
   forall {a : AExp} {s : State} {n m : nat},
     AEval a s n -> AEval a s m -> n = m.
 Proof.
-  intros a s n m H. revert m.
-  induction H; inversion 1; subst; clear H.
-    1-2: reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-Restart.
   intros.
   apply AEval_aeval in H.
   apply AEval_aeval in H0.
@@ -161,13 +151,10 @@ Lemma AEval_acompatible_det :
       (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
         n1 = n2.
 Proof.
-  induction 1; cbn; intros; auto.
-    inv H. reflexivity.
-    inv H. apply H0. left. reflexivity.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H2. erewrite IHAEval1, IHAEval2; eauto.
+  induction 1; cbn; intros;
+  match goal with
+      | H : AEval ?a _ _ |- _ => is_var a + inv H
+  end; eauto 10.
 Qed.
 
 Inductive BEval : BExp -> State -> bool -> Prop :=
@@ -210,11 +197,9 @@ Lemma BEval_beval :
 Proof.
   induction 1; cbn.
     1-2: reflexivity.
-    rewrite (AEval_aeval H), (AEval_aeval H0). reflexivity.
-    rewrite (AEval_aeval H), (AEval_aeval H0). reflexivity.
+    1-2: rewrite (AEval_aeval H), (AEval_aeval H0); reflexivity.
     rewrite IHBEval. reflexivity.
-    rewrite IHBEval1, IHBEval2. reflexivity.
-    rewrite IHBEval1, IHBEval2. reflexivity.
+    1-2: rewrite IHBEval1, IHBEval2; reflexivity.
 Qed.
 
 Lemma beval_BEval :
