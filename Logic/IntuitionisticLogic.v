@@ -85,6 +85,7 @@ match C with
     | F :: C' => subst F x P :: csubst C' x P
 end.
 
+(*
 Lemma Proves_subst :
   forall (C : Context) (F : Formula),
     Proves C F -> forall (R : Formula) (x : V),
@@ -92,6 +93,7 @@ Lemma Proves_subst :
 Proof.
   induction 1; cbn; intros; eauto.
 Qed.
+*)
 
 Lemma ImplI' :
   forall (C : Context) (P Q : Formula),
@@ -111,4 +113,3 @@ Proof.
   intros C H. remember FFalse as F. revert HeqF.
   induction H; intro; try inv HeqF; auto.
 Abort.
-

@@ -25,6 +25,8 @@ match M with
 end.
 
 (* TODO: it's high time to learn PHOAS properly *)
+(*
 Inductive Beta : Term -> Term -> Prop :=
     | BetaContraction :
         forall (M : V -> Term) (N : Term), Beta (App (Lam M) N)
+*)

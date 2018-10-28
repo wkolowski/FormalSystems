@@ -1,3 +1,5 @@
 *.aux
 *.vo
 *.glob
+makefile
+

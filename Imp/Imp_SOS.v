@@ -1,111 +1,145 @@
-Require Import List.
-Import ListNotations.
+Add Rec LoadPath "/home/zeimer/Code/Coq".
 
-Require Import Bool.
+Require Import ImpSyntax.
 
-Parameter Loc : Type.
-Parameter dec : Loc -> Loc -> bool.
-Parameter dec_spec :
-  forall x y : Loc, reflect (x = y) (dec x y).
+(** * Structural operational semantics for IMP *)
 
-Require Import Arith.
-
-Notation "x =? y" := (dec x y) (at level 70).
-
-Ltac inv H :=
-  inversion H; subst; clear H.
-
-Inductive AExp : Type :=
-    | Const : nat -> AExp
-    | Var : Loc -> AExp
-    | Add : AExp -> AExp -> AExp
-    | Sub : AExp -> AExp -> AExp
-    | Mul : AExp -> AExp -> AExp.
-
-Inductive BExp : Type :=
-    | BTrue : BExp
-    | BFalse : BExp
-    | Eq : AExp -> AExp -> BExp
-    | Le : AExp -> AExp -> BExp
-    | Not : BExp -> BExp
-    | And : BExp -> BExp -> BExp
-    | Or : BExp -> BExp -> BExp.
-
-Inductive Com : Type :=
-    | Skip : Com
-    | Asgn : Loc -> AExp -> Com
-    | Seq : Com -> Com -> Com
-    | If : BExp -> Com -> Com -> Com
-    | While : BExp -> Com -> Com.
-
-Definition State : Type := Loc -> nat.
-
-Definition initialState : State := fun _ => 0.
-
-Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if x =? y then n else s y.
-
-Inductive AEval : AExp -> State -> nat -> Prop :=
-    | EvalConst :
-        forall (n : nat) (s : State), AEval (Const n) s n
-    | EvalVar :
-        forall (v : Loc) (s : State), AEval (Var v) s (s v)
-    | EvalAdd :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
-    | EvalSub :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Sub a1 a2) s (n1 - n2)
-    | EvalMul :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Mul a1 a2) s (n1 * n2).
+Inductive AEval (s : State) : AExp -> AExp -> Prop :=
+    | AEvalVar :
+        forall x : Loc, AEval s (Var x) (AConst (s x))
+    | AEvalAddL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Add a1 a2) (Add a1' a2)
+    | AEvalAddR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Add (AConst n) a2) (Add (AConst n) a2')
+    | AEvalAdd :
+        forall n1 n2 : nat,
+          AEval s (Add (AConst n1) (AConst n2)) (AConst (n1 + n2))
+    | AEvalSubL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Sub a1 a2) (Sub a1' a2)
+    | AEvalSubR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Sub (AConst n) a2) (Sub (AConst n) a2')
+    | AEvalSub :
+        forall n1 n2 : nat,
+          AEval s (Sub (AConst n1) (AConst n2)) (AConst (n1 - n2))
+    | AEvalMulL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> AEval s (Mul a1 a2) (Mul a1' a2)
+    | AEvalMulR :
+        forall (n : nat) (a2 a2' : AExp),
+          AEval s a2 a2' -> AEval s (Mul (AConst n) a2) (Mul (AConst n) a2')
+    | AEvalMul :
+        forall n1 n2 : nat,
+          AEval s (Mul (AConst n1) (AConst n2)) (AConst (n1 * n2)).
 
 Hint Constructors AEval.
 
-Fixpoint aeval (a : AExp) (s : State) : nat :=
+Lemma AEval_det :
+  forall {s : State} {a a1 a2 : AExp},
+    AEval s a a1 -> AEval s a a2 -> a1 = a2.
+Proof.
+  intros s a a1 a2 H. revert a2.
+  induction H; intros; repeat
+  match goal with
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | |- ?f _ _ = ?f _ _ => f_equal
+  end; auto.
+Qed.
+
+Ltac adet := repeat
+match goal with
+    | H1 : AEval ?s ?a ?a1, H2 : AEval ?s ?a ?a2 |- _ =>
+        assert (a1 = a2) by (eapply AEval_det; eauto); subst; clear H2
+end.
+
+Inductive AEvals (s : State) : AExp -> AExp -> Prop :=
+    (*| AEvals_step :
+        forall a1 a2 : AExp,
+          AEval s a1 a2 -> AEvals s a1 a2*)
+    | AEvals_refl :
+        forall a : AExp, AEvals s a a
+    | AEvals_trans :
+        forall a1 a2 a3 : AExp,
+          AEval s a1 a2 -> AEvals s a2 a3 -> AEvals s a1 a3.
+
+Hint Constructors AEvals.
+
+(* Not deterministic *)
+Lemma AEvals_det :
+  forall {s : State} {a a1 : AExp},
+    AEvals s a a1 ->
+    forall {a2 : AExp}, AEvals s a a2 -> a1 = a2.
+Proof.
+  induction 1; intros.
+Admitted.
+
+Inductive AEval' (s : State) : AExp -> nat -> Prop :=
+    | AEval'_step :
+        forall n : nat, AEval' s (AConst n) n
+    | AEval'_more :
+        forall (a1 a2 : AExp) (n : nat),
+          AEval s a1 a2 -> AEval' s a2 n -> AEval' s a1 n.
+
+Hint Constructors AEval'.
+
+Lemma AEval_AEval' :
+  forall {s : State} {a1 a2 : AExp},
+    AEval s a1 a2 ->
+    forall {n : nat}, AEval' s a1 n -> AEval' s a2 n.
+Proof.
+  induction 1; cbn; intros; repeat (
+  match goal with
+      | H : AEval ?s ?a ?a1, H' : AEval ?s ?a ?a2 |- _ =>
+        assert (a1 = a2) by (eapply AEval_det; eauto); subst; clear H'
+      | H : AEval _ ?x _ |- _ =>
+          tryif is_var x then fail else inv H
+      | H : AEval' _ ?x _ |- _ =>
+          tryif is_var x then fail else inv H
+  end; eauto).
+Qed.
+
+Fixpoint aeval (s : State) (a : AExp) : nat :=
 match a with
-    | Const n => n
+    | AConst n => n
     | Var v => s v
-    | Add a1 a2 => aeval a1 s + aeval a2 s
-    | Sub a1 a2 => aeval a1 s - aeval a2 s
-    | Mul a1 a2 => aeval a1 s * aeval a2 s
+    | Add a1 a2 => aeval s a1 + aeval s a2
+    | Sub a1 a2 => aeval s a1 - aeval s a2
+    | Mul a1 a2 => aeval s a1 * aeval s a2
 end.
 
 Lemma AEval_aeval :
-  forall {a : AExp} {s : State} {n : nat},
-    AEval a s n -> aeval a s = n.
+  forall {s : State} {a1 a2 : AExp},
+    AEval s a1 a2 -> aeval s a1 = aeval s a2.
 Proof.
-  induction 1; cbn; rewrite ?IHAEval1, ?IHAEval2; reflexivity.
+  induction 1; cbn; auto.
 Qed.
 
-Lemma aeval_AEval :
-  forall {a : AExp} {s : State} {n : nat},
-    aeval a s = n -> AEval a s n.
+Lemma AEval_aeval' :
+  forall {s : State} {a : AExp} {n : nat},
+    AEval s a (AConst n) -> aeval s a = n.
 Proof.
-  induction a; cbn; intros; rewrite <- H; auto.
-Defined.
-
-Lemma AEval_det :
-  forall {a : AExp} {s : State} {n m : nat},
-    AEval a s n -> AEval a s m -> n = m.
-Proof.
-  intros a s n m H. revert m.
-  induction H; inversion 1; subst; clear H.
-    1-2: reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-    rewrite (IHAEval1 _ H4), (IHAEval2 _ H7). reflexivity.
-Restart.
-  intros.
-  apply AEval_aeval in H.
-  apply AEval_aeval in H0.
-  rewrite <- H, <- H0.
-  reflexivity.
+  intros. change n with (aeval s (AConst n)).
+  apply AEval_aeval. assumption.
 Qed.
+
+Lemma aeval_AEval' :
+  forall {s : State} {a : AExp} {n : nat},
+    aeval s a = n -> AEval' s a n.
+Proof.
+  induction a; cbn; intros.
+    inv H. eauto.
+    inv H. eauto.
+    Check AEval_AEval'.
+    rewrite <- H. specialize (IHa1 _ eq_refl). specialize (IHa2 _ eq_refl).
+      inv IHa1.
+Admitted.
 
 Fixpoint loca (a : AExp) : list Loc :=
 match a with
-    | Const _ => []
+    | AConst _ => []
     | Var x => [x]
     | Add a1 a2 => loca a1 ++ loca a2
     | Sub a1 a2 => loca a1 ++ loca a2
@@ -115,113 +149,109 @@ end.
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (loca a) -> s1 x = s2 x.
 
-Lemma AEval_acompatible :
-  forall {a : AExp} {s1 : State} {n : nat},
-    AEval a s1 n -> forall {s2 : State},
-      acompatible a s1 s2 ->
-        AEval a s2 n.
+Lemma AEval_acompatible_det :
+  forall {s1 : State} {a a1 : AExp},
+    AEval s1 a a1 -> forall {s2 : State},
+      acompatible a s1 s2 -> forall {a2 : AExp},
+        AEval s2 a a2 -> a1 = a2.
 Proof.
   Hint Resolve in_or_app.
   unfold acompatible.
-  induction 1; cbn in *; intros; try rewrite H; auto 6.
+  induction 1; cbn in *; intros; repeat
+  match goal with
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | |- ?f _ _ = ?f _ _ => f_equal
+  end; eauto.
 Qed.
 
-Lemma AEval_acompatible_det :
-  forall {a : AExp} {s1 : State} {n1 : nat},
-    AEval a s1 n1 ->
-    forall {s2 : State} {n2 : nat},
-      AEval a s2 n2 ->
-      (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
-        n1 = n2.
-Proof.
-  induction 1; cbn; intros; auto.
-    inv H. reflexivity.
-    inv H. apply H0. left. reflexivity.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-    inv H1. erewrite IHAEval1, IHAEval2; eauto.
-Qed.
-
-Inductive BEval : BExp -> State -> bool -> Prop :=
-    | EvalTrue :
-        forall s : State, BEval BTrue s true
-    | EvalFalse :
-        forall s : State, BEval BFalse s false
+Inductive BEval (s : State) : BExp -> BExp -> Prop :=
+    | EvalEqL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> BEval s (Eq a1 a2) (Eq a1' a2)
+    | EvalEqR :
+        forall (a1 a2 a2' : AExp) (n : nat),
+          AEval s a2 a2' -> BEval s (Eq (AConst n) a2) (Eq (AConst n) a2')
     | EvalEq :
-        forall (a1 a2 : AExp) (s : State) (n m : nat),
-          AEval a1 s n -> AEval a2 s m -> BEval (Eq a1 a2) s (Nat.eqb n m)
+        forall n1 n2 : nat,
+          BEval s (Eq (AConst n1) (AConst n2)) (BConst (Nat.eqb n1 n2))
+    | EvalLeL :
+        forall a1 a1' a2 : AExp,
+          AEval s a1 a1' -> BEval s (Le a1 a2) (Le a1' a2)
+    | EvalLeR :
+        forall (a1 a2 a2' : AExp) (n : nat),
+          AEval s a2 a2' -> BEval s (Le (AConst n) a2) (Le (AConst n) a2')
     | EvalLe :
-        forall (a1 a2 : AExp) (s : State) (n m : nat),
-          AEval a1 s n -> AEval a2 s m -> BEval (Le a1 a2) s (Nat.leb n m)
+        forall n1 n2 : nat,
+          BEval s (Le (AConst n1) (AConst n2)) (BConst (Nat.leb n1 n2))
     | EvalNot :
-        forall (e : BExp) (s : State) (b : bool),
-          BEval e s b -> BEval (Not e) s (negb b)
+        forall e e' : BExp,
+          BEval s e e' -> BEval s (Not e) (Not e')
+    | EvalNotVal :
+        forall b : bool, BEval s (Not (BConst b)) (BConst (negb b))
+    | EvalAndL :
+        forall e1 e1' e2 : BExp,
+          BEval s e1 e1' -> BEval s (And e1 e2) (And e1' e2)
+    | EvalAndR :
+        forall (e2 e2' : BExp) (b : bool),
+          BEval s e2 e2' -> BEval s (And (BConst b) e2) (And (BConst b) e2')
     | EvalAnd :
-        forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
-          BEval e1 s b1 -> BEval e2 s b2 -> BEval (And e1 e2) s (andb b1 b2)
+        forall b1 b2 : bool,
+          BEval s (And (BConst b1) (BConst b2)) (BConst (andb b1 b2))
+    | EvalOrL :
+        forall e1 e1' e2 : BExp,
+          BEval s e1 e1' -> BEval s (Or e1 e2) (Or e1' e2)
+    | EvalOrR :
+        forall (e2 e2' : BExp) (b : bool),
+          BEval s e2 e2' -> BEval s (Or (BConst b) e2) (Or (BConst b) e2')
     | EvalOr :
-        forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
-          BEval e1 s b1 -> BEval e2 s b2 -> BEval (Or e1 e2) s (orb b1 b2).
+        forall b1 b2 : bool,
+          BEval s (Or (BConst b1) (BConst b2)) (BConst (orb b1 b2)).
 
 Hint Constructors BEval.
 
-Fixpoint beval (e : BExp) (s : State) : bool :=
+Fixpoint beval (s : State) (e : BExp) : bool :=
 match e with
-    | BTrue => true
-    | BFalse => false
-    | Eq a1 a2 => Nat.eqb (aeval a1 s) (aeval a2 s)
-    | Le a1 a2 => Nat.leb (aeval a1 s) (aeval a2 s)
-    | Not e' => negb (beval e' s)
-    | And e1 e2 => andb (beval e1 s) (beval e2 s)
-    | Or e1 e2 => orb (beval e1 s) (beval e2 s)
+    | BConst b => b
+    | Eq a1 a2 => Nat.eqb (aeval s a1) (aeval s a2)
+    | Le a1 a2 => Nat.leb (aeval s a1) (aeval s a2)
+    | Not e' => negb (beval s e')
+    | And e1 e2 => andb (beval s e1) (beval s e2)
+    | Or e1 e2 => orb (beval s e1) (beval s e2)
 end.
 
 Lemma BEval_beval :
-  forall {e : BExp} {s : State} {b : bool},
-    BEval e s b -> beval e s = b.
+  forall {s : State} {e1 e2 : BExp},
+    BEval s e1 e2 -> beval s e1 = beval s e2.
 Proof.
-  induction 1; cbn.
-    1-2: reflexivity.
-    rewrite (AEval_aeval H), (AEval_aeval H0). reflexivity.
-    rewrite (AEval_aeval H), (AEval_aeval H0). reflexivity.
-    rewrite IHBEval. reflexivity.
-    rewrite IHBEval1, IHBEval2. reflexivity.
-    rewrite IHBEval1, IHBEval2. reflexivity.
+  induction 1; cbn;
+  rewrite ?(AEval_aeval H), ?IHBEval, ?IHBEval1, ?IHBEval2; auto.
 Qed.
 
-Lemma beval_BEval :
-  forall {e : BExp} {s : State} {b : bool},
-    beval e s = b -> BEval e s b.
+Lemma BEval_beval' :
+  forall {s : State} {e : BExp} {b : bool},
+    BEval s e (BConst b) -> beval s e = b.
 Proof.
-  induction e; cbn; intros; subst; auto.
-    constructor; apply aeval_AEval; reflexivity.
-    constructor; apply aeval_AEval; reflexivity.
+  intros. change b with (beval s (BConst b)).
+  apply BEval_beval. assumption.
 Qed.
 
 Lemma BEval_det :
-  forall {e : BExp} {s : State} {b1 : bool},
-    BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
+  forall {s : State} {e e1 : BExp},
+    BEval s e e1 -> forall {e2 : BExp}, BEval s e e2 -> e1 = e2.
 Proof.
-  induction 1; intros.
-    inv H. reflexivity.
-    inv H. reflexivity.
-    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
-    inv H1. rewrite (AEval_det H H4), (AEval_det H0 H7). reflexivity.
-    inv H0. rewrite (IHBEval _ H2). reflexivity.
-    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
-    inv H1. rewrite (IHBEval1 _ H4), (IHBEval2 _ H7). reflexivity.
-Restart.
-  intros.
-  apply BEval_beval in H.
-  apply BEval_beval in H0.
-  rewrite <- H, <- H0.
-  reflexivity.
+  Hint Resolve AEval_det.
+  induction 1; intros; repeat
+  match goal with
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | H : BEval _ (?f _) _ |- _ => inv H
+      | |- ?f _ = ?f _ => f_equal
+      | |- ?f _ _ = ?f _ _ => f_equal
+  end; eauto.
 Qed.
 
 Fixpoint locb (b : BExp) : list Loc :=
 match b with
-    | BTrue => []
-    | BFalse => []
+    | BConst _ => []
     | Eq a1 a2 => loca a1 ++ loca a2
     | Le a1 a2 => loca a1 ++ loca a2
     | Not b' => locb b'
@@ -232,94 +262,73 @@ end.
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (locb b) -> s1 x = s2 x.
 
-Lemma BEval_bcompatible :
-  forall {e : BExp} {s1 : State} {b : bool},
-    BEval e s1 b -> forall {s2 : State},
-      bcompatible e s1 s2 -> BEval e s2 b.
-Proof.
-  Hint Resolve AEval_acompatible.
-  Hint Unfold acompatible.
-  unfold bcompatible.
-  induction 1; cbn in *; intros; constructor; eauto 6.
-Qed.
-
 Lemma BEval_bcompatible_det :
-  forall {e : BExp} {s1 : State} {b1 : bool},
-    BEval e s1 b1 -> forall {s2 : State} {b2 : bool},
-    BEval e s2 b2 ->
-      bcompatible e s1 s2 -> b1 = b2.
+  forall {s1 : State} {e e1 : BExp},
+    BEval s1 e e1 -> forall {s2 : State},
+    bcompatible e s1 s2 -> forall {e2 : BExp},
+      BEval s2 e e2 -> e1 = e2.
 Proof.
-  intros.
-  assert (BEval e s2 b1).
-    eapply BEval_bcompatible; eauto.
-  eapply BEval_det; eauto.
+  Hint Unfold acompatible.
+  Hint Resolve AEval_acompatible_det.
+  unfold bcompatible.
+  induction 1; cbn in *; intros; repeat
+  match goal with
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | H : BEval _ (?f _) _ |- _ => inv H
+      | |- ?f _ = ?f _ => f_equal
+      | |- ?f _ _ = ?f _ _ => f_equal
+  end; eauto 6.
 Qed.
 
-Inductive CEval : Com -> State -> State -> Prop :=
+Inductive CEval : Com * State -> Com * State + State -> Prop :=
     | EvalSkip :
-        forall s : State, CEval Skip s s
-    | EvalAsgn :
-        forall (v : Loc) (a : AExp) (s : State) (n : nat),
-          AEval a s n -> CEval (Asgn v a) s (changeState s v n)
-    | EvalSeq :
-        forall (c1 c2 : Com) (s1 s2 s3 : State),
-          CEval c1 s1 s2 -> CEval c2 s2 s3 -> CEval (Seq c1 c2) s1 s3
-    | EvalIfFalse :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 false -> CEval c2 s1 s2 -> CEval (If b c1 c2) s1 s2
+        forall s : State, CEval (Skip, s) (inr s)
+    | EvalAsgnStep :
+        forall (s : State) (a a' : AExp) (x : Loc),
+          AEval s a a' -> CEval (Asgn x a, s) (inl (Asgn x a', s))
+    | EvalAsgnVal :
+        forall (s : State) (n : nat) (x : Loc),
+          CEval (Asgn x (AConst n), s) (inr (changeState s x n))
+    | EvalSeqL :
+        forall (c1 c1' c2 : Com) (s s' : State),
+          CEval (c1, s) (inl (c1', s')) ->
+            CEval (Seq c1 c2, s) (inl (Seq c1' c2, s'))
+    | EvalSeqR :
+        forall (c1 c2 : Com) (s s' : State),
+          CEval (c1, s) (inr s') -> CEval (Seq c1 c2, s) (inl (c2, s'))
+    | EvalIfCond :
+        forall (b b' : BExp) (c1 c2 : Com) (s : State),
+          BEval s b b' -> CEval (If b c1 c2, s) (inl (If b' c1 c2, s))
     | EvalIfTrue :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 true -> CEval c1 s1 s2 -> CEval (If b c1 c2) s1 s2
-    | EvalWhileFalse :
+        forall (s : State) (c1 c2 : Com),
+          CEval (If (BConst true) c1 c2, s) (inl (c1, s))
+    | EvalIfFalse :
+        forall (s : State) (c1 c2 : Com),
+          CEval (If (BConst false) c1 c2, s) (inl (c2, s))
+    | EvalWhile :
         forall (b : BExp) (c : Com) (s : State),
-          BEval b s false -> CEval (While b c) s s
-    | EvalWhileTrue :
-        forall (b : BExp) (c : Com) (s1 s2 s3 : State),
-          BEval b s1 true ->
-          CEval c s1 s2 -> CEval (While b c) s2 s3 ->
-            CEval (While b c) s1 s3.
+          CEval (While b c, s) (inl (If b (Seq c (While b c)) Skip, s)).
 
 Hint Constructors CEval.
 
 Lemma CEval_det :
-  forall (c : Com) (s s1 : State),
-    CEval c s s1 -> forall s2 : State, CEval c s s2 -> s1 = s2.
+  forall {cs : Com * State} {cs1 : Com * State + State},
+    CEval cs cs1 -> forall {cs2 : Com * State + State},
+      CEval cs cs2 -> cs1 = cs2.
 Proof.
-  induction 1; intros.
-    inv H. reflexivity.
-    inv H0. rewrite (AEval_det H H5). reflexivity.
-    inv H1. specialize (IHCEval1 _ H4). subst.
-      specialize (IHCEval2 _ H7). subst. reflexivity.
-    inv H1.
-      rewrite (IHCEval _ H8). reflexivity.
-      pose (BEval_det H H7). congruence.
-    inv H1.
-      pose (BEval_det H H7). congruence.
-      rewrite (IHCEval _ H8). reflexivity.
-    inv H0.
-      reflexivity.
-      pose (BEval_det H H3). congruence.
-    inv H2.
-      pose (BEval_det H H7). congruence.
-      specialize (IHCEval1 _ H6). subst.
-        specialize (IHCEval2 _ H9). subst. reflexivity.
-Restart.
-  Hint Rewrite @AEval_det.
   Hint Resolve AEval_det BEval_det.
-  induction 1; intros.
-  Ltac wut :=
+  induction 1; intros; repeat
   match goal with
-      | H : CEval ?c _ _ |- _ => is_var c + inv H
-  end;
-  repeat match goal with
-      | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
+      | IH : forall _, CEval _ _ -> _, H : CEval _ _ |- _ =>
           let H' := fresh "H" in
-            assert (H' := IH _ H); clear H; rename H' into H; subst
-      | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
-          let H'' := fresh "H" in
-            assert (H'' := BEval_det H H'); clear H H'
-  end; eauto; try congruence.
-  all: wut.
+            pose (H' := IH _ H); inv H'; clear H
+      | |- ?f _ = ?f _ => f_equal; eauto
+      | |- ?f _ _ = ?f _ _ => f_equal; eauto
+      | |- ?f _ _ _ = ?f _ _ _ => f_equal; eauto
+      | H : AEval _ (?f _) _ |- _ => inv H
+      | H : BEval _ (?f _) _ |- _ => inv H
+      | H : CEval (?f _ _) _ |- _ => inv H
+  end.
 Qed.
 
 Require Import Recdef.
@@ -330,16 +339,16 @@ match n with
     | S n' =>
         match c with
             | Skip => Some s
-            | Asgn x a => Some (changeState s x (aeval a s))
+            | Asgn x a => Some (changeState s x (aeval s a))
             | Seq c1 c2 =>
                 match ceval n' c1 s with
                     | None => None
                     | Some s' => ceval n' c2 s'
                 end
             | If b c1 c2 =>
-                if beval b s then ceval n' c1 s else ceval n' c2 s
+                if beval s b then ceval n' c1 s else ceval n' c2 s
             | While b c =>
-                if beval b s
+                if beval s b
                 then
                   match ceval n' c s with
                       | None => None
@@ -349,13 +358,26 @@ match n with
         end
 end.
 
-Hint Immediate aeval_AEval beval_BEval.
+(*Hint Immediate aeval_AEval beval_BEval.*)
 
-Lemma ceval_CEval :
+Inductive CEval' : Com * State -> State -> Prop :=
+    | CEval'_step :
+        forall (cs : Com * State) (s : State),
+          CEval cs (inr s) -> CEval' cs s
+    | CEval'_more :
+        forall (cs1 cs2 : Com * State) (s : State),
+          CEval cs1 (inl cs2) -> CEval' cs2 s -> CEval' cs1 s.
+
+Hint Constructors CEval'.
+
+(*
+Lemma ceval_CEval' :
   forall (n : nat) (c : Com) (s1 s2 : State),
-    ceval n c s1 = Some s2 -> CEval c s1 s2.
+    ceval n c s1 = Some s2 -> CEval' (c, s1) s2.
 Proof.
-  intros n c s1. functional induction ceval n c s1; intros; inv H; eauto.
+  intros n c s1.
+  functional induction ceval n c s1; intros; inv H; eauto.
+    constructor. Print CEval.
 Qed.
 
 Lemma ceval_plus :
@@ -683,3 +705,4 @@ Definition Observation (A : Type) : Type := Com -> A.
 Definition oequiv {A : Type} (c1 c2 : Com) : Prop :=
   forall (G : Context) (f : Observation A),
     f (put G c1) = f (put G c2).
+*)
