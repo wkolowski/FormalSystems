@@ -2,4 +2,4 @@
 *.vo
 *.glob
 makefile
-
+.coqdeps.d

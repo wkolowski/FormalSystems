@@ -67,7 +67,6 @@ Lemma weakening :
 Proof.
   induction 1; intros; auto.
     admit.
-    
 Admitted.
 
 Fixpoint subst (F : Formula) (x : V) (P : Formula) : Formula :=
@@ -112,4 +111,8 @@ Lemma consistent :
 Proof.
   intros C H. remember FFalse as F. revert HeqF.
   induction H; intro; try inv HeqF; auto.
+    Focus 4. subst.
+Restart.
+  do 2 intro. inv H.
+    Focus 4.
 Abort.
