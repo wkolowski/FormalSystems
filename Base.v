@@ -1,3 +1,20 @@
+Require Export Bool.
+
+Require Export List.
+Export ListNotations.
+
+Parameter Loc : Type.
+Parameter dec : Loc -> Loc -> bool.
+Parameter dec_spec :
+  forall x y : Loc, reflect (x = y) (dec x y).
+
+Require Export Arith.
+
+Notation "x =? y" := (dec x y) (at level 70).
+
+Ltac inv H :=
+  inversion H; subst; clear H.
+
 Definition omap {A B : Type}
   (f : A -> B) (oa : option A) : option B :=
 match oa with

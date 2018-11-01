@@ -1,5 +1,5 @@
 (** TODO:
-    - observational equivalence
-    - transition systems
     - for loop
+    - observational equivalence
+    - transition systems (mainly definitions)
 *)
