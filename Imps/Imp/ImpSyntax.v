@@ -90,6 +90,23 @@ match n with
         end
 end.
 
+Lemma ceval_plus :
+  forall (n k : nat) (c : Com) (s1 s2 : State),
+    ceval n c s1 = Some s2 -> ceval (n + k) c s1 = Some s2.
+Proof.
+  induction n as [| n']; cbn; intros.
+    inv H.
+    destruct c; auto.
+      destruct (ceval n' c1 s1) eqn: Heq.
+        erewrite IHn'; eauto.
+        inv H.
+      destruct (beval s1 b) eqn: Hb; eauto.
+      destruct (beval s1 b) eqn: Hb; eauto.
+        destruct (ceval n' c s1) eqn: Heq.
+          erewrite IHn'; eauto.
+          inv H.
+Qed.
+
 (* The list of all variables which are assigned to by the instruction c. *)
 Fixpoint locw (c : Com) : list Loc :=
 match c with

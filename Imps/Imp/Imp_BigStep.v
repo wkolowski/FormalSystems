@@ -27,7 +27,7 @@ Lemma aeval_AEval :
     aeval s a = n -> AEval a s n.
 Proof.
   induction a; cbn; intros; rewrite <- H; auto.
-Defined.
+Qed.
 
 Lemma AEval_det :
   forall {a : AExp} {s : State} {n m : nat},
@@ -178,29 +178,9 @@ Lemma CEval_det :
   forall (c : Com) (s s1 : State),
     CEval c s s1 -> forall s2 : State, CEval c s s2 -> s1 = s2.
 Proof.
-  induction 1; intros.
-    inv H. reflexivity.
-    inv H0. rewrite (AEval_det H H5). reflexivity.
-    inv H1. specialize (IHCEval1 _ H4). subst.
-      specialize (IHCEval2 _ H7). subst. reflexivity.
-    inv H1.
-      rewrite (IHCEval _ H8). reflexivity.
-      pose (BEval_det H H7). congruence.
-    inv H1.
-      pose (BEval_det H H7). congruence.
-      rewrite (IHCEval _ H8). reflexivity.
-    inv H0.
-      reflexivity.
-      pose (BEval_det H H3). congruence.
-    inv H2.
-      pose (BEval_det H H7). congruence.
-      specialize (IHCEval1 _ H6). subst.
-        specialize (IHCEval2 _ H9). subst. reflexivity.
-Restart.
   Hint Rewrite @AEval_det.
   Hint Resolve AEval_det BEval_det.
-  induction 1; intros.
-  Ltac wut :=
+  induction 1; intros;
   match goal with
       | H : CEval ?c _ _ |- _ => is_var c + inv H
   end;
@@ -212,7 +192,6 @@ Restart.
           let H'' := fresh "H" in
             assert (H'' := BEval_det H H'); clear H H'
   end; eauto; try congruence.
-  all: wut.
 Qed.
 
 Hint Immediate aeval_AEval beval_BEval.
