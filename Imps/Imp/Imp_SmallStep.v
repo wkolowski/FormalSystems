@@ -130,71 +130,6 @@ Proof.
   intros. apply AEvals_aevals in H. cbn in H. assumption.
 Qed.
 
-Require Imp_BigStep.
-
-Lemma Imp_BigStep_SmallStep :
-  forall (s : State) (a : AExp) (n : nat),
-    Imp_BigStep.AEval a s n <-> AEvals s a (AConst n).
-Proof.
-  split; intro.
-    apply Imp_BigStep.AEval_aeval in H. apply aeval_AEvals. assumption.
-    apply AEvals_aeval in H. apply Imp_BigStep.aeval_AEval. assumption.
-Qed.
-
-(*
-Inductive AEvals (s : State) : AExp -> nat -> Prop :=
-    | AEval'_step :
-        forall n : nat, AEval' s (AConst n) n
-    | AEval'_more :
-        forall (a1 a2 : AExp) (n : nat),
-          AEval s a1 a2 -> AEval' s a2 n -> AEval' s a1 n.
-
-Hint Constructors AEval'.
-
-Lemma AEval_AEval' :
-  forall {s : State} {a1 a2 : AExp},
-    AEval s a1 a2 ->
-    forall {n : nat}, AEval' s a1 n -> AEval' s a2 n.
-Proof.
-  induction 1; cbn; intros; repeat (
-  match goal with
-      | H : AEval ?s ?a ?a1, H' : AEval ?s ?a ?a2 |- _ =>
-        assert (a1 = a2) by (eapply AEval_det; eauto); subst; clear H'
-      | H : AEval _ ?x _ |- _ =>
-          tryif is_var x then fail else inv H
-      | H : AEval' _ ?x _ |- _ =>
-          tryif is_var x then fail else inv H
-  end; eauto).
-Qed.
-
-Lemma AEval_aeval :
-  forall {s : State} {a1 a2 : AExp},
-    AEval s a1 a2 -> aeval s a1 = aeval s a2.
-Proof.
-  induction 1; cbn; auto.
-Qed.
-
-Lemma AEval_aeval' :
-  forall {s : State} {a : AExp} {n : nat},
-    AEval s a (AConst n) -> aeval s a = n.
-Proof.
-  intros. change n with (aeval s (AConst n)).
-  apply AEval_aeval. assumption.
-Qed.
-
-Lemma aeval_AEval' :
-  forall {s : State} {a : AExp} {n : nat},
-    aeval s a = n -> AEval' s a n.
-Proof.
-  induction a; cbn; intros.
-    inv H. eauto.
-    inv H. eauto.
-    rewrite <- H. specialize (IHa1 _ eq_refl). specialize (IHa2 _ eq_refl).
-      inv IHa1.
-Admitted.
-*)
-
-(*
 Lemma AEval_acompatible_det :
   forall {s1 : State} {a a1 : AExp},
     AEval s1 a a1 -> forall {s2 : State},
@@ -209,9 +144,6 @@ Proof.
       | |- ?f _ _ = ?f _ _ => f_equal
   end; eauto.
 Qed.
-*)
-
-Print BExp.
 
 Inductive BEval (s : State) : BExp -> BExp -> Prop :=
     | BEval_BRelOp_L :
@@ -372,7 +304,6 @@ Proof.
   intros. apply BEvals_bevals in H. cbn in H. assumption.
 Qed.
 
-(*
 Lemma BEval_bcompatible_det :
   forall {s1 : State} {e e1 : BExp},
     BEval s1 e e1 -> forall {s2 : State},
@@ -389,16 +320,6 @@ Proof.
       | |- ?f _ = ?f _ => f_equal
       | |- ?f _ _ = ?f _ _ => f_equal
   end; eauto 6.
-Qed.
-*)
-
-Lemma Imp_BigStep_SmallStep_logic :
-  forall (s : State) (e : BExp) (b : bool),
-    Imp_BigStep.BEval e s b <-> BEvals s e (BConst b).
-Proof.
-  split; intro.
-    apply Imp_BigStep.BEval_beval in H. apply beval_BEvals. assumption.
-    apply BEvals_beval in H. apply Imp_BigStep.beval_BEval. assumption.
 Qed.
 
 Inductive CEval : Com * State -> Com * State -> Prop :=
@@ -430,6 +351,17 @@ Inductive CEval : Com * State -> Com * State -> Prop :=
 
 Hint Constructors CEval.
 
+Lemma while_true_do_skip :
+  forall s1 s2 : State,
+    ~ CEval (While (BConst true) Skip, s1) (Skip, s2).
+Proof.
+  intros s1 s2 H.
+  remember (While (BConst true) Skip, s1) as cs1.
+  remember (Skip, s2) as cs2.
+  revert s1 s2 Heqcs1 Heqcs2.
+  induction H; intros; inv Heqcs1; inv Heqcs2.
+Qed.
+
 Lemma CEval_det :
   forall {cs cs1 : Com * State},
     CEval cs cs1 -> forall {cs2 : Com * State},
@@ -460,26 +392,33 @@ Hint Unfold CEvals.
 
 Lemma CEval_cevals :
   forall {cs1 cs2 : Com * State},
-    CEval cs1 cs2 -> forall {n : nat} {s : State},
+    CEval cs1 cs2 -> forall (n : nat) (s : State),
       ceval n (fst cs2) (snd cs2) = Some s ->
-      ceval (S n) (fst cs1) (snd cs2) = Some s.
+      ceval (S n) (fst cs1) (snd cs1) = Some s.
 Proof.
-  induction 1; cbn.
-    destruct n; cbn; intros.
-      inv H0.
-      inv H0. do 2 f_equal. apply AEval_aevals. assumption.
-    destruct n0; cbn; intros; auto.
-      inv H.
-      inv H. compute. f_equal. admit.
-    all: destruct n as [| n']; cbn in *; intros; eauto.
-      Focus 2. inv H0.
-      Focus 2. apply BEval_bevals in H. rewrite H. destruct (beval s b').
-        destruct c1; inv H0.
-Restart.
-  intros. revert cs1 H s H0.
-  functional induction ceval n (fst cs2) (snd cs2); intros; try congruence.
-    inv H0.
-Admitted.
+  induction 1; cbn; intros [| fuel] final Heq;
+  try (cbn in *; congruence; fail).
+    cbn in *. rewrite <- Heq. do 2 f_equal. apply AEval_aevals. assumption.
+    Focus 2. cbn in Heq. apply BEval_bevals in H. rewrite <- Heq, H.
+      destruct (beval s b').
+        all: rewrite Heq; change (S fuel) with (1 + fuel); rewrite plus_comm;
+          apply ceval_plus; assumption.
+    Focus 2. cbn in Heq. destruct (beval s b).
+      destruct fuel; cbn in Heq.
+        inv Heq.
+        destruct (ceval fuel c s) eqn: Heq'.
+          change (S (S fuel)) with (2 + fuel).
+            rewrite (ceval_plus' Heq' 2).
+            rewrite (ceval_plus' Heq 2). reflexivity.
+          inv Heq.
+      destruct fuel; inv Heq. reflexivity.
+    cbn in Heq. unfold fst, snd in *.
+      destruct (ceval fuel c1' s') eqn: Heq'.
+        specialize (IHCEval _ _ Heq'). rewrite IHCEval.
+          change (S fuel) with (1 + fuel). rewrite (ceval_plus' Heq 1).
+          reflexivity.
+        inv Heq.
+Qed.
 
 Lemma CEvals_Asgn_Step :
   forall (s : State) (a a' : AExp) (x : Loc),
@@ -498,7 +437,17 @@ Lemma CEvals_Seq_L :
     CEvals (c1, s) (c1', s') ->
       CEvals (Seq c1 c2, s) (Seq c1' c2, s').
 Proof.
-Admitted.
+  intros.
+  remember (c1, s) as cs1.
+  remember (c1', s') as cs1'.
+  revert c1 s c1' s' Heqcs1 Heqcs1'.
+  induction H; intros.
+    inv Heqcs1. auto.
+    inv Heqcs1. inv Heqcs1'. auto.
+    inv Heqcs1. destruct y.
+      specialize (IHrtc1 _ _ _ _ eq_refl eq_refl).
+      specialize (IHrtc2 _ _ _ _ eq_refl eq_refl). eauto.
+Qed.
 
 Lemma CEvals_Seq_R :
   forall (c : Com) (s : State),
@@ -614,27 +563,58 @@ Proof.
   revert c s1 s2 Heqcs1 Heqcs2.
   induction H; intros.
     inv Heqcs1. inv Heqcs2. exists 1. cbn. reflexivity.
-    inv Heqcs1. destruct y.
-      destruct  (IHrtc' _ _ _ eq_refl eq_refl) as [n IH].
-      exists (S n). cbn. inv H. cbn in *.
-Admitted.
+    inv Heqcs1. clear H1.
+    inv H; destruct (IHrtc' _ _ _ eq_refl eq_refl) as [fuel IH].
+      exists fuel. rewrite <- IH. destruct fuel; cbn.
+          reflexivity.
+          do 2 f_equal. apply AEval_aevals. assumption.
+      exists fuel. rewrite <- IH. destruct fuel; cbn; reflexivity.
+      rewrite <- IH. destruct fuel; cbn in *.
+        inv IH.
+        destruct (ceval fuel c1' s') eqn: Heq.
+          Focus 2. inv IH.
+          exists (S fuel + 1). cbn. rewrite plus_comm.
+            pose (CEval_cevals H4 (fuel) s Heq). unfold fst, snd in e.
+            unfold plus. rewrite e. change (S fuel) with (1 + fuel).
+            rewrite plus_comm. rewrite IH, (ceval_plus _ 1 _ _ _ IH).
+            reflexivity.
+      exists (S fuel). cbn. destruct fuel. cbn in *.
+        assumption. rewrite ceval_equation. assumption.
+      exists fuel. rewrite <- IH. destruct fuel; cbn.
+        reflexivity.
+        apply BEval_bevals in H4. rewrite H4. reflexivity.
+      exists (S fuel). cbn. assumption.
+      exists (S fuel). cbn. assumption.
+      exists (S fuel).
+        apply ceval_plus' with 2 in IH. cbn in IH. cbn. assumption.
+Qed.
 
 Lemma CEvals_ceval :
   forall (c : Com) (s1 s2 : State),
     CEvals (c, s1) (Skip, s2) -> exists n : nat,
       ceval n c s1 = Some s2.
 Proof.
-  intros c s1 s2 H.
-  remember (c, s1) as cs1.
-  remember (Skip, s2) as cs2.
-  revert c s1 s2 Heqcs1 Heqcs2.
-  induction H; intros.
-    inv Heqcs1. inv H.
-      exists 1. cbn. reflexivity.
-      1-3: exists 2; cbn; reflexivity.
-    inv Heqcs1. inv Heqcs2. exists 1. cbn. reflexivity.
-    inv Heqcs1. inv H.
-Admitted.
+  intros. apply CEvals'_ceval, CEvals_CEvals'. assumption.
+Qed.
+
+Require Imp_BigStep.
+
+Lemma Imp_BigStep_SmallStep_AExp :
+  forall (s : State) (a : AExp) (n : nat),
+    Imp_BigStep.AEval a s n <-> AEvals s a (AConst n).
+Proof.
+  split; intro.
+    apply Imp_BigStep.AEval_aeval in H. apply aeval_AEvals. assumption.
+    apply AEvals_aeval in H. apply Imp_BigStep.aeval_AEval. assumption.
+Qed.
+Lemma Imp_BigStep_SmallStep_BExp :
+  forall (s : State) (e : BExp) (b : bool),
+    Imp_BigStep.BEval e s b <-> BEvals s e (BConst b).
+Proof.
+  split; intro.
+    apply Imp_BigStep.BEval_beval in H. apply beval_BEvals. assumption.
+    apply BEvals_beval in H. apply Imp_BigStep.beval_BEval. assumption.
+Qed.
 
 Lemma Imp_BigStep_SmallStep_Com :
   forall (c : Com) (s1 s2 : State),
@@ -645,17 +625,6 @@ Proof.
       eapply ceval_CEvals. eassumption.
     apply CEvals_ceval in H. destruct H as [n H].
       apply Imp_BigStep.ceval_CEval with n. assumption.
-Qed.
-
-Lemma while_true_do_skip :
-  forall s1 s2 : State,
-    ~ CEval (While (BConst true) Skip, s1) (Skip, s2).
-Proof.
-  intros s1 s2 H.
-  remember (While (BConst true) Skip, s1) as cs1.
-  remember (Skip, s2) as cs2.
-  revert s1 s2 Heqcs1 Heqcs2.
-  induction H; intros; inv Heqcs1; inv Heqcs2.
 Qed.
 
 (*

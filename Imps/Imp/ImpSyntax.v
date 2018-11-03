@@ -107,6 +107,14 @@ Proof.
           inv H.
 Qed.
 
+Lemma ceval_plus' :
+  forall {n : nat} {c : Com} {s1 s2 : State},
+    ceval n c s1 = Some s2 ->
+      forall k : nat, ceval (k + n) c s1 = Some s2.
+Proof.
+  intros. rewrite plus_comm. apply ceval_plus. assumption.
+Qed.
+
 (* The list of all variables which are assigned to by the instruction c. *)
 Fixpoint locw (c : Com) : list Loc :=
 match c with
