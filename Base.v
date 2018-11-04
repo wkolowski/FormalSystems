@@ -15,6 +15,8 @@ Notation "x =? y" := (dec x y) (at level 70).
 Ltac inv H :=
   inversion H; subst; clear H.
 
+(** * Stuff for dealing with [option]. *)
+
 Definition omap {A B : Type}
   (f : A -> B) (oa : option A) : option B :=
 match oa with
@@ -35,3 +37,33 @@ match oa with
     | None => None
     | Some a => f a
 end.
+
+(** * Reflexive-transitive closures *)
+
+Inductive rtc {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
+    | rtc_step :
+        forall x y : A, R x y -> rtc R x y
+    | rtc_refl :
+        forall x : A, rtc R x x
+    | rtc_trans :
+        forall x y z : A, rtc R x y -> rtc R y z -> rtc R x z.
+
+Hint Constructors rtc.
+
+Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
+    | rtc'_refl :
+        forall x : A, rtc' R x x
+    | rtc'_steptrans :
+        forall x y z : A, R x y -> rtc' R y z -> rtc' R x z.
+
+Hint Constructors rtc'.
+
+Lemma rtc'_trans :
+  forall {A : Type} {R : A -> A -> Prop} {x y z : A},
+    rtc' R x y -> rtc' R y z -> rtc' R x z.
+Proof.
+  intros until 1. revert z.
+  induction H; intros.
+    assumption.
+    eauto.
+Qed.
