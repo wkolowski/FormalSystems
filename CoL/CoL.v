@@ -1,3 +1,16 @@
+(** * Computability Logic *)
+
+(** This is an attempt at formalizing Giorgi Japaridze's Computability
+    Logic based on "In the beginning was game semantics" from the book
+    "Games: Unifying Logic, Language, and Philosophy".
+
+    The approach is to replace Japaridze's "classical" definitions with
+    mainly coinductive ones friendly to type theory. Currently it's
+    rather experimental and certainly very broken, because he seems to
+    define game operations by defining its structure and winner mutually
+    at the same time. Here this would require mutual coinduction and I
+    don't know how to do it properly. *)
+
 Require Import List.
 Import ListNotations.
 
@@ -98,6 +111,15 @@ CoInductive sim (g1 g2 : ConstantGame) : Prop :=
           (next g2 (@transport _ id _ _ Labmoves move))
 }.
 
+Axiom sim_eq :
+  forall g1 g2 : ConstantGame, sim g1 g2 -> g1 = g2.
+
+(** The axiom is fine, because replacing [sim] with [=] in the definition
+    of [sim] gives exactly what HoTT tells us is the characterization of
+    paths for constant games. *)
+
+Require Import Setoid.
+
 Lemma sim_refl :
   forall g : ConstantGame, sim g g.
 Proof.
@@ -139,6 +161,14 @@ Proof.
       apply nexts1.
       rewrite <- transport_cat. apply nexts2.
 Qed.
+
+Instance Equivalence_sim : Equivalence sim.
+Proof.
+  split; red.
+    apply sim_refl.
+    apply sim_sym.
+    apply sim_trans.
+Defined.
 
 (** Tactics *)
 
@@ -1024,6 +1054,23 @@ Restart.
     exists Nature. destruct g. constructor; cbn in *.
 Abort.
 
+Lemma Winner_sim :
+  forall (g1 g2 : ConstantGame) (p : Player),
+    sim g1 g2 -> Winner g1 p -> Winner g2 p.
+Proof.
+  cofix CH.
+  destruct 1, 1. constructor; intro.
+    apply winners0. apply Winner2. intro. apply H. congruence.
+    rewrite <- Labmoves0 in X. decompose [ex or and] (Winner3 X).
+      left. exists (transport id Labmoves0 x). split.
+        rewrite <- whos0. assumption.
+        apply CH with (next g1 x); auto.
+      right. intros.
+        apply CH with (next g1 (transport id (eq_sym Labmoves0) move)).
+          rewrite nexts0, transport_cat, cat_inv. cbn. reflexivity.
+        apply H. rewrite whos0, transport_cat, cat_inv. cbn. assumption.
+Qed.
+
 Lemma Winner_Not :
   forall (g : ConstantGame) (p : Player),
     Winner (Not g) p <-> Winner g (swap p).
@@ -1046,6 +1093,13 @@ Proof.
           destruct (who g move0); reflexivity.
 Qed.
 
+Lemma Winner_Not' :
+  forall (g : ConstantGame) (p : Player),
+    Winner g p <-> Winner (Not g) (swap p).
+Proof.
+  intros. rewrite Winner_Not. destruct p; reflexivity.
+Qed.
+
 Lemma Winner_chor_Machine :
   forall (g1 g2 : ConstantGame),
     Winner (chor g1 g2) Machine <-> Winner g1 Machine \/ Winner g2 Machine.
@@ -1061,6 +1115,145 @@ Proof.
     intros. destruct H; cbn in *. destruct (Winner3 true).
       destruct H, x, H; auto.
       specialize (H false). cbn in H.
+Admitted.
+
+Lemma Winner_chor_Nature :
+  forall (g1 g2 : ConstantGame),
+    Winner (chor g1 g2) Nature <-> Winner g1 Nature /\ Winner g2 Nature.
+Proof.
+Admitted.
+
+Lemma Winner_chor :
+  forall (g1 g2 : ConstantGame) (p : Player),
+    Winner (chor g1 g2) p <->
+    match p with
+        | Machine => Winner g1 Machine \/ Winner g2 Machine
+        | Nature => Winner g1 Nature /\ Winner g2 Nature
+    end.
+Proof.
+  destruct p.
+    apply Winner_chor_Machine.
+    apply Winner_chor_Nature.
+Qed.
+
+Lemma Winner_chand :
+  forall (g1 g2 : ConstantGame) (p : Player),
+    Winner (chand g1 g2) p <->
+    match p with
+        | Machine => Winner g1 Machine /\ Winner g2 Machine
+        | Nature => Winner g1 Nature \/ Winner g2 Nature
+    end.
+Proof.
+  intros. rewrite Winner_Not'.
+  assert (forall g1 g2, Not (chand g1 g2) = chor (Not g1) (Not g2)).
+    intros. apply sim_eq. apply Not_chand.
+  rewrite H, Winner_chor.
+  destruct p; cbn; rewrite !Winner_Not; cbn; reflexivity.
+Qed.
+
+Lemma Winner_chexists :
+  forall (A : Type) (f : A -> ConstantGame) (p : Player),
+    Winner (chexists f) p <->
+    match p with
+        | Machine => exists x : A, Winner (f x) Machine
+        | Nature => forall x : A, Winner (f x) Nature
+    end.
+Proof.
+Admitted.
+
+Lemma Winner_chall :
+  forall (A : Type) (f : A -> ConstantGame) (p : Player),
+    Winner (chall f) p <->
+    match p with
+        | Machine => forall x : A, Winner (f x) Machine
+        | Nature => exists x : A, Winner (f x) Nature
+    end.
+Proof.
+Admitted.
+
+Lemma Winner_por_1 :
+  forall g1 g2 : ConstantGame,
+    Winner g1 Machine -> Winner g2 Machine -> Winner (por g1 g2) Machine.
+Proof.
+  cofix CH.
+  intros g1 g2 H1 H2.
+  decompose [Winner] H1.
+  decompose [Winner] H2.
+  constructor; cbn in *.
+    auto.
+    destruct 1.
+      destruct (Winner3 l).
+        destruct H as [move [H1' H2']]. left. exists (inl move). auto.
+        destruct (LEM (exists move : Labmove g2, who g2 move = Machine)).
+          destruct H0. destruct (Winner5 x).
+            destruct H3. left. exists (inr x0). destruct H3. auto.
+            right. destruct move; auto.
+          right. destruct move.
+            auto.
+            intro. apply CH.
+              assumption.
+              destruct (Winner5 l0).
+                destruct H4 as [move [H41 H42]]. contradiction H0.
+                  exists move. assumption.
+                apply H4. assumption.
+      destruct (Winner5 l).
+        destruct H as [move [H1' H2']]. left. exists (inr move). auto.
+        destruct (LEM (exists move : Labmove g1, who g1 move = Machine)).
+          destruct H0. destruct (Winner3 x).
+            destruct H3. left. exists (inl x0). destruct H3. auto.
+            right. destruct move; auto.
+          right. destruct move.
+            intro. apply CH.
+              destruct (Winner3 l0).
+                destruct H4 as [move [H41 H42]]. contradiction H0.
+                  exists move. assumption.
+                apply H4. assumption.
+              assumption.
+            auto.
+Qed.
+
+Lemma Winner_por :
+  forall g1 g2 : ConstantGame,
+    Winner (por g1 g2) Nature -> Winner g1 Nature.
+Proof.
+  cofix CH.
+  constructor.
+    intro. destruct H. cbn in *. apply Winner2. intro.
+Admitted.
+
+Lemma Winner_pand :
+  forall (g1 g2 : ConstantGame) (p : Player),
+    Winner (pand g1 g2) p <-> False.
+Proof.
+Admitted.
+
+Lemma Winner_pexists :
+  forall (f : nat -> ConstantGame) (p : Player),
+    Winner (pexists f) p <-> False.
+Proof.
+Admitted.
+
+Lemma Winner_pall :
+  forall (f : nat -> ConstantGame) (p : Player),
+    Winner (pall f) p <-> False.
+Proof.
+Admitted.
+
+Lemma excluded_middle :
+  forall g : ConstantGame,
+    Winner (por g (Not g)) Machine.
+Proof.
+  cofix CH.
+  constructor.
+    intro. destruct g; cbn in *. destruct winner_spec'0, x; auto.
+    cbn. destruct 1.
+      case_eq (who g l); intro.
+        left. exists (inl l). split.
+          assumption.
+          admit.
+        right. destruct move. Guarded.
+Restart.
+  intro. destruct (LEM (Winner g Machine)).
 Abort.
 
 (** * Static constant games *)
@@ -1079,6 +1272,96 @@ Proof.
   apply Winner_Not in H1.
   specialize (H _ _ H0 H1). destruct p, p'; cbn in *; congruence.
 Qed.
+
+Lemma Static_chor :
+  forall g1 g2 : ConstantGame,
+    Static g1 -> Static g2 -> Static (chor g1 g2).
+Proof.
+  unfold Static. intros.
+  apply Winner_chor in H1.
+  apply Winner_chor in H2.
+  destruct p, p', H1, H2; auto.
+Qed.
+
+Lemma Static_chand :
+  forall g1 g2 : ConstantGame,
+    Static g1 -> Static g2 -> Static (chand g1 g2).
+Proof.
+  unfold Static. intros.
+  apply Winner_chand in H1.
+  apply Winner_chand in H2.
+  destruct p, p', H1, H2; auto.
+Qed.
+
+Lemma Static_chexists :
+  forall (A : Type) (f : A -> ConstantGame),
+    (forall x : A, Static (f x)) -> Static (chexists f).
+Proof.
+  unfold Static. intros.
+  apply Winner_chexists in H0.
+  apply Winner_chexists in H1.
+  destruct p, p'; auto.
+    destruct H0. apply (H _ _ _ H0 (H1 x)).
+    destruct H1. apply (H _ _ _ (H0 x) H1).
+Qed.
+
+Lemma Static_por :
+  forall g1 g2 : ConstantGame,
+    Static g1 -> Static g2 -> Static (por g1 g2).
+Proof.
+  unfold Static. intros.
+Abort.
+
+(** ** Static 2 *)
+
+(** The definition of static constant games must be coinductive or
+    we are doomed to fail. *)
+
+(* This won't work. *)
+(*
+CoInductive Static' (g : ConstantGame) : Prop :=
+{
+    victor : Player;
+    Static'_1 : (Labmove g -> False) -> winner g victor;
+    Static'_2 :
+      forall move : Labmove g,
+        exists s : Static' (next g move), victor s = victor;
+}.
+*)
+
+(** ** Static 3 *)
+
+(** A game is Static' if it has exactly one winner. *)
+Definition Static' (g : ConstantGame) : Prop :=
+  exists p : Player, Winner g p /\ forall p' : Player, Winner g p' -> p = p'.
+
+Lemma Static'_Not :
+  forall g : ConstantGame,
+    Static' g -> Static' (Not g).
+Proof.
+  unfold Static'.
+  destruct 1 as (p & H & Heq). exists (swap p). split.
+    apply Winner_Not. destruct p; cbn; assumption.
+    intros. apply Winner_Not in H0. specialize (Heq _ H0).
+      rewrite Heq. destruct p'; reflexivity.
+Qed.
+
+Lemma Static'_por :
+  forall g1 g2 : ConstantGame,
+    Static' g1 -> Static' g2 -> Static' (por g1 g2).
+Proof.
+  unfold Static'.
+  destruct 1 as (p1 & H1 & Heq1),
+           1 as (p2 & H2 & Heq2).
+  destruct p1, p2.
+    exists Machine. split.
+      apply Winner_por_1; assumption.
+      destruct p'; intro.
+        reflexivity.
+        destruct H. admit.
+Abort.
+
+Print Assumptions Static'_Not.
 
 (** Miscellaneous *)
 
