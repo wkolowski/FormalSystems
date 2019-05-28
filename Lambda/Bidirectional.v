@@ -37,12 +37,6 @@ Inductive has_type : Ctx -> tm -> type -> Prop :=
         forall (G : Ctx) (t1 t2 : tm) (A B : type),
           has_type G t1 (TArr A B) -> has_type G t2 A ->
             has_type G (TApp t1 t2) B
-(* PHOAS
-    | ht_Abs :
-        forall (G : Ctx) (f : V -> tm) (A B : type),
-          (forall v : V, has_type G (f v) B) ->
-            has_type G (TLam f) B
-*)
     | ht_Abs :
         forall (G : Ctx) (x : V) (t : tm) (A B : type),
           has_type (fun v : V => if x =? v then Some A else G v) t B ->
@@ -194,12 +188,20 @@ match t with
         end
     | TIf t1 t2 t3 =>
         check G t1 TBool && check G t2 A && check G t3 A
-    | _ => true
-(*        match infer G t with
-            | Some A' => type_eq_dec A A'
+(* Not very pretty, but it works. *)
+    | TVar x =>
+        match G x with
+            | Some B => type_eq_dec A B
             | _ => false
         end
-*)
+    | TApp t1 t2 =>
+        match infer G t1 with
+            | Some (TArr X Y) => check G t2 X && type_eq_dec Y A
+            | _ => false
+        end
+    | TTrue => type_eq_dec TBool A
+    | TFalse => type_eq_dec TBool A
+    | TAnn t' A' => check G t' A' && type_eq_dec A A'
 end.
 
 Lemma type_eq_dec_refl :
@@ -210,25 +212,86 @@ Proof.
     rewrite IHA1, IHA2. cbn. reflexivity.
 Qed.
 
-Lemma infer_ok :
-  forall (G : Ctx) (t : tm) (A : type),
-    infer_type G t A -> infer G t = Some A
+Ltac inv H := inversion H; subst; clear H.
 
-with check_ok :
-  forall (G : Ctx) (t : tm) (A : type),
-    check_type G t A -> check G t A = true
-
-with infer_check :
+Lemma infer_check :
   forall (G : Ctx) (t : tm) (A : type),
     infer G t = Some A -> check G t A = true.
 Proof.
+  destruct t; cbn; intros.
+    rewrite H. apply type_eq_dec_refl.
+    destruct (infer G t1) as [[] |]; inv H.
+      destruct (check G t2 t); inv H1. cbn. apply type_eq_dec_refl.
+    1-4: inv H; auto.
+    destruct (check G t t0); inv H. cbn. apply type_eq_dec_refl.
+Qed.
+
+Lemma type_eq_dec_true :
+  forall A B : type,
+    type_eq_dec A B = true -> A = B.
+Proof.
+  induction A; destruct B; cbn; intros; try congruence.
+  specialize (IHA1 B1). specialize (IHA2 B2).
+  destruct (type_eq_dec A1 B1), (type_eq_dec A2 B2).
+    all: firstorder; congruence.
+Qed.
+
+Lemma infer_correct :
+  forall (G : Ctx) (t : tm) (A : type),
+    infer G t = Some A -> infer_type G t A
+
+with check_correct :
+  forall (G : Ctx) (t : tm) (A : type),
+    check G t A = true -> check_type G t A.
+Proof.
+  destruct t; cbn; intros.
+    constructor. assumption.
+    case_eq (infer G t1); intros; rewrite H0 in H.
+      destruct t; inv H. case_eq (check G t2 t3); intro; rewrite H in H2; inv H2.
+        eapply infer_App.
+          eapply infer_correct. exact H0.
+          apply check_correct. assumption.
+    1-5: inversion H; subst; repeat constructor.
+    case_eq (check G t t0); intro; rewrite H0 in H; inv H.
+      constructor. apply check_correct. assumption.
+  destruct t; cbn; intros.
+    case_eq (G v); intros; rewrite H0 in H; inv H.
+      apply type_eq_dec_true in H2; subst. do 2 constructor. assumption.
+    case_eq (infer G t1); intros; rewrite H0 in H.
+      destruct t; inv H. case_eq (check G t2 t3); intro; rewrite H in H2; inv H2.
+        apply type_eq_dec_true in H3; subst.
+          constructor. eapply infer_App.
+            apply infer_correct. exact H0.
+            apply check_correct. assumption.
+      congruence.
+    1-3: destruct A; inversion H.
+      constructor. apply check_correct. assumption.
+      do 2 constructor.
+      do 2 constructor.
+    constructor; apply check_correct;
+      destruct (check G t1 TBool), (check G t2 A), (check G t3 A); cbn in H; auto.
+    constructor. case_eq (check G t t0); intros; rewrite H0 in H; inv H.
+      apply type_eq_dec_true in H2; subst. constructor.
+        apply check_correct. assumption.
+Qed.
+
+Lemma infer_complete :
+  forall (G : Ctx) (t : tm) (A : type),
+    infer_type G t A -> infer G t = Some A
+
+with check_complete :
+  forall (G : Ctx) (t : tm) (A : type),
+    check_type G t A -> check G t A = true.
+Proof.
   destruct 1; cbn; intros.
     assumption.
-    rewrite (infer_ok _ _ _ H), (check_ok _ _ _ H0). reflexivity.
+    rewrite (infer_complete _ _ _ H), (check_complete _ _ _ H0). reflexivity.
     1-2: reflexivity.
-    rewrite (check_ok _ _ _ H). reflexivity.
+    rewrite (check_complete _ _ _ H). reflexivity.
   destruct 1; cbn; intros.
-    apply check_ok. assumption.
-    rewrite !check_ok; cbn; auto.
-  induction t; cbn.
-Admitted.
+    apply check_complete. assumption.
+    rewrite !check_complete; cbn; auto.
+    apply infer_check. apply infer_complete. apply H.
+Qed.
+
+End Bidirectional_STLC_with_Booleans.
