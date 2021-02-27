@@ -1,6 +1,4 @@
-Add Rec LoadPath "~/Code/Coq".
-
-Require Export Syntax.
+Require Export Imp.Syntax.
 
 Require Imp.Smallstep.
 Require Imp.Bigstep.

@@ -58,12 +58,40 @@ Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
 
 Hint Constructors rtc'.
 
-Lemma rtc'_trans :
-  forall {A : Type} {R : A -> A -> Prop} {x y z : A},
-    rtc' R x y -> rtc' R y z -> rtc' R x z.
+Require Export Setoid Classes.RelationClasses.
+
+Instance Reflexive_rtc' {A : Type} (R : A -> A -> Prop) : Reflexive (rtc' R).
 Proof.
-  intros until 1. revert z.
-  induction H; intros.
+  red. constructor.
+Defined.
+
+Instance Transitive_rtc' {A : Type} (R : A -> A -> Prop) : Transitive (rtc' R).
+Proof.
+  red. intros x y z Hxy Hyz. revert z Hyz.
+  induction Hxy; intros.
     assumption.
     eauto.
+Defined.
+
+Definition rtc'_trans := @Transitive_rtc'.
+
+(** * Transitive closure *)
+
+Inductive tc {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
+    | tc_singl :
+        forall x y : A, R x y -> tc R x y
+    | tc_cons  :
+        forall x y z : A, R x y -> tc R y z -> tc R x z.
+
+Lemma tc_trans :
+  forall {A : Type} {R : A -> A -> Prop} {x y z : A},
+    tc R x y -> tc R y z -> tc R x z.
+Proof.
+  intros * Hxy Hyz.
+  revert z Hyz.
+  induction Hxy; intros.
+    econstructor 2; eassumption.
+    econstructor 2.
+      eassumption.
+      apply IHHxy. assumption.
 Qed.

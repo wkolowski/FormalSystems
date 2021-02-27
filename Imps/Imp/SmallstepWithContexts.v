@@ -1,5 +1,3 @@
-Add Rec LoadPath "~/Code/Coq".
-
 Require Import Syntax.
 
 (** * Structural operational semantics for IMP using contexts *)

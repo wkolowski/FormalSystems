@@ -1,5 +1,3 @@
-Add Rec LoadPath "~/Code/Coq".
-
 Require Export Syntax.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=

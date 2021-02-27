@@ -1,5 +1,3 @@
-Add LoadPath "~/Code/Coq".
-
 Require Import FormalSystems.Base.
 
 Inductive AExp : Type :=

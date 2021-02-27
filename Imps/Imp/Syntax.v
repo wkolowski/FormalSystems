@@ -1,5 +1,3 @@
-Add Rec LoadPath "~/Code/Coq".
-
 Require Export Recdef.
 
 Require Export FormalSystems.Base.

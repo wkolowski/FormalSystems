@@ -1,5 +1,3 @@
-Add Rec LoadPath "~/Code/Coq".
-
 Require Export Syntax.
 
 Fixpoint aeval (s : State) (a : AExp) : nat :=

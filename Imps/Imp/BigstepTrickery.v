@@ -1,5 +1,3 @@
-Add Rec LoadPath "~/Code/Coq".
-
 Require Export Bigstep.
 
 (** Compatibility (acompatible, bcompatible, wcompatible, ccompatible) *)
