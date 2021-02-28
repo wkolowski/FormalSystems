@@ -172,7 +172,7 @@ with Ne : Term -> Prop :=
     | Ne_var : forall v : V, Ne (Var v)
     | Ne_App : forall t1 t2 : Term, Ne t1 -> Nf t2 -> Ne (App t1 t2).
 
-Ltac inv H := inversion H; subst; clear H.
+Ltac inv H := inversion H; subst; clear H; eauto.
 
 Lemma Nf_spec :
   forall t : Term, Nf t <-> (forall t' : Term, ~ WStep t t').
@@ -211,7 +211,7 @@ Proof.
           constructor.
             constructor.
             cut (Nf (Var v @ t1_2)).
-              intro. inv H0. inv H1. assumption.
+              intro. inv H0. inv H1.
               apply IHt1. do 2 intro. eapply H. eauto.
           apply IHt2. do 2 intro. eapply H. eauto.
           specialize (H t1_2). contradict H. constructor.
@@ -220,17 +220,13 @@ Proof.
               apply IHt1. do 2 intro. inv H0.
                 inv H4.
                 eapply H. eauto.
-              inv H0.
-                assumption.
-                inv H1. inv H3.
+              inv H0. inv H1.
             apply IHt2. do 2 intro. eapply H. eauto.
-          constructor. constructor.
+          do 2 constructor.
             assert (Nf (t1_1_1 @ t1_1_2 @ t1_2)).
               apply IHt1. do 2 intro. eapply H. eauto.
-              inv H0.
-                specialize (H (t1_1_2 @ t2 @ (t1_2 @ t2))).
-                  contradict H. constructor.
-                assumption.
+              inv H0. specialize (H (t1_1_2 @ t2 @ (t1_2 @ t2))).
+                contradict H. constructor.
             apply IHt2. do 2 intro. eapply H. eauto.
 Qed.
 
@@ -350,7 +346,8 @@ Hint Resolve parallels_K parallels_S parallels_AppL parallels_AppR : core.
 Hint Extern 0 =>
   match goal with
     | |- parallels (K @ _ @ _) _ => try apply parallels_K
-  end.
+  end
+  : core.
 
 Lemma parallels_App :
   forall t1 t1' t2 t2' : Term,
@@ -369,59 +366,43 @@ Proof.
       apply IHrtc2. constructor 2.
 Qed.
 
-Lemma parallel_confluent :
+Lemma parallel_not_K0 :
+  forall r : Term, ~ parallel K r.
+Proof.
+  do 2 intro. inv H.
+Qed.
+
+Lemma parallel_not_S0 :
+  forall r : Term, ~ parallel S r.
+Proof.
+  do 2 intro. inv H.
+Qed.
+
+Lemma parallel_confluent''' :
   forall a b c : Term,
     parallel a b -> parallel a c ->
       exists d : Term, parallels b d /\ parallels c d.
 Proof.
   intros a b c Hpb Hpc.
   revert c Hpc.
-  induction Hpb; intros; unfold parallels in *.
-    inv Hpc; eauto.
-      inv H2; eauto.
-        inv H3.
-        inv H1.
-      inv H1; eauto.
-        inv H4.
-        inv H2.
-    inv Hpc; eauto.
-      inv H2; eauto.
-        inv H3; eauto.
-          inv H2. exists (t2' @ t3 @ (t2 @ t3)). auto.
-          inv H1.
-        exists (t1 @ t3 @ (t2' @ t3)). auto.
-        inv H1; eauto.
-          inv H3.
-          exists (t2'0 @ t3 @ (t2' @ t3)). auto.
-          inv H2.
-      exists (t1 @ t2' @ (t2 @ t2')). auto.
-      inv H1; eauto.
-        inv H4; eauto.
-          inv H2.
-          exists (t2'0 @ t2' @ (t2 @ t2')). auto.
-          inv H1.
-        exists (t1 @ t2' @ (t2'0 @ t2')). auto.
-        inv H2.
-          inv H4.
-          exists (t2'1 @ t2' @ (t2'0 @ t2')). auto.
-          inv H1.
-    inv Hpc; eauto.
-      inv Hpb; eauto.
-        inv H2.
-        inv H1.
-      inv Hpb; eauto.
-        inv H2; eauto.
-          inv H3.
-          exists (t2' @ t2 @ (t3 @ t2)). auto.
-          inv H1.
-        exists (t0 @ t2 @ (t2' @ t2)). auto.
-        inv H1; eauto.
-          inv H4.
-          exists (t2'0 @ t2 @ (t2' @ t2)). auto.
-          inv H2.
-      decompose [ex and] (IHHpb _ H2). exists (x @ t2). split.
-        apply parallels_AppL. assumption.
-        apply parallels_AppL. assumption.
-      exists (t1' @ t2'). auto.
-      decompose [ex and] (IHHpb _ Hpb). decompose [ex and] (IHHpb _ H1).
-Abort.       
+  induction Hpb; intros; unfold parallels in *;
+  repeat match goal with
+      | H : parallel K       _ |- _ => inv H
+      | H : parallel S       _ |- _ => inv H
+      | H : parallel (_ @ _) _ |- _ => inv H
+      | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] =>
+          exists (a @ c @ (b @ c)); split; eauto
+      | |- context [rtc parallel (_ @ _) _] => eauto 7
+  end;
+  pose parallels_AppL;
+  pose parallels_AppR;
+  pose parallels_App;
+  unfold parallels in *.
+    decompose [ex and] (IHHpb _ H2). eauto 6.
+    decompose [ex and] (IHHpb _ H1). eauto 6.
+    decompose [ex and] (IHHpb _ H2). eauto 6.
+    decompose [ex and] (IHHpb _ H3). eauto 6.
+    decompose [ex and] (IHHpb1 _ H2). eauto 6.
+    decompose [ex and] (IHHpb2 _ H2). eauto 6.
+    decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3). eauto.
+Qed.

@@ -13,7 +13,7 @@ Require Export Arith.
 Notation "x =? y" := (dec x y) (at level 70).
 
 Ltac inv H :=
-  inversion H; subst; clear H.
+  inversion H; subst; clear H; eauto.
 
 (** * Stuff for dealing with [option]. *)
 
