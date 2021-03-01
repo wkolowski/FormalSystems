@@ -1,21 +1,11 @@
-Require Import List.
+Require Import List Bool Arith.
 Import ListNotations.
 
-Require Import Bool.
-
-Parameter V : Type.
-Parameter dec : V -> V -> bool.
-Parameter dec_spec :
-  forall x y : V, reflect (x = y) (dec x y).
-
-Require Import Arith.
-
-Notation "x =? y" := (dec x y) (at level 70).
+Require Import FormalSystems.Base.
 
 (** * Syntax of terms *)
 
 Inductive Term : Type :=
-    | Var : V -> Term
     | K : Term
     | S : Term
     | App : Term -> Term -> Term.
@@ -24,77 +14,77 @@ Notation "M @ N" := (App M N) (at level 50, left associativity).
 
 (** * Reduction relation *)
 
-Inductive WStep : Term -> Term -> Prop :=
-    | WStep_K :
-        forall A B : Term, WStep (K @ A @ B) A
-    | WStep_S :
+Inductive red : Term -> Term -> Prop :=
+    | red_K :
+        forall A B : Term, red (K @ A @ B) A
+    | red_S :
         forall A B C : Term,
-          WStep (S @ A @ B @ C) (A @ C @ (B @ C))
-    | WStep_AppL :
+          red (S @ A @ B @ C) (A @ C @ (B @ C))
+    | red_AppL :
         forall A A' B : Term,
-          WStep A A' -> WStep (App A B) (App A' B)
-    | WStep_AppR :
+          red A A' -> red (App A B) (App A' B)
+    | red_AppR :
         forall A B B' : Term,
-          WStep B B' -> WStep (App A B) (App A B').
+          red B B' -> red (App A B) (App A B').
 
-Notation "A ~> B" := (WStep A B) (at level 60).
+Notation "A ~> B" := (red A B) (at level 60).
 
-Inductive WSteps : Term -> Term -> Prop :=
-    | WSteps_refl :
-        forall A : Term, WSteps A A
-    | WSteps_trans :
-        forall A B C : Term, WStep A B -> WSteps B C -> WSteps A C.
+Inductive reds : Term -> Term -> Prop :=
+    | reds_refl :
+        forall A : Term, reds A A
+    | reds_trans :
+        forall A B C : Term, red A B -> reds B C -> reds A C.
 
-Notation "A ~>* B" := (WSteps A B) (at level 60).
+Notation "A ~>* B" := (reds A B) (at level 60).
 
-Hint Constructors WStep WSteps : core.
+Hint Constructors red reds : core.
 
 (** * Properties of reduction *)
 
 Require Import Relation_Definitions Setoid Morphisms.
 
-Instance WStep_WSteps_L :
+Instance red_reds_L :
   forall A : Term,
-    Proper (WStep ==> WSteps) (App A).
+    Proper (red ==> reds) (App A).
 Proof.
   unfold Proper, respectful. intros A B B' HB. eauto.
 Qed.
 
-Instance WStep_WSteps_R :
+Instance red_reds_R :
   forall A : Term,
-    Proper (WStep ==> WSteps) (fun B => App B A).
+    Proper (red ==> reds) (fun B => App B A).
 Proof.
   unfold Proper, respectful. intros A B B' HB. eauto.
 Qed.
 
-Instance WStep_WSteps :
-  Proper (WStep ==> WStep ==> WSteps) App.
+Instance red_reds :
+  Proper (red ==> red ==> reds) App.
 Proof.
   unfold Proper, respectful. intros A A' HA B B' HB. eauto.
 Qed.
 
-Lemma WSteps_trans' :
+Lemma reds_trans' :
   forall {A B C : Term},
     A ~>* B -> B ~>* C -> A ~>* C.
 Proof.
   induction 1; eauto.
 Qed.
 
-Lemma WSteps_AppL :
+Lemma reds_AppL :
   forall {A A' B : Term},
     A ~>* A' -> A @ B ~>* A' @ B.
 Proof.
   induction 1; eauto.
 Qed.
 
-Lemma WSteps_AppR :
+Lemma reds_AppR :
   forall {A B B' : Term},
     B ~>* B' -> A @ B ~>* A @ B'.
 Proof.
   induction 1; eauto.
 Qed.
 
-Lemma WSteps_App :
+Lemma reds_App :
   forall {A A' B B' : Term},
     A ~>* A' -> B ~>* B' -> A @ B ~>* A' @ B'.
 Proof.
@@ -108,55 +98,13 @@ Qed.
 (** Identity *)
 Definition I : Term := S @ K @ K.
 
-Lemma WStep_I :
+Lemma red_I :
   forall A : Term, I @ A ~>* A.
 Proof.
   intros. unfold I. eauto.
 Defined.
 
-Hint Resolve WStep_I : core.
-
-(** * Lambdas *)
-
-Fixpoint lam (x : V) (A : Term) : Term :=
-match A with
-    | Var y => if x =? y then I else K @ Var y
-    | K => K @ K
-    | S => K @ S
-    | App A1 A2 => S @ lam x A1 @ lam x A2
-end.
-
-Fixpoint subst (x : V) (A B : Term) : Term :=
-match A with
-    | Var y => if x =? y then B else Var y
-    | K => K
-    | S => S
-    | A1 @ A2 => subst x A1 B @ subst x A2 B
-end.
-
-Lemma lam_WSteps :
-  forall (x : V) (A : Term),
-    lam x A @ Var x ~>* A.
-Proof.
-  induction A; cbn; intros.
-    destruct (dec_spec x v); subst; eauto.
-    1-2: eauto.
-    eapply WSteps_trans.
-      apply WStep_S.
-      apply WSteps_App; assumption.
-Qed.
-
-Lemma lam_subst :
-  forall (x : V) (A B : Term),
-    lam x A @ B ~>* subst x A B.
-Proof.
-  induction A; cbn; intros.
-    destruct (dec_spec x v); subst; eauto.
-    1-2: eauto.
-    eapply WSteps_trans.
-      apply WStep_S.
-      apply WSteps_App; auto.
-Qed.
+Hint Resolve red_I : core.
 
 (** * Normal forms *)
 
@@ -169,13 +117,15 @@ Inductive Nf : Term -> Prop :=
     | Nf_Ne  : forall t : Term, Ne t -> Nf t
 
 with Ne : Term -> Prop :=
-    | Ne_var : forall v : V, Ne (Var v)
     | Ne_App : forall t1 t2 : Term, Ne t1 -> Nf t2 -> Ne (App t1 t2).
 
-Ltac inv H := inversion H; subst; clear H; eauto.
+Hint Constructors Nf Ne : core.
 
-Lemma Nf_spec :
-  forall t : Term, Nf t <-> (forall t' : Term, ~ WStep t t').
+Definition isNormal (t : Term) : Prop :=
+  forall t' : Term, ~ red t t'.
+
+(* Lemma Nf_spec :
+  forall t : Term, Nf t <-> (forall t' : Term, ~ red t t').
 Proof.
   split.
     induction t; intros Hnf t' Hred.
@@ -203,7 +153,7 @@ Proof.
         do 2 constructor.
           constructor.
           apply IHt2. do 2 intro. eapply H.
-            apply WStep_AppR. eassumption.
+            apply red_AppR. eassumption.
         constructor. apply IHt2. do 2 intro. eapply H. eauto.
         constructor. apply IHt2. do 2 intro. eapply H. eauto.
       destruct t1_1.
@@ -228,6 +178,38 @@ Proof.
               inv H0. specialize (H (t1_1_2 @ t2 @ (t1_2 @ t2))).
                 contradict H. constructor.
             apply IHt2. do 2 intro. eapply H. eauto.
+Qed.
+ *)
+
+Ltac wut :=
+repeat match goal with
+    | |- forall _, _ => intro
+    | |- ~ _ => intro
+    | |- _ /\ _ => split
+    | H : _ /\ _ |- _ => destruct H
+    | H : red (_ @ _) _ |- _ => inv H
+    | H : red K       _ |- _ => inv H
+    | H : red S       _ |- _ => inv H
+    | H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
+    | |- isNormal _ => do 2 intro
+    | H : exists _, _   |- _ => decompose [ex and] H; clear H
+    | H : Ne ?x          |- _ => is_var x + inv H
+    | _ => auto
+end.
+
+Fixpoint Nf_isNormal {t : Term} (nf : Nf t) {struct nf} : isNormal t
+
+with     Ne_isNormal {t : Term} (ne : Ne t) {struct ne} : isNormal t.
+Proof.
+  destruct nf.
+    1-5: wut; eapply Nf_isNormal;
+      repeat match goal with
+          | |- red _ _ => eauto
+      end; eauto.
+    apply Ne_isNormal. assumption.
+  destruct ne. wut.
+    eapply Ne_isNormal; eauto.
+    eapply Nf_isNormal; eauto.
 Qed.
 
 (*
@@ -282,7 +264,7 @@ Proof.
 Qed.
 *)
 
-Print WStep.
+Print red.
 
 Inductive parallel : Term -> Term -> Prop :=
     | parallel_K :
@@ -406,3 +388,47 @@ Proof.
     decompose [ex and] (IHHpb2 _ H2). eauto 6.
     decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3). eauto.
 Qed.
+
+
+
+(* (** * Lambdas *)
+
+Fixpoint lam (x : V) (A : Term) : Term :=
+match A with
+    | Var y => if x =? y then I else K @ Var y
+    | K => K @ K
+    | S => K @ S
+    | App A1 A2 => S @ lam x A1 @ lam x A2
+end.
+
+Fixpoint subst (x : V) (A B : Term) : Term :=
+match A with
+    | Var y => if x =? y then B else Var y
+    | K => K
+    | S => S
+    | A1 @ A2 => subst x A1 B @ subst x A2 B
+end.
+
+Lemma lam_reds :
+  forall (x : V) (A : Term),
+    lam x A @ Var x ~>* A.
+Proof.
+  induction A; cbn; intros.
+    destruct (dec_spec x v); subst; eauto.
+    1-2: eauto.
+    eapply reds_trans.
+      apply red_S.
+      apply reds_App; assumption.
+Qed.
+
+Lemma lam_subst :
+  forall (x : V) (A B : Term),
+    lam x A @ B ~>* subst x A B.
+Proof.
+  induction A; cbn; intros.
+    destruct (dec_spec x v); subst; eauto.
+    1-2: eauto.
+    eapply reds_trans.
+      apply red_S.
+      apply reds_App; auto.
+Qed. *)
