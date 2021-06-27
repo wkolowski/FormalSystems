@@ -59,11 +59,12 @@ end.
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (loca a) -> s1 x = s2 x.
 
+Global Hint Resolve in_or_app : core.
+
 Lemma aeval_acompatible :
   forall {a : AExp} {s1 s2 : State},
     acompatible a s1 s2 -> aeval a s1 = aeval a s2.
 Proof.
-  Hint Resolve in_or_app.
   unfold acompatible.
   induction a; cbn; intros; try f_equal; auto.
   rewrite (IHa1 s1 s2), (IHa2 s1 s2).
@@ -96,12 +97,13 @@ end.
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (locb b) -> s1 x = s2 x.
 
+Global Hint Resolve aeval_acompatible : core.
+Global Hint Unfold acompatible : core.
+
 Lemma beval_bcompatible :
   forall {e : BExp} {s1 s2 : State},
     bcompatible e s1 s2 -> beval e s1 = beval e s2.
 Proof.
-  Hint Resolve aeval_acompatible.
-  Hint Unfold acompatible.
   unfold bcompatible.
   induction e; cbn; intros; try f_equal; auto 7.
 Qed.
@@ -149,7 +151,7 @@ Inductive CEval : Com -> State -> option State -> Prop :=
           CEval c s1 (Some s2) -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Hint Constructors CEval.
+Global Hint Constructors CEval : core.
 
 Lemma CEval_det :
   forall (c : Com) (s : State) (s1 : option State),
@@ -225,11 +227,12 @@ Proof.
       contradiction.
 Qed.
 
+Global Hint Resolve ceval_CEval_inr : core.
+
 Lemma ceval_CEval_Div0 :
   forall (n : nat) (c : Com) (s1 : State),
     ceval n c s1 = inl Div0 -> CEval c s1 None.
 Proof.
-  Hint Resolve ceval_CEval_inr.
   intros n c s1.
   functional induction ceval n c s1; intros; inv H; eauto.
 Qed.

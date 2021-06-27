@@ -61,11 +61,11 @@ Inductive red : Tm -> Tm -> Prop :=
 
 Notation "A ~> B" := (red A B) (at level 60).
 
-Hint Constructors Ty Tm hasType red rtc : core.
+Global Hint Constructors Ty Tm hasType red rtc : core.
 
 Definition reds := rtc red.
 
-Hint Unfold reds : core.
+Global Hint Unfold reds : core.
 
 Infix "~>*" := reds (at level 50).
 
@@ -122,7 +122,7 @@ Inductive Nf3 : Tm -> Prop :=
     | Ne3succ : Ne3 succ
     | Ne3App  : forall t1 t2 : Tm, Ne3 t1 -> Nf3 t2 -> Ne3 (t1 @ t2).
 
-Hint Constructors Nf Ne Nf' Ne' Nf3 Ne3 : core.
+Global Hint Constructors Nf Ne Nf' Ne' Nf3 Ne3 : core.
 
 Ltac wut :=
 repeat match goal with

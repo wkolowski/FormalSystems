@@ -43,7 +43,7 @@ Inductive red : forall {A : Ty}, Tm A -> Tm A -> Prop :=
 
 Notation "A ~> B" := (red A B) (at level 60).
 
-Hint Constructors Ty Tm red rtc : core.
+Global Hint Constructors Ty Tm red rtc : core.
 
 Definition reds {A : Ty} (t1 t2 : Tm A) : Prop := rtc (@red A) t1 t2.
 
@@ -65,7 +65,7 @@ Inductive Nf : forall {A : Ty}, Tm A -> Prop :=
     | Nf_rec1  : forall {A : Ty} (z : Tm A), Nf z -> Nf (rec @ z)
     | Nf_rec2  : forall {A : Ty} (z : Tm A) (s : Tm (TNat → A → A)), Nf z -> Nf s -> Nf (rec @ z @ s).
 
-Hint Constructors Nf : core.
+Global Hint Constructors Nf : core.
 
 Ltac wut :=
 repeat match goal with

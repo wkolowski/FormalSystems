@@ -37,7 +37,7 @@ Inductive reds : Term -> Term -> Prop :=
 
 Notation "A ~>* B" := (reds A B) (at level 60).
 
-Hint Constructors red reds : core.
+Global Hint Constructors red reds : core.
 
 (** * Properties of reduction *)
 
@@ -104,7 +104,7 @@ Proof.
   intros. unfold I. eauto.
 Defined.
 
-Hint Resolve red_I : core.
+Global Hint Resolve red_I : core.
 
 (** * Normal forms *)
 
@@ -119,7 +119,7 @@ Inductive Nf : Term -> Prop :=
 with Ne : Term -> Prop :=
     | Ne_App : forall t1 t2 : Term, Ne t1 -> Nf t2 -> Ne (App t1 t2).
 
-Hint Constructors Nf Ne : core.
+Global Hint Constructors Nf Ne : core.
 
 Definition isNormal (t : Term) : Prop :=
   forall t' : Term, ~ red t t'.
@@ -283,13 +283,13 @@ Inductive parallel : Term -> Term -> Prop :=
         forall t1 t1' t2 t2' : Term,
           parallel t1 t1' -> parallel t2 t2' -> parallel (t1 @ t2) (t1' @ t2').
 
-Hint Constructors parallel : core.
+Global Hint Constructors parallel : core.
 
 Require Import FormalSystems.Base.
 
 Definition parallels := rtc parallel.
 
-Hint Unfold parallels : core.
+Global Hint Unfold parallels : core.
 
 Lemma parallels_K :
   forall t1 t2 : Term,
@@ -323,7 +323,7 @@ Proof.
   induction H; eauto.
 Qed.
 
-Hint Resolve parallels_K parallels_S parallels_AppL parallels_AppR : core.
+Global Hint Resolve parallels_K parallels_S parallels_AppL parallels_AppR : core.
 
 Hint Extern 0 =>
   match goal with

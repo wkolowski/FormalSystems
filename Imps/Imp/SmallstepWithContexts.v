@@ -26,7 +26,7 @@ Inductive AEval (s : State) : AExp -> AExp -> Prop :=
         forall (a1 a2 : AExp) (G : AContext),
           AStep s a1 a2 -> AEval s (aput G a1) (aput G a2).
 
-Hint Constructors AStep AEval.
+Global Hint Constructors AStep AEval : core.
 
 Require Import Recdef.
 

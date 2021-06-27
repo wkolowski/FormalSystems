@@ -125,7 +125,7 @@ Lemma sim_refl :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. reflexivity.
+    4: reflexivity.
     all: cbn; try reflexivity.
     apply CH.
 Qed.
@@ -137,7 +137,7 @@ Proof.
   cofix CH.
   destruct 1 as [w p whos nexts].
   econstructor. Unshelve.
-    Focus 4. auto.
+    4: auto.
     firstorder.
     intro. rewrite whos, transport_cat, cat_inv. cbn. reflexivity.
     intro. apply CH.
@@ -154,7 +154,7 @@ Proof.
   destruct 1 as [w1 p1 whos1 nexts1],
            1 as [w2 p2 whos2 nexts2].
   econstructor. Unshelve.
-    Focus 4. exact (eq_trans p1 p2).
+    4: exact (eq_trans p1 p2).
     firstorder.
     intro. rewrite whos1, whos2, transport_cat. reflexivity.
     intro. apply (CH _ (next g2 (transport id p1 move))).
@@ -172,19 +172,29 @@ Defined.
 
 (** Tactics *)
 
-Hint Constructors Player.
+Global Hint Constructors Player : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Machine; cbn
-end.
+end : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Nature; cbn
-end.
+end : CoL.
 
 (** Connectives *)
+
+Ltac des g :=
+  let winner := fresh "winner" in
+  let spec1 := fresh "spec1" in
+  let p := fresh "p" in
+  let spec2 := fresh "spec2" in
+  let Labmove := fresh "Labmove" in
+  let who := fresh "who" in
+  let next := fresh "next" in
+    destruct g as [winner spec1 [p spec2] Labmove who next]; cbn in *.
 
 CoFixpoint Not (g : ConstantGame) : ConstantGame.
 Proof.
@@ -200,8 +210,7 @@ refine
     next move := Not (next g move);
 |}.
   destruct g, p, p'; firstorder.
-  destruct g as [winner spec [p H]]. cbn in *.
-    exists (swap p). destruct p; cbn; assumption.
+  des g. exists (swap p). destruct p; cbn; assumption.
 Defined.
 
 Definition chor (g1 g2 : ConstantGame) : ConstantGame.
@@ -278,9 +287,11 @@ refine
       end
 |}.
   destruct g1, g2, p, p'; firstorder.
-  destruct g1 as [winner1 spec1 [p1 H1]],
-           g2 as [winner2 spec2 [p2 H2]]; cbn in *.
-  destruct p1, p2; auto.
+  destruct (LEM (winner g1 Machine)).
+    exists Machine. auto.
+    destruct (LEM (winner g2 Machine)).
+      exists Machine. auto.
+      exists Nature. des g1; des g2. destruct p, p0; auto; contradiction.
 Defined.
 
 CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame.
@@ -305,9 +316,11 @@ refine
       end
 |}.
   destruct g1, g2, p, p'; firstorder.
-  destruct g1 as [winner1 spec1 [p1 H1]],
-           g2 as [winner2 spec2 [p2 H2]]; cbn in *.
-  destruct p1, p2; auto.
+  destruct (LEM (winner g1 Nature)).
+    exists Nature. auto.
+    destruct (LEM (winner g2 Nature)).
+      exists Nature. auto.
+      exists Machine. des g1; des g2. destruct p, p0; auto; contradiction.
 Defined.
 
 CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame.
@@ -560,7 +573,7 @@ Lemma Not_Not :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     destruct p; firstorder.
     cbn. destruct (who g move); cbn; reflexivity.
     apply CH.
@@ -572,7 +585,7 @@ Lemma Not_chor :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     destruct p; firstorder congruence.
     reflexivity.
     cbn. destruct move; apply sim_refl.
@@ -584,7 +597,7 @@ Lemma Not_chand :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     destruct p; firstorder congruence.
     reflexivity.
     cbn. destruct move; apply sim_refl.
@@ -596,7 +609,7 @@ Lemma Not_chexists :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn.
       destruct p; firstorder congruence.
       reflexivity.
@@ -609,7 +622,7 @@ Lemma Not_chall :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn.
       destruct p; firstorder congruence.
       reflexivity.
@@ -622,7 +635,7 @@ Lemma Not_por :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       destruct p; firstorder.
       destruct move; reflexivity.
@@ -635,7 +648,7 @@ Lemma Not_pand :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       destruct p; firstorder.
       destruct move; reflexivity.
@@ -648,7 +661,7 @@ Lemma Not_pexists :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move. reflexivity.
@@ -665,7 +678,7 @@ Lemma Not_pall :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move. reflexivity.
@@ -682,7 +695,7 @@ Lemma Not_sor :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -697,7 +710,7 @@ Lemma Not_sand :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -712,7 +725,7 @@ Lemma Not_sexists :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -734,7 +747,7 @@ Lemma Not_sall :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -756,7 +769,7 @@ Lemma Not_tor :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn.
       reflexivity.
       destruct move; reflexivity.
@@ -769,7 +782,7 @@ Lemma Not_tand :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn.
       reflexivity.
       destruct move; reflexivity.
@@ -782,7 +795,7 @@ Lemma Not_texists' :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -800,7 +813,7 @@ Lemma Not_tall' :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       reflexivity.
       destruct move; reflexivity.
@@ -835,7 +848,7 @@ Proof.
   cofix CH.
   destruct 1.
   econstructor. Unshelve.
-    Focus 4. cbn. assumption.
+    4: cbn; assumption.
     cbn. destruct p; firstorder.
     intro. cbn. f_equal. apply whos0.
     intro. cbn. apply CH. apply nexts0.
@@ -846,7 +859,7 @@ Lemma sim_chor :
     sim g1 g1' -> sim g2 g2' -> sim (chor g1 g2) (chor g1' g2').
 Proof.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     firstorder.
     auto.
     destruct move; assumption.
@@ -857,7 +870,7 @@ Lemma sim_chand :
     sim g1 g1' -> sim g2 g2' -> sim (chand g1 g2) (chand g1' g2').
 Proof.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     firstorder.
     auto.
     destruct move; assumption.
@@ -1042,13 +1055,6 @@ Qed.
 Lemma Winner_spec' :
   forall g : ConstantGame, exists p : Player, Winner g p.
 Proof.
-  destruct g.
-  destruct (winner_spec'0) as [p spec'].
-  destruct (LEM (exists m : Labmove0, True)) as [[move H] |].
-    Focus 2. exists p. constructor; cbn.
-      intro. assumption.
-      intro. contradiction H. exists X. trivial.
-Restart.
   intro. destruct (LEM (Winner g Machine)).
     exists Machine. assumption.
     exists Nature. destruct g. constructor; cbn in *.
@@ -1105,13 +1111,15 @@ Lemma Winner_chor_Machine :
     Winner (chor g1 g2) Machine <-> Winner g1 Machine \/ Winner g2 Machine.
 Proof.
   split; revert g1 g2.
-    Focus 2. destruct 1.
-      revert g1 g2 H. cofix CH. intros. constructor; cbn.
-        intro. destruct (H0 true).
-        intros _. left. exists true. auto.
-      revert g1 g2 H. cofix CH. intros. constructor; cbn.
-        intro. destruct (H0 true).
-        intros _. left. exists false. auto.
+    2: {
+      destruct 1.
+        revert g1 g2 H. cofix CH. intros. constructor; cbn.
+          intro. destruct (H0 true).
+          intros _. left. exists true. auto.
+        revert g1 g2 H. cofix CH. intros. constructor; cbn.
+          intro. destruct (H0 true).
+          intros _. left. exists false. auto.
+    }
     intros. destruct H; cbn in *. destruct (Winner3 true).
       destruct H, x, H; auto.
       specialize (H false). cbn in H.

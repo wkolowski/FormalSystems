@@ -14,7 +14,7 @@ Inductive AEval (s : State) : AExp -> AExp -> Prop :=
         forall (f : nat -> nat -> nat) (n1 n2 : nat),
           AEval s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 
-Hint Constructors AEval.
+Global Hint Constructors AEval : core.
 
 Lemma AEval_det :
   forall {s : State} {a a1 a2 : AExp},
@@ -44,7 +44,7 @@ Inductive AEvals (s : State) : AExp -> AExp -> Prop :=
         forall a1 a2 a3 : AExp,
           AEvals s a1 a2 -> AEvals s a2 a3 -> AEvals s a1 a3.
 
-Hint Constructors AEvals.
+Global Hint Constructors AEvals : core.
 
 Lemma AEval_AEvals :
   forall (s : State) (a1 a1' a2 : AExp),
@@ -77,13 +77,14 @@ Lemma AEvals_ABinOp :
     AEvals s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 Proof. eauto. Qed.
 
+Global Hint Resolve in_or_app : core.
+
 Lemma AEval_acompatible_det :
   forall {s1 : State} {a a1 : AExp},
     AEval s1 a a1 -> forall {s2 : State},
       acompatible a s1 s2 -> forall {a2 : AExp},
         AEval s2 a a2 -> a1 = a2.
 Proof.
-  Hint Resolve in_or_app.
   unfold acompatible.
   induction 1; cbn in *; intros; repeat
   match goal with
@@ -119,13 +120,14 @@ Inductive BEval (s : State) : BExp -> BExp -> Prop :=
         forall (f : bool -> bool -> bool) (b1 b2 : bool),
           BEval s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 
-Hint Constructors BEval.
+Global Hint Constructors BEval : core.
+
+Global Hint Resolve AEval_det : core.
 
 Lemma BEval_det :
   forall {s : State} {e e1 : BExp},
     BEval s e e1 -> forall {e2 : BExp}, BEval s e e2 -> e1 = e2.
 Proof.
-  Hint Resolve AEval_det.
   induction 1; intros; repeat
   match goal with
       | H : AEval _ (?f _) _ |- _ => inv H
@@ -144,7 +146,7 @@ end.
 Definition BEvals (s : State) (e1 e2 : BExp) : Prop :=
   rtc (BEval s) e1 e2.
 
-Hint Unfold BEvals.
+Global Hint Unfold BEvals : core.
 
 Lemma BEvals_BRelOp_L :
   forall (s : State) (f : nat -> nat -> bool) (a1 a1' a2 : AExp),
@@ -198,10 +200,14 @@ Lemma BEvals_BBinOp :
     BEvals s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 Proof. eauto. Qed.
 
-Hint Resolve
+Global Hint Resolve
   BEvals_BRelOp_L BEvals_BRelOp_R BEvals_BRelOp
   BEvals_Not_Step BEvals_Not
-  BEvals_BBinOp_L BEvals_BBinOp_R BEvals_BBinOp.
+  BEvals_BBinOp_L BEvals_BBinOp_R BEvals_BBinOp
+    : core.
+
+Global Hint Unfold acompatible : core.
+Global Hint Resolve AEval_acompatible_det : core.
 
 Lemma BEval_bcompatible_det :
   forall {s1 : State} {e e1 : BExp},
@@ -209,8 +215,6 @@ Lemma BEval_bcompatible_det :
     bcompatible e s1 s2 -> forall {e2 : BExp},
       BEval s2 e e2 -> e1 = e2.
 Proof.
-  Hint Unfold acompatible.
-  Hint Resolve AEval_acompatible_det.
   unfold bcompatible.
   induction 1; cbn in *; intros; repeat
   match goal with
@@ -248,7 +252,7 @@ Inductive CEval : Com * State -> Com * State -> Prop :=
         forall (b : BExp) (c : Com) (s : State),
           CEval (While b c, s) (If b (Seq c (While b c)) Skip, s).
 
-Hint Constructors CEval.
+Global Hint Constructors CEval : core.
 
 Example while_true_do_skip :
   forall s1 s2 : State,
@@ -287,7 +291,7 @@ end.
 Definition CEvals (cs1 cs2 : Com * State) : Prop :=
   rtc CEval cs1 cs2.
 
-Hint Unfold CEvals.
+Global Hint Unfold CEvals : core.
 
 Lemma CEvals_Asgn_Step :
   forall (s : State) (a a' : AExp) (x : Loc),
@@ -348,7 +352,7 @@ Proof. eauto. Qed.
 Definition CEvals' (cs1 cs2 : Com * State) : Prop :=
   rtc' CEval cs1 cs2.
 
-Hint Unfold CEvals'.
+Global Hint Unfold CEvals' : core.
 
 Lemma CEvals_CEvals' :
   forall cs1 cs2 : Com * State,
@@ -370,7 +374,7 @@ Proof.
     inv H. eauto.
     specialize (IHa1 _ eq_refl). specialize (IHa2 _ eq_refl).
       eapply AEvals_trans.
-        Focus 2. rewrite <- H. apply AEvals_ABinOp.
+        2: rewrite <- H. apply AEvals_ABinOp.
       eapply AEvals_trans.
         apply AEvals_ABinOp_L. eassumption.
       apply AEvals_ABinOp_R. assumption.
@@ -400,20 +404,22 @@ Proof.
   intros. apply AEvals_aevals in H. cbn in H. assumption.
 Qed.
 
+Global Hint Resolve AEval_aevals : core.
+
 Lemma BEval_bevals :
   forall {s : State} {e1 e2 : BExp},
     BEval s e1 e2 -> beval s e1 = beval s e2.
 Proof.
-  Hint Resolve AEval_aevals.
   induction 1; cbn;
   rewrite ?(AEval_aevals H), ?IHBEval, ?IHBEval1, ?IHBEval2; auto.
 Qed.
+
+Global Hint Unfold BEvals : core.
 
 Lemma beval_BEvals :
   forall (s : State) (e : BExp) (b : bool),
     beval s e = b -> BEvals s e (BConst b).
 Proof.
-  Hint Unfold BEvals.
   induction e; cbn; intros.
     inv H. auto.
     inv H. eapply rtc_trans.

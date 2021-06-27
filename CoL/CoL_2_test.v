@@ -150,17 +150,17 @@ Qed.
 
 (** Tactics *)
 
-Hint Constructors Player.
+Global Hint Constructors Player : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Machine; cbn
-end.
+end : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Nature; cbn
-end.
+end : CoL.
 
 (** Connectives *)
 
@@ -284,7 +284,11 @@ refine
       end;
 |}.
   destruct g1, g2, p, p'; firstorder.
-  des g1; des g2. destruct p, p0; auto.
+  destruct (LEM (winner g1 Machine)).
+    exists Machine. auto.
+    destruct (LEM (winner g2 Machine)).
+      exists Machine. auto.
+      exists Nature. des g1; des g2. destruct p, p0; auto; contradiction.
 Defined.
 
 CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame.
@@ -310,7 +314,11 @@ refine
       end;
 |}.
   destruct g1, g2, p, p'; firstorder.
-  des g1; des g2. destruct p, p0; auto.
+  destruct (LEM (winner g1 Nature)).
+    exists Nature. auto.
+    destruct (LEM (winner g2 Nature)).
+      exists Nature. auto.
+      exists Machine. des g1; des g2. destruct p, p0; auto; contradiction.
 Defined.
 
 CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame.

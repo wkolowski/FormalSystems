@@ -109,8 +109,8 @@ Lemma sim_refl :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. reflexivity.
-    all: cbn; try reflexivity.
+    1, 4: reflexivity.
+    reflexivity.
     apply CH.
 Qed.
 
@@ -121,7 +121,7 @@ Proof.
   cofix CH.
   destruct 1 as [w p whos nexts].
   econstructor. Unshelve.
-    Focus 4. auto.
+    4: auto.
     auto.
     intro. rewrite whos, transport_cat, cat_inv. cbn. reflexivity.
     intro. apply CH.
@@ -138,7 +138,7 @@ Proof.
   destruct 1 as [w1 p1 whos1 nexts1],
            1 as [w2 p2 whos2 nexts2].
   econstructor. Unshelve.
-    Focus 4. exact (eq_trans p1 p2).
+    4: exact (eq_trans p1 p2).
     rewrite w1. assumption.
     intro. rewrite whos1, whos2, transport_cat. reflexivity.
     intro. apply (CH _ (next g2 (transport id p1 move))).
@@ -156,17 +156,17 @@ Defined.
 
 (** Tactics *)
 
-Hint Constructors Player.
+Global Hint Constructors Player : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Machine; cbn
-end.
+end : CoL.
 
-Hint Extern 1 =>
+Global Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Nature; cbn
-end.
+end : CoL.
 
 (** Connectives *)
 
@@ -493,7 +493,7 @@ Lemma Not_Not :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     destruct (winner g); reflexivity.
     cbn. destruct (who g move); cbn; reflexivity.
     apply CH.
@@ -505,7 +505,7 @@ Lemma Not_chor :
 Proof.
   cofix CH.
   econstructor; cbn; intros. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     1-2: reflexivity.
     cbn. destruct move; apply sim_refl.
 Qed.
@@ -559,7 +559,7 @@ Lemma Not_pand :
 Proof.
   cofix CH.
   econstructor. Unshelve.
-    Focus 4. cbn. reflexivity.
+    4: cbn; reflexivity.
     all: cbn; intros.
       destruct p; firstorder.
       destruct move; reflexivity.

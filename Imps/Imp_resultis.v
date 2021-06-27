@@ -94,7 +94,7 @@ with CEval : Com -> State -> State -> Prop :=
           CEval c s1 s2 -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Hint Constructors AEval BEval CEval.
+Global Hint Constructors AEval BEval CEval : core.
 
 Ltac inv H :=
   inversion H; subst; clear H; auto.

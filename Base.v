@@ -48,7 +48,7 @@ Inductive rtc {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc_trans :
         forall x y z : A, rtc R x y -> rtc R y z -> rtc R x z.
 
-Hint Constructors rtc.
+Global Hint Constructors rtc : core.
 
 Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc'_refl :
@@ -56,7 +56,7 @@ Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc'_steptrans :
         forall x y z : A, R x y -> rtc' R y z -> rtc' R x z.
 
-Hint Constructors rtc'.
+Global Hint Constructors rtc' : core.
 
 Require Export Setoid Classes.RelationClasses.
 

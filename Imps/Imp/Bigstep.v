@@ -11,7 +11,7 @@ Inductive AEval : AExp -> State -> nat -> Prop :=
           AEval a1 s n1 -> AEval a2 s n2 ->
             AEval (ABinOp f a1 a2) s (f n1 n2).
 
-Hint Constructors AEval.
+Global Hint Constructors AEval : core.
 
 Lemma AEval_det :
   forall {a : AExp} {s : State} {n m : nat},
@@ -21,15 +21,9 @@ Proof.
   induction H; inversion 1; subst; clear H.
     1-2: reflexivity.
     rewrite (IHAEval1 _ H7), (IHAEval2 _ H8). reflexivity.
-(*
-Restart.
-  intros.
-  apply AEval_aeval in H.
-  apply AEval_aeval in H0.
-  rewrite <- H, <- H0.
-  reflexivity.
-*)
 Qed.
+
+Global Hint Resolve in_or_app : core.
 
 Lemma AEval_acompatible :
   forall {a : AExp} {s1 : State} {n : nat},
@@ -37,7 +31,6 @@ Lemma AEval_acompatible :
       acompatible a s1 s2 ->
         AEval a s2 n.
 Proof.
-  Hint Resolve in_or_app.
   unfold acompatible.
   induction 1; cbn in *; intros; try rewrite H; auto 6.
 Qed.
@@ -73,7 +66,7 @@ Inductive BEval : BExp -> State -> bool -> Prop :=
           BEval e1 s b1 -> BEval e2 s b2 ->
             BEval (BBinOp f e1 e2) s (f b1 b2).
 
-Hint Constructors BEval.
+Global Hint Constructors BEval : core.
 
 Lemma BEval_det :
   forall {e : BExp} {s : State} {b1 : bool},
@@ -94,13 +87,14 @@ Restart.
 *)
 Qed.
 
+Global Hint Resolve AEval_acompatible : core.
+Global Hint Unfold acompatible : core.
+
 Lemma BEval_bcompatible :
   forall {e : BExp} {s1 : State} {b : bool},
     BEval e s1 b -> forall {s2 : State},
       bcompatible e s1 s2 -> BEval e s2 b.
 Proof.
-  Hint Resolve AEval_acompatible.
-  Hint Unfold acompatible.
   unfold bcompatible.
   induction 1; cbn in *; intros; constructor; eauto 6.
 Qed.
@@ -141,7 +135,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
           CEval c s1 s2 -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Hint Constructors CEval.
+Global Hint Constructors CEval : core.
 
 Example while_true_do_skip :
   forall s1 s2 : State,
@@ -154,12 +148,13 @@ Proof.
     apply IHCEval2. reflexivity.
 Qed.
 
+Hint Rewrite @AEval_det : core.
+Global Hint Resolve AEval_det BEval_det : core.
+
 Lemma CEval_det :
   forall (c : Com) (s s1 : State),
     CEval c s s1 -> forall s2 : State, CEval c s s2 -> s1 = s2.
 Proof.
-  Hint Rewrite @AEval_det.
-  Hint Resolve AEval_det BEval_det.
   induction 1; intros;
   match goal with
       | H : CEval ?c _ _ |- _ => is_var c + inv H
@@ -211,7 +206,7 @@ Proof.
     constructor; apply aeval_AEval; reflexivity.
 Qed.
 
-Hint Immediate aeval_AEval beval_BEval.
+Hint Immediate aeval_AEval beval_BEval : core.
 
 Lemma ceval_CEval :
   forall (n : nat) (c : Com) (s1 s2 : State),

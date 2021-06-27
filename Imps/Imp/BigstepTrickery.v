@@ -24,6 +24,8 @@ Proof.
     all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto 7.
 Qed.
 
+Global Hint Unfold bcompatible : core.
+
 Lemma CEval_ccompatible :
   forall (c : Com) (s1 s2 : State),
     CEval c s1 s2 ->
@@ -32,7 +34,6 @@ Lemma CEval_ccompatible :
         ccompatible c s1 s1' -> ccompatible c s2 s2'.
 Proof.
   unfold ccompatible.
-  Hint Unfold bcompatible.
   induction 1; cbn; intros.
     inv H1.
     inv H0. unfold changeState. inv H2.

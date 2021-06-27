@@ -156,8 +156,8 @@ with check_type : Ctx -> tm -> type -> Prop :=
         forall (G : Ctx) (t : tm) (A : type),
           infer_type G t A -> check_type G t A.
 
-Hint Constructors infer_type.
-Hint Constructors check_type.
+Global Hint Constructors infer_type : core.
+Global Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
@@ -360,8 +360,8 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
         forall (G : Ctx) (t : tmEx) (A : type),
           infer_type G t A -> check_type G (TEx t) A.
 
-Hint Constructors infer_type.
-Hint Constructors check_type.
+Global Hint Constructors infer_type : core.
+Global Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
@@ -585,10 +585,8 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
         forall (G : Ctx) (t : tmIn) (A B : type),
           check_type G t B -> check_type G (TInr t) (TSum A B).
 
-Hint Constructors infer_type.
-Hint Constructors check_type.
-
-Print type.
+Global Hint Constructors infer_type : core.
+Global Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
@@ -615,8 +613,6 @@ Proof.
     destruct (IHA1 B1), (IHA2 B2); cbn; constructor; congruence.
     destruct (IHA1 B1), (IHA2 B2); cbn; constructor; congruence.
 Qed.
-
-Print tmEx.
 
 Fixpoint infer (G : Ctx) (t : tmEx) : option type :=
 match t with
