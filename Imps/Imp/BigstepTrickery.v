@@ -43,10 +43,6 @@ Proof.
       destruct (dec_spec v x).
         eapply AEval_acompatible_det; eauto.
         auto.
-    Focus 4. inv H0.
-      apply H1. assumption.
-      assert (false = true).
-        eapply BEval_bcompatible_det; eauto. congruence.
 (* If *)
 (*
     Focus 2. inv H1.
@@ -119,37 +115,6 @@ Lemma equivalent_in_Context :
     c1 ~ c2 -> forall G : Context, put G c1 ~ put G c2.
 Proof.
   intros c1 c2 H G. revert c1 c2 H.
-  induction G; cbn; intros.
-    assumption.
-    all: unfold equivalent in *; split; intros.
-      inv H0. econstructor.
-        rewrite IHG; eauto. firstorder.
-        assumption.
-      inv H0. econstructor; rewrite 1?IHG; eauto.
-      inv H0. econstructor; rewrite 1?IHG; eauto. firstorder.
-      inv H0. econstructor; rewrite 1?IHG; eauto.
-      inv H0.
-        econstructor; rewrite 1?IHG; eauto.
-        apply EvalIfTrue; eauto. rewrite IHG; eauto. firstorder.
-      inv H0.
-        econstructor; rewrite 1?IHG; eauto.
-        apply EvalIfTrue; eauto. rewrite IHG; eauto.
-      inv H0.
-        econstructor; rewrite 1?IHG; eauto. firstorder.
-        apply EvalIfTrue; eauto.
-      inv H0.
-        econstructor; rewrite 1?IHG; eauto.
-        firstorder.
-      remember (While b (put G c1)) as w. revert Heqw.
-      induction H0; intro; inv Heqw.
-        eauto.
-        econstructor; eauto. rewrite IHG; eauto. firstorder.
-      remember (While b (put G c2)) as w. revert Heqw.
-      induction H0; intro; inv Heqw.
-        eauto.
-        econstructor; eauto. rewrite IHG; eauto.
-Restart.
-  intros c1 c2 H G. revert c1 c2 H.
   induction G; cbn; intros; eauto;
   unfold equivalent in *; split; intros;
   match goal with
@@ -197,12 +162,10 @@ Lemma equivalent_If_l :
 Proof.
   unfold equivalent. split; intros.
     inv H0.
-      constructor; assumption.
       apply EvalIfTrue.
         assumption.
         rewrite <- H. assumption.
     inv H0.
-      constructor; assumption.
       apply EvalIfTrue.
         assumption.
         rewrite H. assumption.
@@ -217,12 +180,10 @@ Proof.
       constructor.
         assumption.
         rewrite <- H. assumption.
-      apply EvalIfTrue; assumption.
     inv H0.
       constructor.
         assumption.
         rewrite H. assumption.
-      apply EvalIfTrue; assumption.
 Qed.
 
 Lemma equivalent_While :
@@ -231,13 +192,11 @@ Lemma equivalent_While :
 Proof.
   unfold equivalent. split; intros.
     remember (While b c1) as w. revert Heqw. induction H0; intro; inv Heqw.
-      constructor. assumption.
       eapply EvalWhileTrue.
         assumption.
         rewrite <- H. eassumption.
         apply IHCEval2. reflexivity.
     remember (While b c2) as w. revert Heqw. induction H0; intro; inv Heqw.
-      constructor. assumption.
       eapply EvalWhileTrue.
         assumption.
         rewrite H. eassumption.

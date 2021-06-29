@@ -174,7 +174,7 @@ Proof.
     end.
     wut.
     inv H. wut.
-    inv H. auto.
+    inv H.
     1-2: assumption.
     inv H; auto.
   intro e. functional induction desugarb e; cbn; intros; auto.

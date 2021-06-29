@@ -344,9 +344,7 @@ Lemma while_true_do_skip :
 Proof.
   intros s1 s2 H.
   remember (While BTrue Skip) as w. revert Heqw.
-  induction H; intros; inv Heqw.
-    inv H.
-    apply IHCEval2. reflexivity.
+  induction H; intros; inv Heqw. inv H.
 Qed.
 
 Lemma div_0 :
@@ -354,5 +352,4 @@ Lemma div_0 :
     AEval a2 s 0 -> forall m : nat, ~ AEval (Div a1 a2) s m.
 Proof.
   intros; intro. inv H0.
-  pose (AEval_det H H4). congruence.
 Qed.

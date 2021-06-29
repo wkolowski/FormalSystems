@@ -370,14 +370,17 @@ Lemma aeval_AEvals :
     aeval s a = n -> AEvals s a (AConst n).
 Proof.
   induction a; cbn; intros.
-    inv H. auto.
-    inv H. eauto.
-    specialize (IHa1 _ eq_refl). specialize (IHa2 _ eq_refl).
+    inv H.
+    inv H.
+    {
+      specialize (IHa1 _ eq_refl).
+      specialize (IHa2 _ eq_refl).
       eapply AEvals_trans.
-        2: rewrite <- H. apply AEvals_ABinOp.
-      eapply AEvals_trans.
-        apply AEvals_ABinOp_L. eassumption.
-      apply AEvals_ABinOp_R. assumption.
+        eapply AEvals_trans.
+          apply AEvals_ABinOp_L. eassumption.
+          apply AEvals_ABinOp_R. eassumption.
+        rewrite <- H; apply AEvals_ABinOp.
+    }
 Qed.
 
 Lemma AEval_aevals :
@@ -475,7 +478,7 @@ Proof.
             rewrite (ceval_plus' Heq' 2).
             rewrite (ceval_plus' Heq 2). reflexivity.
           inv Heq.
-      destruct fuel; inv Heq. reflexivity.
+      destruct fuel; inv Heq.
     cbn in Heq. unfold fst, snd in *.
       destruct (ceval fuel c1' s') eqn: Heq'.
         specialize (IHCEval _ _ Heq'). rewrite IHCEval.
@@ -525,7 +528,7 @@ Proof.
         eapply CEvals_If_Step. apply beval_BEvals. eassumption.
         eapply rtc_trans.
           apply CEvals_If_False.
-          inv H. auto.
+          inv H.
 Qed.
 
 Lemma CEvals'_ceval :

@@ -44,8 +44,8 @@ Lemma AEval_acompatible_det :
         n1 = n2.
 Proof.
   induction 1; cbn; intros; auto.
-    inv H. reflexivity.
-    inv H. apply H0. left. reflexivity.
+    inv H.
+    inv H.
     inv H1. erewrite IHAEval1, IHAEval2; eauto.
 Qed.
 
@@ -73,7 +73,7 @@ Lemma BEval_det :
     BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
 Proof.
   induction 1; intros.
-    inv H. reflexivity.
+    inv H.
     inv H1. rewrite (AEval_det H H7), (AEval_det H0 H8). reflexivity.
     inv H0. rewrite (IHBEval _ H2). reflexivity.
     inv H1. rewrite (IHBEval1 _ H7), (IHBEval2 _ H8). reflexivity.
@@ -143,9 +143,7 @@ Example while_true_do_skip :
 Proof.
   intros s1 s2 H.
   remember (While (BConst true) Skip) as w. revert Heqw.
-  induction H; intros; inv Heqw.
-    inv H.
-    apply IHCEval2. reflexivity.
+  induction H; intros; inv Heqw. inv H.
 Qed.
 
 Hint Rewrite @AEval_det : core.

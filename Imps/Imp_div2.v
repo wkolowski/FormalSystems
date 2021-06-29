@@ -247,5 +247,4 @@ Proof.
     inv H.
     inv H.
     inv H0.
-    apply IHCEval2. reflexivity.
 Qed.
