@@ -264,8 +264,6 @@ Proof.
 Qed.
 *)
 
-Print red.
-
 Inductive parallel : Term -> Term -> Prop :=
     | parallel_K :
         forall t1 t2 : Term,
@@ -325,7 +323,7 @@ Qed.
 
 Global Hint Resolve parallels_K parallels_S parallels_AppL parallels_AppR : core.
 
-Hint Extern 0 =>
+Global Hint Extern 0 =>
   match goal with
     | |- parallels (K @ _ @ _) _ => try apply parallels_K
   end

@@ -102,8 +102,6 @@ Inductive BStep : BExp -> BExp -> Prop :=
         forall (f : bool -> bool -> bool) (b1 b2 : bool),
           BStep (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 
-Print BExp.
-
 Inductive BContext : Type :=
     | BC_Hole : BContext
 (*

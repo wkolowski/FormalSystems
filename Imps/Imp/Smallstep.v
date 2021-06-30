@@ -466,11 +466,16 @@ Proof.
   induction 1; cbn; intros [| fuel] final Heq;
   try (cbn in *; congruence; fail).
     cbn in *. rewrite <- Heq. do 2 f_equal. apply AEval_aevals. assumption.
-    Focus 2. cbn in Heq. apply BEval_bevals in H. rewrite <- Heq, H.
-      destruct (beval s b').
-        all: rewrite Heq; change (S fuel) with (1 + fuel); rewrite plus_comm;
-          apply ceval_plus; assumption.
-    Focus 2. cbn in Heq. destruct (beval s b).
+    cbn in Heq. unfold fst, snd in *.
+      destruct (ceval fuel c1' s') eqn: Heq'.
+        specialize (IHCEval _ _ Heq'). rewrite IHCEval.
+          change (S fuel) with (1 + fuel). rewrite (ceval_plus' Heq 1).
+          reflexivity.
+        inv Heq.
+    cbn in Heq. apply BEval_bevals in H. rewrite <- Heq, H. destruct (beval s b').
+      1-2: rewrite Heq; change (S fuel) with (1 + fuel); rewrite plus_comm;
+           apply ceval_plus; assumption.
+    cbn in Heq. destruct (beval s b).
       destruct fuel; cbn in Heq.
         inv Heq.
         destruct (ceval fuel c s) eqn: Heq'.
@@ -479,12 +484,6 @@ Proof.
             rewrite (ceval_plus' Heq 2). reflexivity.
           inv Heq.
       destruct fuel; inv Heq.
-    cbn in Heq. unfold fst, snd in *.
-      destruct (ceval fuel c1' s') eqn: Heq'.
-        specialize (IHCEval _ _ Heq'). rewrite IHCEval.
-          change (S fuel) with (1 + fuel). rewrite (ceval_plus' Heq 1).
-          reflexivity.
-        inv Heq.
 Qed.
 
 Lemma ceval_CEvals :
@@ -551,7 +550,7 @@ Proof.
       rewrite <- IH. destruct fuel; cbn in *.
         inv IH.
         destruct (ceval fuel c1' s') eqn: Heq.
-          Focus 2. inv IH.
+          2: inv IH.
           exists (S fuel + 1). cbn. rewrite plus_comm.
             pose (CEval_cevals H4 (fuel) s Heq). unfold fst, snd in e.
             unfold plus. rewrite e. change (S fuel) with (1 + fuel).

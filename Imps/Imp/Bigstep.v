@@ -77,14 +77,6 @@ Proof.
     inv H1. rewrite (AEval_det H H7), (AEval_det H0 H8). reflexivity.
     inv H0. rewrite (IHBEval _ H2). reflexivity.
     inv H1. rewrite (IHBEval1 _ H7), (IHBEval2 _ H8). reflexivity.
-(*
-Restart.
-  intros.
-  apply BEval_beval in H.
-  apply BEval_beval in H0.
-  rewrite <- H, <- H0.
-  reflexivity.
-*)
 Qed.
 
 Global Hint Resolve AEval_acompatible : core.
@@ -204,7 +196,7 @@ Proof.
     constructor; apply aeval_AEval; reflexivity.
 Qed.
 
-Hint Immediate aeval_AEval beval_BEval : core.
+Global Hint Immediate aeval_AEval beval_BEval : core.
 
 Lemma ceval_CEval :
   forall (n : nat) (c : Com) (s1 s2 : State),

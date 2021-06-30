@@ -109,10 +109,4 @@ Lemma consistent :
   forall C : Context,
     ~ Proves C FFalse.
 Proof.
-  intros C H. remember FFalse as F. revert HeqF.
-  induction H; intro; try inv HeqF; auto.
-    Focus 4. subst.
-Restart.
-  do 2 intro. inv H.
-    Focus 4.
 Abort.

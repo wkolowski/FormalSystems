@@ -87,6 +87,8 @@ repeat match goal with
     | _ => auto
 end.
 
+Require Import Equality.
+
 Lemma Nf_isNormal :
   forall {A : Ty} {a : Tm A},
     Nf a -> isNormal a.
@@ -94,8 +96,7 @@ Proof.
   unfold isNormal.
   induction 1.
     wut.
-    do 2 intro.
-    Require Import Equality. Print red. inv H0.
+    do 2 intro. inv H0.
 Abort.
 
 (*
@@ -363,12 +364,5 @@ Proof.
       edestruct (H5 _ H7).
         exists x. wut.
         wut. destruct a; cbn.
-Restart.
-  induction a; cbn; intros.
-    red. remember TNat as n. revert Heqn. induction H; inversion 1; subst.
-      admit.
-      admit.
-    wut.
-      red. exists t. wut.
 Abort.
 *)

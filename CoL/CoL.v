@@ -1251,16 +1251,6 @@ Lemma excluded_middle :
   forall g : ConstantGame,
     Winner (por g (Not g)) Machine.
 Proof.
-  cofix CH.
-  constructor.
-    intro. destruct g; cbn in *. destruct winner_spec'0, x; auto.
-    cbn. destruct 1.
-      case_eq (who g l); intro.
-        left. exists (inl l). split.
-          assumption.
-          admit.
-        right. destruct move. Guarded.
-Restart.
   intro. destruct (LEM (Winner g Machine)).
 Abort.
 
@@ -1369,8 +1359,6 @@ Proof.
         destruct H. admit.
 Abort.
 
-Print Assumptions Static'_Not.
-
 (** Miscellaneous *)
 
 Inductive Position (g : ConstantGame) : Type :=
@@ -1423,9 +1411,9 @@ match p with
     | ConsPosition move p' => prefix (next g move) p'
 end.
 
-Variables V C : Type.
+Axioms V C : Type.
 
-Variable V_eqb : V -> V -> bool.
+Axioms V_eqb : V -> V -> bool.
 
 Axiom V_eqb_spec :
   forall v1 v2 : V, reflect (v1 = v2) (V_eqb v1 v2).

@@ -41,8 +41,10 @@ Definition subst
   (M : forall A : Type, A -> Term A) (N : Term') : Term' :=
     fun A : Type => subst' (M (Term A) (N A)).
 
+(*
 Compute
   subst (fun A x => App (Var x) (Var x)) (fun A => Lam (fun x : A => Var x)).
+*)
 
 (*
 Inductive Beta {A : Type} : Term A -> Term A -> Prop :=

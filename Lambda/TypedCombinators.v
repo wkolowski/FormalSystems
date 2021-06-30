@@ -396,11 +396,4 @@ Proof.
       edestruct (H5 _ H7).
         exists x. wut.
         wut. destruct a; cbn.
-Restart.
-  induction a; cbn; intros.
-    red. remember TNat as n. revert Heqn. induction H; inversion 1; subst.
-      admit.
-      admit.
-    wut.
-      red. exists t. wut.
 Abort.

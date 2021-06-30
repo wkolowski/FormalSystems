@@ -477,6 +477,8 @@ End Bidirectional_STLC_with_Booleans_using_mutual_induction.
 
 (** 1.4 Bidirectional STLC with lots of other stuff *)
 
+Require Import Bool.
+
 Module Bidirectional_STLC_with_stuff.
 
 Parameter V : Type.
@@ -601,8 +603,6 @@ match t1, t2 with
         type_eq_dec t11 t21 && type_eq_dec t12 t22
     | _, _ => false
 end.
-
-Require Import Bool.
 
 Lemma type_eq_dec_spec :
   forall A B : type, reflect (A = B) (type_eq_dec A B).

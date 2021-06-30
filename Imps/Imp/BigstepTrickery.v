@@ -45,7 +45,7 @@ Proof.
         auto.
 (* If *)
 (*
-    Focus 2. inv H1.
+    2: inv H1.
       eapply IHCEval; eauto 6.
 *)
 (* Seq *)
@@ -61,14 +61,16 @@ Proof.
 *)
 (* While *)
 (*
-    Focus 4. inv H2; cbn in *.
-      assert (false = true); try congruence.
-        eapply BEval_bcompatible_det; eauto. unfold bcompatible.
-          intros. symmetry. auto.
-      assert (s1 x = s1' x).
-        apply H3. assumption.
-        assert (s3 x = s2' x).
-          eapply IHCEval2; eauto. intros. apply in_app_or in H5. inv H5.
+    4: {
+      inv H2; cbn in *.
+        assert (false = true); try congruence.
+          eapply BEval_bcompatible_det; eauto. unfold bcompatible.
+            intros. symmetry. auto.
+        assert (s1 x = s1' x).
+          apply H3. assumption.
+          assert (s3 x = s2' x).
+            eapply IHCEval2; eauto. intros. apply in_app_or in H5. inv H5.
+    }
 *)
 Abort.
 

@@ -137,6 +137,8 @@ Qed.
 
 Require Import Recdef.
 
+Set Warnings "-funind-cannot-define-graph".
+Set Warnings "-funind-cannot-build-inversion".
 Function aeval (n : nat) (a : AExp) (s : State) : option nat := 
 match n with
   | 0 => None
@@ -192,6 +194,8 @@ match n with
             end
       end
 end.
+Set Warnings "funind-cannot-define-graph".
+Set Warnings "funind-cannot-build-inversion".
 
 Fixpoint aeval_AEval (fuel : nat) :
   forall {a : AExp} {s : State} {n : nat},
