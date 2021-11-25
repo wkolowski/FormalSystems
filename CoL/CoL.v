@@ -7,7 +7,7 @@
     The approach is to replace Japaridze's "classical" definitions with
     mainly coinductive ones friendly to type theory. Currently it's
     rather experimental and certainly very broken, because he seems to
-    define game operations by defining its structure and winner mutually
+    define game operations by defining their structure and winner mutually
     at the same time. Here this would require mutual coinduction and I
     don't know how to do it properly. *)
 
