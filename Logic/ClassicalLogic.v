@@ -1,14 +1,12 @@
+Require Import Bool Arith.
+
 Require Import List.
 Import ListNotations.
-
-Require Import Bool.
 
 Parameter V : Type.
 Parameter dec : V -> V -> bool.
 Parameter dec_spec :
   forall x y : V, reflect (x = y) (dec x y).
-
-Require Import Arith.
 
 Notation "x =? y" := (dec x y) (at level 70).
 

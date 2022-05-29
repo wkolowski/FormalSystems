@@ -1,7 +1,6 @@
-Require Export Imp.Syntax.
-
-Require Imp.Smallstep.
-Require Imp.Bigstep.
+From FormalSystems Require Export Imp.Syntax.
+From FormalSystems Require Imp.Smallstep.
+From FormalSystems Require Imp.Bigstep.
 
 Lemma Bigstep_Smallstep_AExp :
   forall (s : State) (a : AExp) (n : nat),

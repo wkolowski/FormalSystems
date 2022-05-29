@@ -1,8 +1,7 @@
+Require Import Bool Arith.
+
 Require Import List.
 Import ListNotations.
-
-Require Import Bool.
-Require Import Arith.
 
 (** 1.1 STLC with Booleans *)
 
@@ -476,8 +475,6 @@ Qed.
 End Bidirectional_STLC_with_Booleans_using_mutual_induction.
 
 (** 1.4 Bidirectional STLC with lots of other stuff *)
-
-Require Import Bool.
 
 Module Bidirectional_STLC_with_stuff.
 

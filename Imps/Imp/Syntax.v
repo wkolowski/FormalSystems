@@ -1,6 +1,6 @@
 Require Export Recdef.
 
-Require Export FormalSystems.Base.
+From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
     | AConst : nat -> AExp

@@ -1,4 +1,6 @@
-Require Import FormalSystems.Base.
+Require Import Recdef.
+
+From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
     | AConst : nat -> AExp
@@ -170,8 +172,6 @@ Proof.
   end; eauto; try congruence.
   all: wut.
 Qed.
-
-Require Import Recdef.
 
 Inductive E : Type :=
     | NoFuel : E

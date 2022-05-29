@@ -1,6 +1,9 @@
-Require Import Syntax.
+Require Import Recdef.
 
-(** * Structural operational semantics for IMP using contexts *)
+From FormalSystems Require Import Imp.Syntax.
+From FormalSystems Require Imp.Smallstep.
+
+(** * Structural operational semantics for IMP using (evaluation) contexts *)
 
 Inductive AStep (s : State) : AExp -> AExp -> Prop :=
     | AStep_Var :
@@ -27,8 +30,6 @@ Inductive AEval (s : State) : AExp -> AExp -> Prop :=
           AStep s a1 a2 -> AEval s (aput G a1) (aput G a2).
 
 #[global] Hint Constructors AStep AEval : core.
-
-Require Import Recdef.
 
 (*
 Function AExp_to_AContext (a : AExp) : AContext * AExp :=
@@ -58,8 +59,6 @@ Proof.
   destruct AExp_to_AContext. cbn. reflexivity.
 Qed.
 *)
-
-Require Imp.Smallstep.
 
 Lemma AEval_Smallstep_AEval :
   forall (s : State) (a1 a2 : AExp),

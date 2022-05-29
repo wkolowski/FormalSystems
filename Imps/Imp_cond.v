@@ -1,4 +1,6 @@
-Require Import FormalSystems.Base.
+Require Import Recdef.
+
+From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
     | AConst : nat -> AExp
@@ -107,8 +109,6 @@ Inductive CEval : Com -> State -> State -> Prop :=
             CEval (While b c) s1 s3.
 
 #[global] Hint Constructors CEval : core.
-
-Require Import Recdef.
 
 Function desugara (a : AExp) : AExp :=
 match a with

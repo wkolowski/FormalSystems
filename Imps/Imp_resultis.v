@@ -1,4 +1,6 @@
-Require Import FormalSystems.Base.
+Require Import Recdef.
+
+From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
     | AConst : nat -> AExp
@@ -134,8 +136,6 @@ Proof.
     specialize (BEval_det _ _ _ H _ H6). congruence.
     destruct (CEval_det _ _ _ H0 _ H5), (CEval_det _ _ _ H1 _ H8). reflexivity.
 Qed.
-
-Require Import Recdef.
 
 Set Warnings "-funind-cannot-define-graph".
 Set Warnings "-funind-cannot-build-inversion".

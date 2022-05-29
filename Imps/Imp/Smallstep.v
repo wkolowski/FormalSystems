@@ -1,4 +1,5 @@
-Require Export Syntax.
+From FormalSystems Require Export Imp.Syntax.
+From FormalSystems Require Import Imp.Denotational.
 
 Inductive AEval (s : State) : AExp -> AExp -> Prop :=
     | AEval_Var :
@@ -362,8 +363,6 @@ Proof.
   induction 1; eauto.
   eapply rtc'_trans; eauto.
 Qed.
-
-Require Import Denotational.
 
 Lemma aeval_AEvals :
   forall (s : State) (a : AExp) (n : nat),

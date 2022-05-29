@@ -1,7 +1,8 @@
-Require Import List Bool Arith.
+Require Import Bool Arith Equality.
+Require Import List.
 Import ListNotations.
 
-Require Import FormalSystems.Base.
+From FormalSystems Require Import Base.
 
 (** * Types and terms *)
 
@@ -86,8 +87,6 @@ repeat match goal with
 (*     | H : Ne' ?x          |- _ => is_var x + inv H *)
     | _ => auto
 end.
-
-Require Import Equality.
 
 Lemma Nf_isNormal :
   forall {A : Ty} {a : Tm A},

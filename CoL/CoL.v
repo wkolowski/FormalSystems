@@ -14,10 +14,7 @@
 Require Import List.
 Import ListNotations.
 
-Require Import Bool.
-Require Import Arith.
-
-Require Import FunctionalExtensionality.
+Require Import Bool Arith FunctionalExtensionality Setoid.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 
@@ -117,8 +114,6 @@ Axiom sim_eq :
 (** The axiom is fine, because replacing [sim] with [=] in the definition
     of [sim] gives exactly what HoTT tells us is the characterization of
     paths for constant games. *)
-
-Require Import Setoid.
 
 Lemma sim_refl :
   forall g : ConstantGame, sim g g.

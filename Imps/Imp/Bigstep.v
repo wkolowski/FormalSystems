@@ -1,4 +1,5 @@
-From FormalSystems Require Export Syntax.
+From FormalSystems Require Export Imp.Syntax.
+From FormalSystems Require Import Imp.Denotational.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
     | EvalAConst :
@@ -160,8 +161,6 @@ Proof.
 Qed.
 
 (** * Equivalence of big step and denotational semantics *)
-
-Require Import Denotational.
 
 Lemma AEval_aeval :
   forall {a : AExp} {s : State} {n : nat},

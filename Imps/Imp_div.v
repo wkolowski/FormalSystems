@@ -1,3 +1,5 @@
+Require Import Recdef.
+
 From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
@@ -293,8 +295,6 @@ Proof.
   end; eauto; try congruence.
   all: wut.
 Qed.
-
-Require Import Recdef.
 
 Function ceval (n : nat) (c : Com) (s : State) : option State :=
 match n with

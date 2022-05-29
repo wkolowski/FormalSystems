@@ -1,4 +1,4 @@
-Require Export Syntax.
+From FormalSystems Require Export Imp.Syntax.
 
 Fixpoint aeval (s : State) (a : AExp) : nat :=
 match a with

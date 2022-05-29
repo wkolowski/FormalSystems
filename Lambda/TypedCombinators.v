@@ -1,7 +1,9 @@
-Require Import List Bool Arith.
+Require Import Bool Arith.
+
+Require Import List.
 Import ListNotations.
 
-Require Import FormalSystems.Base.
+From FormalSystems Require Import Base.
 
 (** * Types and terms *)
 

@@ -1,7 +1,9 @@
-Require Import List Bool Arith.
+Require Import Bool Arith Relation_Definitions Setoid Morphisms Equality.
+
+Require Import List.
 Import ListNotations.
 
-Require Import FormalSystems.Base.
+From FormalSystems Require Import Base.
 
 (** * Syntax of terms *)
 
@@ -40,8 +42,6 @@ Notation "A ~>* B" := (reds A B) (at level 60).
 #[global] Hint Constructors red reds : core.
 
 (** * Properties of reduction *)
-
-Require Import Relation_Definitions Setoid Morphisms.
 
 #[export]
 Instance red_reds_L :
@@ -216,7 +216,6 @@ Proof.
 Qed.
 
 (*
-Require Import Equality.
 
 Fixpoint isProp_Nf
   (isProp_Term : forall (t1 t2 : Term) (p q : t1 = t2), p = q) (t : Term) {struct t}
@@ -285,8 +284,6 @@ Inductive parallel : Term -> Term -> Prop :=
           parallel t1 t1' -> parallel t2 t2' -> parallel (t1 @ t2) (t1' @ t2').
 
 #[global] Hint Constructors parallel : core.
-
-Require Import FormalSystems.Base.
 
 Definition parallels := rtc parallel.
 

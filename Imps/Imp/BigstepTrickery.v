@@ -1,4 +1,4 @@
-Require Export Bigstep.
+From FormalSystems Require Export Bigstep.
 
 (** Compatibility (acompatible, bcompatible, wcompatible, ccompatible) *)
 
