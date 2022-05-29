@@ -59,7 +59,7 @@ Inductive Proves : Context -> Formula -> Prop :=
           Proves (P :: C) R -> Proves (Q :: C) R -> Proves C (Or P Q) ->
             Proves C R.
 
-Global Hint Constructors Proves : core.
+#[global] Hint Constructors Proves : core.
 
 Lemma weakening :
   forall (C : Context) (F : Formula),

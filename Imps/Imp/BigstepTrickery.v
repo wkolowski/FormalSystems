@@ -24,7 +24,7 @@ Proof.
     all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto 7.
 Qed.
 
-Global Hint Unfold bcompatible : core.
+#[global] Hint Unfold bcompatible : core.
 
 Lemma CEval_ccompatible :
   forall (c : Com) (s1 s2 : State),

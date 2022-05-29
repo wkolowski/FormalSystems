@@ -14,7 +14,7 @@ Inductive AEval (s : State) : AExp -> AExp -> Prop :=
         forall (f : nat -> nat -> nat) (n1 n2 : nat),
           AEval s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 
-Global Hint Constructors AEval : core.
+#[global] Hint Constructors AEval : core.
 
 Lemma AEval_det :
   forall {s : State} {a a1 a2 : AExp},
@@ -44,7 +44,7 @@ Inductive AEvals (s : State) : AExp -> AExp -> Prop :=
         forall a1 a2 a3 : AExp,
           AEvals s a1 a2 -> AEvals s a2 a3 -> AEvals s a1 a3.
 
-Global Hint Constructors AEvals : core.
+#[global] Hint Constructors AEvals : core.
 
 Lemma AEval_AEvals :
   forall (s : State) (a1 a1' a2 : AExp),
@@ -77,7 +77,7 @@ Lemma AEvals_ABinOp :
     AEvals s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 Proof. eauto. Qed.
 
-Global Hint Resolve in_or_app : core.
+#[global] Hint Resolve in_or_app : core.
 
 Lemma AEval_acompatible_det :
   forall {s1 : State} {a a1 : AExp},
@@ -120,9 +120,9 @@ Inductive BEval (s : State) : BExp -> BExp -> Prop :=
         forall (f : bool -> bool -> bool) (b1 b2 : bool),
           BEval s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 
-Global Hint Constructors BEval : core.
+#[global] Hint Constructors BEval : core.
 
-Global Hint Resolve AEval_det : core.
+#[global] Hint Resolve AEval_det : core.
 
 Lemma BEval_det :
   forall {s : State} {e e1 : BExp},
@@ -146,7 +146,7 @@ end.
 Definition BEvals (s : State) (e1 e2 : BExp) : Prop :=
   rtc (BEval s) e1 e2.
 
-Global Hint Unfold BEvals : core.
+#[global] Hint Unfold BEvals : core.
 
 Lemma BEvals_BRelOp_L :
   forall (s : State) (f : nat -> nat -> bool) (a1 a1' a2 : AExp),
@@ -200,14 +200,14 @@ Lemma BEvals_BBinOp :
     BEvals s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 Proof. eauto. Qed.
 
-Global Hint Resolve
+#[global] Hint Resolve
   BEvals_BRelOp_L BEvals_BRelOp_R BEvals_BRelOp
   BEvals_Not_Step BEvals_Not
   BEvals_BBinOp_L BEvals_BBinOp_R BEvals_BBinOp
     : core.
 
-Global Hint Unfold acompatible : core.
-Global Hint Resolve AEval_acompatible_det : core.
+#[global] Hint Unfold acompatible : core.
+#[global] Hint Resolve AEval_acompatible_det : core.
 
 Lemma BEval_bcompatible_det :
   forall {s1 : State} {e e1 : BExp},
@@ -252,7 +252,7 @@ Inductive CEval : Com * State -> Com * State -> Prop :=
         forall (b : BExp) (c : Com) (s : State),
           CEval (While b c, s) (If b (Seq c (While b c)) Skip, s).
 
-Global Hint Constructors CEval : core.
+#[global] Hint Constructors CEval : core.
 
 Example while_true_do_skip :
   forall s1 s2 : State,
@@ -291,7 +291,7 @@ end.
 Definition CEvals (cs1 cs2 : Com * State) : Prop :=
   rtc CEval cs1 cs2.
 
-Global Hint Unfold CEvals : core.
+#[global] Hint Unfold CEvals : core.
 
 Lemma CEvals_Asgn_Step :
   forall (s : State) (a a' : AExp) (x : Loc),
@@ -352,7 +352,7 @@ Proof. eauto. Qed.
 Definition CEvals' (cs1 cs2 : Com * State) : Prop :=
   rtc' CEval cs1 cs2.
 
-Global Hint Unfold CEvals' : core.
+#[global] Hint Unfold CEvals' : core.
 
 Lemma CEvals_CEvals' :
   forall cs1 cs2 : Com * State,
@@ -407,7 +407,7 @@ Proof.
   intros. apply AEvals_aevals in H. cbn in H. assumption.
 Qed.
 
-Global Hint Resolve AEval_aevals : core.
+#[global] Hint Resolve AEval_aevals : core.
 
 Lemma BEval_bevals :
   forall {s : State} {e1 e2 : BExp},
@@ -417,7 +417,7 @@ Proof.
   rewrite ?(AEval_aevals H), ?IHBEval, ?IHBEval1, ?IHBEval2; auto.
 Qed.
 
-Global Hint Unfold BEvals : core.
+#[global] Hint Unfold BEvals : core.
 
 Lemma beval_BEvals :
   forall (s : State) (e : BExp) (b : bool),

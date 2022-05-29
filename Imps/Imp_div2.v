@@ -59,7 +59,7 @@ end.
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (loca a) -> s1 x = s2 x.
 
-Global Hint Resolve in_or_app : core.
+#[global] Hint Resolve in_or_app : core.
 
 Lemma aeval_acompatible :
   forall {a : AExp} {s1 s2 : State},
@@ -97,8 +97,8 @@ end.
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (locb b) -> s1 x = s2 x.
 
-Global Hint Resolve aeval_acompatible : core.
-Global Hint Unfold acompatible : core.
+#[global] Hint Resolve aeval_acompatible : core.
+#[global] Hint Unfold acompatible : core.
 
 Lemma beval_bcompatible :
   forall {e : BExp} {s1 s2 : State},
@@ -151,7 +151,7 @@ Inductive CEval : Com -> State -> option State -> Prop :=
           CEval c s1 (Some s2) -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Global Hint Constructors CEval : core.
+#[global] Hint Constructors CEval : core.
 
 Lemma CEval_det :
   forall (c : Com) (s : State) (s1 : option State),
@@ -227,7 +227,7 @@ Proof.
       contradiction.
 Qed.
 
-Global Hint Resolve ceval_CEval_inr : core.
+#[global] Hint Resolve ceval_CEval_inr : core.
 
 Lemma ceval_CEval_Div0 :
   forall (n : nat) (c : Com) (s1 : State),

@@ -156,8 +156,8 @@ with check_type : Ctx -> tm -> type -> Prop :=
         forall (G : Ctx) (t : tm) (A : type),
           infer_type G t A -> check_type G t A.
 
-Global Hint Constructors infer_type : core.
-Global Hint Constructors check_type : core.
+#[global] Hint Constructors infer_type : core.
+#[global] Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
@@ -360,8 +360,8 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
         forall (G : Ctx) (t : tmEx) (A : type),
           infer_type G t A -> check_type G (TEx t) A.
 
-Global Hint Constructors infer_type : core.
-Global Hint Constructors check_type : core.
+#[global] Hint Constructors infer_type : core.
+#[global] Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
@@ -587,8 +587,8 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
         forall (G : Ctx) (t : tmIn) (A B : type),
           check_type G t B -> check_type G (TInr t) (TSum A B).
 
-Global Hint Constructors infer_type : core.
-Global Hint Constructors check_type : core.
+#[global] Hint Constructors infer_type : core.
+#[global] Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with

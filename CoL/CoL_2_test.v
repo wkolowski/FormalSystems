@@ -150,14 +150,14 @@ Qed.
 
 (** Tactics *)
 
-Global Hint Constructors Player : CoL.
+#[global] Hint Constructors Player : CoL.
 
-Global Hint Extern 1 =>
+#[global] Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Machine; cbn
 end : CoL.
 
-Global Hint Extern 1 =>
+#[global] Hint Extern 1 =>
 match goal with
     | |- exists p : Player, _ => exists Nature; cbn
 end : CoL.

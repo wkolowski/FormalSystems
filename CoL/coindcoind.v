@@ -61,7 +61,7 @@ Inductive Position (g : Structure) : Type :=
 
 Arguments In {g} _.
 
-Require F2.
+From Typonomikon Require F2.
 
 CoFixpoint len {g : Structure} (r : Run g) : F2.conat :=
 {|
@@ -104,8 +104,6 @@ CoInductive Strict (g : Structure) : Type :=
 
 Arguments StrictOut {g} _.
 
-
-
 (*
 Inductive Winner {g : Structure} : Run g -> Player -> Type :=
     | Winner_NoMoves :
@@ -114,7 +112,7 @@ Inductive Winner {g : Structure} : Run g -> Player -> Type :=
         forall {p : Player}, Labmove g p -> Winner .
 *)
 
-CoInductive Winner {g : Structure} (r : Run g) (p : Player) : Prop :=
+(* CoInductive Winner {g : Structure} (r : Run g) (p : Player) : Prop :=
 {
     Winner0 : (Labmove g -> False) -> p = winner g;
     Winner1 :
@@ -123,4 +121,4 @@ CoInductive Winner {g : Structure} (r : Run g) (p : Player) : Prop :=
           who g move = p /\ Winner (next g move) p) \/
         (forall move : Labmove g,
           who g move = swap p -> Winner (next g move) p);
-}.
+}. *)

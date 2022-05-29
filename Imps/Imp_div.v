@@ -1,4 +1,4 @@
-Require Import FormalSystems.Base.
+From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
     | AConst : nat -> AExp
@@ -50,7 +50,7 @@ Inductive AEval : AExp -> State -> nat -> Prop :=
           AEval a1 s n1 -> AEval a2 s n2 -> n2 <> 0 ->
             AEval (Div a1 a2) s (n1 / n2).
 
-Global Hint Constructors AEval : core.
+#[global] Hint Constructors AEval : core.
 
 Fixpoint aeval (a : AExp) (s : State) : option nat :=
 match a with
@@ -112,7 +112,7 @@ end.
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (loca a) -> s1 x = s2 x.
 
-Global Hint Resolve in_or_app : core.
+#[global] Hint Resolve in_or_app : core.
 
 Lemma AEval_acompatible :
   forall {a : AExp} {s1 : State} {n : nat},
@@ -159,7 +159,7 @@ Inductive BEval : BExp -> State -> bool -> Prop :=
         forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
           BEval e1 s b1 -> BEval e2 s b2 -> BEval (Or e1 e2) s (orb b1 b2).
 
-Global Hint Constructors BEval : core.
+#[global] Hint Constructors BEval : core.
 
 Fixpoint beval (e : BExp) (s : State) : option bool :=
 match e with
@@ -183,7 +183,7 @@ Proof.
     1-2: rewrite IHBEval1, IHBEval2; reflexivity.
 Qed.
 
-Global Hint Resolve aeval_AEval : core.
+#[global] Hint Resolve aeval_AEval : core.
 
 Lemma beval_BEval :
   forall {e : BExp} {s : State} {b : bool},
@@ -221,8 +221,8 @@ end.
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
   forall x : Loc, In x (locb b) -> s1 x = s2 x.
 
-Global Hint Resolve AEval_acompatible : core.
-Global Hint Unfold acompatible : core.
+#[global] Hint Resolve AEval_acompatible : core.
+#[global] Hint Unfold acompatible : core.
 
 Lemma BEval_bcompatible :
   forall {e : BExp} {s1 : State} {b : bool},
@@ -269,10 +269,10 @@ Inductive CEval : Com -> State -> State -> Prop :=
           CEval c s1 s2 -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Global Hint Constructors CEval : core.
+#[global] Hint Constructors CEval : core.
 
-Hint Rewrite @AEval_det : core.
-Global Hint Resolve AEval_det BEval_det : core.
+#[global] Hint Rewrite @AEval_det : core.
+#[global] Hint Resolve AEval_det BEval_det : core.
 
 Lemma CEval_det :
   forall (c : Com) (s s1 : State),
@@ -327,7 +327,7 @@ match n with
         end
 end.
 
-Global Hint Immediate aeval_AEval beval_BEval : core.
+#[global] Hint Immediate aeval_AEval beval_BEval : core.
 
 Lemma ceval_CEval :
   forall (n : nat) (c : Com) (s1 s2 : State),

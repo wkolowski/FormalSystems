@@ -1,4 +1,4 @@
-Require Export Syntax.
+From FormalSystems Require Export Syntax.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
     | EvalAConst :
@@ -11,7 +11,7 @@ Inductive AEval : AExp -> State -> nat -> Prop :=
           AEval a1 s n1 -> AEval a2 s n2 ->
             AEval (ABinOp f a1 a2) s (f n1 n2).
 
-Global Hint Constructors AEval : core.
+#[global] Hint Constructors AEval : core.
 
 Lemma AEval_det :
   forall {a : AExp} {s : State} {n m : nat},
@@ -23,7 +23,7 @@ Proof.
     rewrite (IHAEval1 _ H7), (IHAEval2 _ H8). reflexivity.
 Qed.
 
-Global Hint Resolve in_or_app : core.
+#[global] Hint Resolve in_or_app : core.
 
 Lemma AEval_acompatible :
   forall {a : AExp} {s1 : State} {n : nat},
@@ -66,7 +66,7 @@ Inductive BEval : BExp -> State -> bool -> Prop :=
           BEval e1 s b1 -> BEval e2 s b2 ->
             BEval (BBinOp f e1 e2) s (f b1 b2).
 
-Global Hint Constructors BEval : core.
+#[global] Hint Constructors BEval : core.
 
 Lemma BEval_det :
   forall {e : BExp} {s : State} {b1 : bool},
@@ -79,8 +79,8 @@ Proof.
     inv H1. rewrite (IHBEval1 _ H7), (IHBEval2 _ H8). reflexivity.
 Qed.
 
-Global Hint Resolve AEval_acompatible : core.
-Global Hint Unfold acompatible : core.
+#[global] Hint Resolve AEval_acompatible : core.
+#[global] Hint Unfold acompatible : core.
 
 Lemma BEval_bcompatible :
   forall {e : BExp} {s1 : State} {b : bool},
@@ -127,7 +127,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
           CEval c s1 s2 -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Global Hint Constructors CEval : core.
+#[global] Hint Constructors CEval : core.
 
 Example while_true_do_skip :
   forall s1 s2 : State,
@@ -138,8 +138,8 @@ Proof.
   induction H; intros; inv Heqw. inv H.
 Qed.
 
-Hint Rewrite @AEval_det : core.
-Global Hint Resolve AEval_det BEval_det : core.
+#[global] Hint Rewrite @AEval_det : core.
+#[global] Hint Resolve AEval_det BEval_det : core.
 
 Lemma CEval_det :
   forall (c : Com) (s s1 : State),
@@ -196,7 +196,7 @@ Proof.
     constructor; apply aeval_AEval; reflexivity.
 Qed.
 
-Global Hint Immediate aeval_AEval beval_BEval : core.
+#[global] Hint Immediate aeval_AEval beval_BEval : core.
 
 Lemma ceval_CEval :
   forall (n : nat) (c : Com) (s1 s2 : State),

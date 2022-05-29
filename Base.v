@@ -48,7 +48,7 @@ Inductive rtc {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc_trans :
         forall x y z : A, rtc R x y -> rtc R y z -> rtc R x z.
 
-Global Hint Constructors rtc : core.
+#[global] Hint Constructors rtc : core.
 
 Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc'_refl :
@@ -56,15 +56,17 @@ Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     | rtc'_steptrans :
         forall x y z : A, R x y -> rtc' R y z -> rtc' R x z.
 
-Global Hint Constructors rtc' : core.
+#[global] Hint Constructors rtc' : core.
 
 Require Export Setoid Classes.RelationClasses.
 
+#[export]
 Instance Reflexive_rtc' {A : Type} (R : A -> A -> Prop) : Reflexive (rtc' R).
 Proof.
   red. constructor.
 Defined.
 
+#[export]
 Instance Transitive_rtc' {A : Type} (R : A -> A -> Prop) : Transitive (rtc' R).
 Proof.
   red. intros x y z Hxy Hyz. revert z Hyz.

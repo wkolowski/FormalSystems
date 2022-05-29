@@ -80,7 +80,7 @@ with BEval : BExp -> State -> bool -> Prop :=
         forall (e e1 e2 : BExp) (s : State) (b : bool),
           BEval e s false -> BEval e2 s b -> BEval (BCond e e1 e2) s b.
 
-Global Hint Constructors AEval BEval : core.
+#[global] Hint Constructors AEval BEval : core.
 
 Inductive CEval : Com -> State -> State -> Prop :=
     | EvalSkip :
@@ -106,7 +106,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
           CEval c s1 s2 -> CEval (While b c) s2 s3 ->
             CEval (While b c) s1 s3.
 
-Global Hint Constructors CEval : core.
+#[global] Hint Constructors CEval : core.
 
 Require Import Recdef.
 
