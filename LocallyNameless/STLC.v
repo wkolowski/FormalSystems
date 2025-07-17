@@ -9,18 +9,18 @@ Inductive Ty : Type :=
 | TyFun : Ty -> Ty -> Ty.
 
 Parameters
-  (Fvar : Type)
-  (Decidable_eq_Fvar : forall x y : Fvar, Decidable (x = y)).
+  (Atom : Type)
+  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y)).
 
-Existing Instance Decidable_eq_Fvar.
+Existing Instance Decidable_eq_Atom.
 
 Inductive Tm : Type :=
-| fvar : Fvar -> Tm
+| fvar : Atom -> Tm
 | bvar : nat -> Tm
 | abs  : Tm -> Tm
 | app  : Tm -> Tm -> Tm.
 
-Coercion fvar : Fvar >-> Tm.
+Coercion fvar : Atom >-> Tm.
 Coercion bvar : nat >-> Tm.
 
 Example I : Tm :=
@@ -35,88 +35,94 @@ Example S' : Tm :=
 Example two : Tm :=
   abs (abs (app 1 (app 1 0))).
 
-Fixpoint subst (t1 : Tm) (x : Fvar) (t2 : Tm) : Tm :=
-match t1 with
-| fvar y      => if decide (x = y) then t2 else fvar y
-| bvar n      => bvar n
-| abs t1'     => abs (subst t1' x t2)
-| app t11 t12 => app (subst t11 x t2) (subst t12 x t2)
+Fixpoint subst (x : Atom) (u t : Tm) : Tm :=
+match t with
+| fvar y    => if decide (x = y) then u else fvar y
+| bvar n    => bvar n
+| abs t'    => abs (subst x u t')
+| app t1 t2 => app (subst x u t1) (subst x u t2)
 end.
 
-Notation "t1 [ x := t2 ]" := (subst t1 x t2) (at level 68).
+Notation "x |> f" := (f x) (at level 68, only parsing).
+
+(* Notation "t [ x ~> u ]" := (subst x u t) (at level 68). *)
+
+Notation "t [ x := u ]" := (subst x u t) (at level 68).
 
 Lemma subst_demo :
-  forall x y : Fvar,
-(*     (abs (app 0 x)) [x := y] = abs (app 0 y). *)
-    subst (abs (app 0 x)) x y = abs (app 0 y).
+  forall x y : Atom,
+    abs (app 0 x) |> subst x y = abs (app 0 y).
 Proof.
   intros x y; cbn.
   now decide (x = x).
 Qed.
 
-Fixpoint fv (t : Tm) : list Fvar :=
+Fixpoint fv (t : Tm) : list Atom :=
 match t with
-| fvar x => [x]
-| bvar _ => []
-| abs t' => fv t'
+| fvar x    => [x]
+| bvar _    => []
+| abs t'    => fv t'
 | app t1 t2 => fv t1 ++ fv t2
 end.
 
 Lemma subst_fresh :
-  forall (x : Fvar) (t1 t2 : Tm),
-    ~ In x (fv t1) -> subst t1 x t2 = t1.
+  forall (x : Atom) (u t : Tm),
+    ~ In x (fv t) -> t |> subst x u = t.
 Proof.
-  induction t1 as [y | n | t1' | t11 IH1 t12 IH2]; cbn; intros.
-  - decide (x = y); [| easy].
-    firstorder congruence.
+  induction t; cbn; intros.
+  - decide (x = a); [| easy].
+    now firstorder congruence.
   - easy.
-  - now f_equal; apply IHt1'.
+  - now rewrite IHt.
   - rewrite in_app_iff in H.
-    now f_equal; firstorder.
+    now firstorder congruence.
 Qed.
 
 Lemma subst_fresh' :
-  forall (x : Fvar) (t1 t2 : Tm),
-    In x (fv t1) \/ subst t1 x t2 = t1.
+  forall (x : Atom) (u t : Tm),
+    In x (fv t) \/ t |> subst x u = t.
 Proof.
-  induction t1 as [y | n | t1' | t11 IH1 t12 IH2]; cbn; intros.
-  - now decide (x = y); firstorder.
+  induction t; cbn; intros.
+  - now decide (x = a); firstorder.
   - now right.
-  - now destruct (IHt1' t2); firstorder congruence.
+  - now destruct IHt; firstorder congruence.
   - rewrite in_app_iff.
-    now destruct (IH1 t2), (IH2 t2); firstorder congruence.
+    now destruct IHt1, IHt2; firstorder congruence.
 Qed.
 
-Fixpoint open_aux (t1 : Tm) (n : nat) (t2 : Tm) : Tm :=
-match t1 with
-| fvar x      => fvar x
-| bvar m      => if decide (n = m) then t2 else bvar m
-| abs t1'     => abs (open_aux t1' (S n) t2)
-| app t11 t12 => app (open_aux t11 n t2) (open_aux t12 n t2)
+Fixpoint open_aux (i : nat) (u t : Tm) : Tm :=
+match t with
+| fvar a    => fvar a
+| bvar j    => if decide (i = j) then u else bvar j
+| abs t'    => abs (open_aux (S i) u t')
+| app t1 t2 => app (open_aux i u t1) (open_aux i u t2)
 end.
 
-Definition open (t1 t2 : Tm) : Tm :=
-  open_aux t1 0 t2.
+(* Notation "{ n ~> t2 } t1" := (open_aux t1 n t2) (at level 68). *)
+Notation "t { i ~> u }" := (open_aux i u t) (at level 68).
+
+Definition open (u t : Tm) : Tm :=
+  open_aux 0 u t.
 
 Lemma open_demo :
-  forall y : Fvar,
-    open (app (abs (app 1 0)) 0) y = app (abs (app y 0)) y.
+  forall y : Atom,
+    app (abs (app 1 0)) 0 |> open y = app (abs (app y 0)) y.
 Proof.
   easy.
 Qed.
 
 Inductive lc : Tm -> Prop :=
-| lc_fvar : forall x : Fvar, lc x
-| lc_abs  : forall (t : Tm) (x : Fvar), lc (open t x)  -> lc (abs t)
+| lc_fvar : forall x : Atom, lc x
+| lc_abs  : forall (t : Tm) (x : Atom), lc (open x t)  -> lc (abs t)
 | lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
 
 #[export] Hint Constructors lc : core.
 
 Lemma open_aux_open_aux :
-  forall (t : Tm) (n m : nat) (t1 t2 : Tm),
+  forall (t : Tm) (n m : nat) (u1 u2 : Tm),
     n <> m ->
-    open_aux (open_aux t n t1) m t2 = open_aux t n t1 ->
-      open_aux t m t2 = t.
+    t |> open_aux n u1 |> open_aux m u2 = t |> open_aux n u1 ->
+      t |> open_aux m u2 = t.
 Proof.
   induction t; cbn; intros * Hneq H.
   - easy.
@@ -134,37 +140,59 @@ Proof.
 Qed.
 
 Lemma open_aux_open :
-  forall (t : Tm) (n : nat) (x : Fvar) (t' : Tm),
-    open_aux (open t x) (S n) t' = open t x ->
-      open_aux t (S n) t' = t.
+  forall (t : Tm) (n : nat) (x : Atom) (u : Tm),
+    t |> open x |> open_aux (S n) u = t |> open x ->
+      t |> open_aux (S n) u = t.
 Proof.
+  unfold open.
   intros.
-  unfold open in H.
   now apply open_aux_open_aux in H.
 Qed.
 
-Lemma lc_open_aux :
-  forall (t : Tm) (n : nat) (t' : Tm),
-    lc t -> open_aux t n t' = t.
+Lemma open_aux_lc :
+  forall (t : Tm) (n : nat) (u : Tm),
+    lc t -> t |> open_aux n u = t.
 Proof.
-  intros t n t' Hlc; revert n t'.
-  induction Hlc; cbn; [easy | |].
-  - intros n t'; f_equal.
+  intros t n u Hlc; revert n u.
+  induction Hlc; cbn; intros; [easy | |].
+  - f_equal.
     now eapply open_aux_open, IHHlc.
-  - now intros n t'; f_equal.
+  - now f_equal.
 Qed.
 
 Lemma subst_open_aux :
-  forall (t1 : Tm) (n : nat) (t2 : Tm) (x : Fvar) (t3 : Tm),
-    lc t3 ->
-    subst (open_aux t1 n t2) x t3
+  forall (t : Tm) (n : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
+    lc u2 ->
+    t |> open_aux n u1 |> subst x u2
       =
-    open_aux (subst t1 x t3) n (subst t2 x t3).
+    t |> subst x u2 |> open_aux n (u1 |> subst x u2).
 Proof.
-  induction t1; cbn; intros.
-  - rewrite lc_open_aux; [easy |].
-    now decide (x = f).
+  induction t; cbn; intros.
+  - rewrite open_aux_lc; [easy |].
+    now decide (x = a).
   - now destruct (PeanoNat.Nat.eqb n0 n).
-  - now rewrite IHt1.
-  - now rewrite IHt1_1, IHt1_2.
+  - now rewrite IHt.
+  - now rewrite IHt1, IHt2.
 Qed.
+
+Lemma open_subst :
+  forall (t : Tm) (x y : Atom) (u : Tm),
+    x <> y -> lc u ->
+      t |> subst x u |> open y = t |> open y |> subst x u.
+Proof.
+  unfold open.
+  intros.
+  rewrite subst_open_aux; cbn; [| easy].
+  now decide (x = y).
+Qed.
+
+Lemma lc_subst :
+  forall (t : Tm) (x : Atom) (u : Tm),
+    lc t -> lc u -> lc (subst x u t).
+Proof.
+  intros t x u Ht Hu; revert x u Hu.
+  induction Ht; cbn; intros.
+  - now decide (x0 = x).
+  - admit.
+  - now constructor; firstorder.
+Abort.
