@@ -10,7 +10,9 @@ Inductive Ty : Type :=
 
 Parameters
   (Atom : Type)
-  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y)).
+  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y))
+  (fresh : list Atom -> Atom)
+  (fresh_spec : forall l : list Atom, ~ In (fresh l) l).
 
 Existing Instance Decidable_eq_Atom.
 
@@ -110,100 +112,6 @@ Lemma open_demo :
 Proof.
   easy.
 Qed.
-
-Inductive lc : Tm -> Prop :=
-| lc_fvar : forall x : Atom, lc x
-| lc_abs  : forall (t : Tm) (x : Atom), lc (open' x t)  -> lc (abs t)
-| lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
-
-#[export] Hint Constructors lc : core.
-
-Lemma open_open :
-  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
-    i <> j ->
-    t {{ i ~> u1 }} {{ j ~> u2 }} = t {{ i ~> u1 }} ->
-      t {{ j ~> u2 }} = t.
-Proof.
-  induction t; cbn; intros * Hneq H.
-  - easy.
-  - destruct (PeanoNat.Nat.eqb_spec i n); [| easy].
-    destruct (PeanoNat.Nat.eqb_spec j n); [| easy].
-    now congruence.
-  - inversion H.
-    f_equal.
-    eapply IHt, H1.
-    now congruence.
-  - inversion H.
-    f_equal.
-    + now eapply IHt1, H1.
-    + now eapply IHt2, H2.
-Qed.
-
-Lemma open_open' :
-  forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
-(*     t |> open' x |> open (S i) u = t |> open' x -> *)
-    t {{ 0 ~> x }} {{ S i ~> u }} = t {{ 0 ~> x }} ->
-      t {{ S i ~> u }} = t.
-Proof.
-  unfold open'.
-  intros.
-  now apply open_open in H.
-Qed.
-
-Lemma open_lc :
-  forall (t : Tm) (i : nat) (u : Tm),
-    lc t -> t {{ i ~> u }} = t.
-Proof.
-  intros t n u Hlc; revert n u.
-  induction Hlc; cbn; intros; [easy | |].
-  - f_equal.
-    now eapply open_open', IHHlc.
-  - now f_equal.
-Qed.
-
-Lemma subst_open :
-  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
-    lc u2 ->
-    t {{ i ~> u1 }} [[ x := u2 ]]
-      =
-    t [[ x := u2 ]] {{ i ~> u1 [[ x := u2 ]] }}.
-Proof.
-  induction t; cbn; intros.
-  - rewrite open_lc; [easy |].
-    now decide (x = a).
-  - now destruct (PeanoNat.Nat.eqb i n).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-Lemma open_subst :
-  forall (t : Tm) (a b : Atom) (u : Tm),
-    a <> b -> lc u ->
-    t [[ a := u ]] {{ 0 ~> b }} = t {{ 0 ~> b }} [[ a := u ]].
-Proof.
-  intros.
-  rewrite subst_open; cbn; [| easy].
-  now decide (a = b).
-Qed.
-
-Lemma lc_subst :
-  forall (t : Tm) (a : Atom) (u : Tm),
-    lc t -> lc u -> lc (t [[ a := u ]]).
-Proof.
-  intros t x u Ht Hu; revert x u Hu.
-  induction Ht; cbn; intros.
-  - now decide (x0 = x).
-  - admit.
-  - now constructor; firstorder.
-Abort.
-
-Fixpoint succ (t : Tm) : Tm :=
-match t with
-| fvar x    => fvar x
-| bvar i    => bvar (S i)
-| abs t'    => abs t'
-| app t1 t2 => app (succ t1) (succ t2)
-end.
 
 (*
 Fixpoint close (a : Atom) (u t : Tm) : Tm :=
@@ -366,3 +274,214 @@ Proof.
   - now rewrite IHt1, IHt2.
 Qed.
 
+Lemma open_from_subst :
+  forall (t : Tm) (i : nat) (a : Atom) (u : Tm),
+    ~ In a (fv t) ->
+      t {{ i ~> u }} = t {{ i ~> a }} [[ a := u ]].
+Proof.
+  induction t; cbn; intros.
+  - now decide (a0 = a); subst; firstorder.
+  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [| easy].
+    now decide (a = a).
+  - now rewrite <- IHt.
+  - rewrite in_app_iff in H.
+    now rewrite <- IHt1, <- IHt2; firstorder.
+Qed.
+
+Lemma open_open :
+  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
+    i <> j ->
+    t {{ i ~> u1 }} {{ j ~> u2 }} = t {{ i ~> u1 }} ->
+      t {{ j ~> u2 }} = t.
+Proof.
+  induction t; cbn; intros * Hneq H.
+  - easy.
+  - destruct (PeanoNat.Nat.eqb_spec i n); [| easy].
+    destruct (PeanoNat.Nat.eqb_spec j n); [| easy].
+    now congruence.
+  - inversion H.
+    f_equal.
+    eapply IHt, H1.
+    now congruence.
+  - inversion H.
+    f_equal.
+    + now eapply IHt1, H1.
+    + now eapply IHt2, H2.
+Qed.
+
+Lemma open_open' :
+  forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
+    t {{ 0 ~> x }} {{ S i ~> u }} = t {{ 0 ~> x }} ->
+      t {{ S i ~> u }} = t.
+Proof.
+  intros.
+  now apply open_open in H.
+Qed.
+
+Module first_try.
+
+Inductive lc : Tm -> Prop :=
+| lc_fvar : forall x : Atom, lc x
+| lc_abs  : forall (t : Tm) (x : Atom), lc (open' x t)  -> lc (abs t)
+| lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
+
+#[export] Hint Constructors lc : core.
+
+Lemma open_lc :
+  forall (t : Tm) (i : nat) (u : Tm),
+    lc t -> t {{ i ~> u }} = t.
+Proof.
+  intros t n u Hlc; revert n u.
+  induction Hlc; cbn; intros; [easy | |].
+  - f_equal.
+    now eapply open_open', IHHlc.
+  - now f_equal.
+Qed.
+
+Lemma subst_open :
+  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
+    lc u2 ->
+    t {{ i ~> u1 }} [[ x := u2 ]]
+      =
+    t [[ x := u2 ]] {{ i ~> u1 [[ x := u2 ]] }}.
+Proof.
+  induction t; cbn; intros.
+  - rewrite open_lc; [easy |].
+    now decide (x = a).
+  - now destruct (PeanoNat.Nat.eqb i n).
+  - now rewrite IHt.
+  - now rewrite IHt1, IHt2.
+Qed.
+
+Lemma open_subst :
+  forall (t : Tm) (a b : Atom) (u : Tm),
+    a <> b -> lc u ->
+    t [[ a := u ]] {{ 0 ~> b }} = t {{ 0 ~> b }} [[ a := u ]].
+Proof.
+  intros.
+  rewrite subst_open; cbn; [| easy].
+  now decide (a = b).
+Qed.
+
+Lemma lc_subst :
+  forall (t : Tm) (x : Atom) (u : Tm),
+    lc t -> lc u -> lc (t [[ x := u ]]).
+Proof.
+  intros t x u Ht Hu; revert x u Hu.
+  induction Ht; cbn; intros.
+  - now decide (x0 = x).
+  - eapply lc_abs. rewrite open_subst; [| | easy]. unfold open' in Ht. admit. admit.
+  - now constructor; firstorder.
+Abort.
+
+End first_try.
+
+Inductive lc : Tm -> Prop :=
+| lc_fvar : forall x : Atom, lc x
+| lc_abs  : forall (t : Tm) (l : list Atom), (forall x, ~ In x l -> lc (open' x t)) -> lc (abs t)
+| lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
+
+#[export] Hint Constructors lc : core.
+
+Lemma open_lc :
+  forall (t : Tm) (i : nat) (u : Tm),
+    lc t -> t {{ i ~> u }} = t.
+Proof.
+  intros t n u Hlc; revert n u.
+  induction Hlc; cbn; intros; [easy | |].
+  - f_equal.
+    apply open_open' with (fresh l), H0.
+    now apply fresh_spec.
+  - now f_equal.
+Qed.
+
+Lemma subst_open :
+  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
+    lc u2 ->
+    t {{ i ~> u1 }} [[ x := u2 ]]
+      =
+    t [[ x := u2 ]] {{ i ~> u1 [[ x := u2 ]] }}.
+Proof.
+  induction t; cbn; intros.
+  - rewrite open_lc; [easy |].
+    now decide (x = a).
+  - now destruct (PeanoNat.Nat.eqb i n).
+  - now rewrite IHt.
+  - now rewrite IHt1, IHt2.
+Qed.
+
+Lemma open_subst :
+  forall (t : Tm) (a b : Atom) (u : Tm),
+    a <> b -> lc u ->
+    t [[ a := u ]] {{ 0 ~> b }} = t {{ 0 ~> b }} [[ a := u ]].
+Proof.
+  intros.
+  rewrite subst_open; cbn; [| easy].
+  now decide (a = b).
+Qed.
+
+Lemma lc_subst :
+  forall (t : Tm) (x : Atom) (u : Tm),
+    lc t -> lc u -> lc (t [[ x := u ]]).
+Proof.
+  intros t x u Ht Hu; revert x u Hu.
+  induction Ht; cbn; intros.
+  - now decide (x0 = x).
+  - apply lc_abs with (x :: l).
+    intros y Hin.
+    rewrite open_subst; [| now firstorder | easy].
+    apply H0; [| easy].
+    now firstorder.
+  - now constructor; [apply IHHt1 | apply IHHt2].
+Qed.
+
+Definition Ctx : Type := list (Atom * Ty).
+
+Inductive binds : Ctx -> Atom -> Ty -> Prop :=
+| binds_head :
+  forall (G : Ctx) (x : Atom) (A : Ty),
+    binds ((x, A) :: G) x A
+| binds_tail :
+  forall (G : Ctx) (x y : Atom) (A B : Ty),
+    x <> y -> binds ((y, B) :: G) x A.
+
+Inductive typing : Ctx -> Tm -> Ty -> Prop :=
+| typing_fvar :
+  forall (G : Ctx) (x : Atom) (A : Ty),
+    binds G x A -> typing G x A
+| typing_abs :
+  forall (G : Ctx) (t : Tm) (A B : Ty) (l : list Atom),
+    (forall x : Atom, ~ In x l -> typing ((x, A) :: G) (t {{ 0 ~> x }}) B) ->
+    typing G (abs t) (TyFun A B)
+| typing_app :
+  forall (G : Ctx) (t1 t2 : Tm) (A B : Ty),
+    typing G t1 (TyFun A B) ->
+    typing G t2 A ->
+    typing G (app t1 t2) B.
+
+#[export] Hint Constructors typing : Core.
+
+Lemma weakening :
+  forall (G1 G2 D : Ctx) (t : Tm) (A : Ty),
+    typing (G1 ++ G2) t A ->
+    typing (G1 ++ D ++ G2) t A.
+Proof.
+  intros * Ht.
+  remember (G1 ++ G2) as G.
+  revert G1 G2 D HeqG.
+  induction Ht; only 2-3: intros; subst.
+  - induction H; intros; subst.
+    + destruct G1; inversion HeqG; subst; cbn in *.
+      * admit.
+      * now do 2 constructor.
+    + destruct G1; inversion HeqG; subst; cbn in *.
+      * admit.
+      * now do 2 constructor.
+  - apply typing_abs with l.
+    intros.
+    rewrite app_comm_cons.
+    now apply H0.
+  - apply typing_app with A.
+    + now apply IHHt1.
+    + now apply IHHt2.
+Qed.
