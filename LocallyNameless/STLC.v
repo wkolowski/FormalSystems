@@ -8,6 +8,30 @@ Inductive Ty : Type :=
 | TyUnit : Ty
 | TyFun : Ty -> Ty -> Ty.
 
+Fixpoint eq_dec_Ty (A B : Ty) : bool :=
+match A, B with
+| TyUnit, TyUnit => true
+| TyFun A1 A2, TyFun B1 B2 => andb (eq_dec_Ty A1 B1) (eq_dec_Ty A2 B2)
+| _, _ => false
+end.
+
+#[export, refine] Instance Decidable_eq_Ty :
+  forall A B : Ty, Decidable (A = B) :=
+{
+  Decidable_witness := eq_dec_Ty A B;
+}.
+Proof.
+  revert B.
+  induction A as [| A1 IH1 A2 IH2]; cbn; intros [| B1 B2];
+    only 1-3: now firstorder congruence.
+  split.
+  - intros [H1 H2]%andb_prop.
+    now f_equal; [apply IH1 | apply IH2].
+  - intros [= -> ->].
+    apply andb_true_intro.
+    now rewrite IH1, IH2.
+Defined.
+
 Parameters
   (Atom : Type)
   (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y))
@@ -443,7 +467,51 @@ Inductive binds : Ctx -> Atom -> Ty -> Prop :=
     binds ((x, A) :: G) x A
 | binds_tail :
   forall (G : Ctx) (x y : Atom) (A B : Ty),
-    x <> y -> binds ((y, B) :: G) x A.
+    x <> y ->
+    binds G x A ->
+    binds ((y, B) :: G) x A.
+
+#[export] Hint Constructors binds : core.
+
+Lemma binds_app_l :
+  forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
+    binds G1 x A -> binds (G1 ++ G2) x A.
+Proof.
+  now induction 1; cbn; constructor.
+Qed.
+
+Lemma binds_app_r :
+  forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
+    (forall B : Ty, ~ binds G1 x B) -> binds G2 x A -> binds (G1 ++ G2) x A.
+Proof.
+  induction G1 as [| [y B] G1' IH]; cbn; intros; [easy |].
+  decide (x = y); subst.
+  - contradiction (H B).
+    now constructor.
+  - constructor; [easy |].
+    apply IH; [| easy].
+    intros C HC.
+    apply (H C).
+    now constructor.
+Qed.
+
+Lemma binds_app_inv :
+  forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
+    binds (G1 ++ G2) x A ->
+    binds G1 x A
+      \/
+    ((forall B : Ty, ~ binds G1 x B) /\ binds G2 x A).
+Proof.
+  induction G1 as [| [y B] G1' IH]; cbn; intros; [now right |].
+  inversion H; subst; [now left |].
+  destruct (IH _ _ _ H6).
+  - now left; constructor.
+  - right; split; [| easy].
+    intros C HC.
+    destruct H0 as [H0 _].
+    apply (H0 C).
+    now inversion HC; subst.
+Qed.
 
 Inductive typing : Ctx -> Tm -> Ty -> Prop :=
 | typing_fvar :
@@ -470,13 +538,12 @@ Proof.
   remember (G1 ++ G2) as G.
   revert G1 G2 D HeqG.
   induction Ht; only 2-3: intros; subst.
-  - induction H; intros; subst.
-    + destruct G1; inversion HeqG; subst; cbn in *.
-      * admit.
-      * now do 2 constructor.
-    + destruct G1; inversion HeqG; subst; cbn in *.
-      * admit.
-      * now do 2 constructor.
+  - intros; subst.
+    constructor.
+    apply binds_app_inv in H as [].
+    + now apply binds_app_l.
+    + apply binds_app_r; [easy |].
+      admit.
   - apply typing_abs with l.
     intros.
     rewrite app_comm_cons.
