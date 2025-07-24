@@ -461,28 +461,34 @@ Qed.
 
 Definition Ctx : Type := list (Atom * Ty).
 
-Inductive binds : Ctx -> Atom -> Ty -> Prop :=
-| binds_head :
+Inductive WfCtx : Ctx -> Prop :=
+| WfCtx_nil  : WfCtx []
+| WfCtx_cons :
+    forall (x : Atom) (A : Ty) (G : Ctx),
+      WfCtx G -> ~ In x (map fst G) -> WfCtx ((x, A) :: G).
+
+Inductive Binds : Ctx -> Atom -> Ty -> Prop :=
+| Binds_head :
   forall (G : Ctx) (x : Atom) (A : Ty),
-    binds ((x, A) :: G) x A
-| binds_tail :
+    Binds ((x, A) :: G) x A
+| Binds_tail :
   forall (G : Ctx) (x y : Atom) (A B : Ty),
     x <> y ->
-    binds G x A ->
-    binds ((y, B) :: G) x A.
+    Binds G x A ->
+    Binds ((y, B) :: G) x A.
 
-#[export] Hint Constructors binds : core.
+#[export] Hint Constructors Binds : core.
 
-Lemma binds_app_l :
+Lemma Binds_app_l :
   forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    binds G1 x A -> binds (G1 ++ G2) x A.
+    Binds G1 x A -> Binds (G1 ++ G2) x A.
 Proof.
   now induction 1; cbn; constructor.
 Qed.
 
-Lemma binds_app_r :
+Lemma Binds_app_r :
   forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    (forall B : Ty, ~ binds G1 x B) -> binds G2 x A -> binds (G1 ++ G2) x A.
+    (forall B : Ty, ~ Binds G1 x B) -> Binds G2 x A -> Binds (G1 ++ G2) x A.
 Proof.
   induction G1 as [| [y B] G1' IH]; cbn; intros; [easy |].
   decide (x = y); subst.
@@ -495,12 +501,12 @@ Proof.
     now constructor.
 Qed.
 
-Lemma binds_app_inv :
+Lemma Binds_app_inv :
   forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    binds (G1 ++ G2) x A ->
-    binds G1 x A
+    Binds (G1 ++ G2) x A ->
+    Binds G1 x A
       \/
-    ((forall B : Ty, ~ binds G1 x B) /\ binds G2 x A).
+    ((forall B : Ty, ~ Binds G1 x B) /\ Binds G2 x A).
 Proof.
   induction G1 as [| [y B] G1' IH]; cbn; intros; [now right |].
   inversion H; subst; [now left |].
@@ -513,26 +519,27 @@ Proof.
     now inversion HC; subst.
 Qed.
 
-Inductive typing : Ctx -> Tm -> Ty -> Prop :=
-| typing_fvar :
+Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
+| Typing_fvar :
   forall (G : Ctx) (x : Atom) (A : Ty),
-    binds G x A -> typing G x A
-| typing_abs :
+    Binds G x A -> Typing G x A
+| Typing_abs :
   forall (G : Ctx) (t : Tm) (A B : Ty) (l : list Atom),
-    (forall x : Atom, ~ In x l -> typing ((x, A) :: G) (t {{ 0 ~> x }}) B) ->
-    typing G (abs t) (TyFun A B)
-| typing_app :
+    (forall x : Atom, ~ In x l -> Typing ((x, A) :: G) (t {{ 0 ~> x }}) B) ->
+    Typing G (abs t) (TyFun A B)
+| Typing_app :
   forall (G : Ctx) (t1 t2 : Tm) (A B : Ty),
-    typing G t1 (TyFun A B) ->
-    typing G t2 A ->
-    typing G (app t1 t2) B.
+    Typing G t1 (TyFun A B) ->
+    Typing G t2 A ->
+    Typing G (app t1 t2) B.
 
-#[export] Hint Constructors typing : Core.
+#[export] Hint Constructors Typing : Core.
 
 Lemma weakening :
   forall (G1 G2 D : Ctx) (t : Tm) (A : Ty),
-    typing (G1 ++ G2) t A ->
-    typing (G1 ++ D ++ G2) t A.
+    Typing (G1 ++ G2) t A ->
+    WfCtx (G1 ++ D ++ G2) ->
+    Typing (G1 ++ D ++ G2) t A.
 Proof.
   intros * Ht.
   remember (G1 ++ G2) as G.
@@ -540,15 +547,81 @@ Proof.
   induction Ht; only 2-3: intros; subst.
   - intros; subst.
     constructor.
-    apply binds_app_inv in H as [].
-    + now apply binds_app_l.
-    + apply binds_app_r; [easy |].
-      admit.
-  - apply typing_abs with l.
+    apply Binds_app_inv in H as [].
+    + now apply Binds_app_l.
+    + apply Binds_app_r; [easy |].
+      apply Binds_app_r; [| easy].
+      intros B HB.
+  - apply Typing_abs with l.
     intros.
     rewrite app_comm_cons.
     now apply H0.
-  - apply typing_app with A.
+  - apply Typing_app with A.
+    + now apply IHHt1.
+    + now apply IHHt2.
+Admitted.
+
+Lemma weakening :
+  forall (G1 G2 D : Ctx) (t : Tm) (A : Ty),
+    Typing (G1 ++ G2) t A ->
+    Typing (G1 ++ D ++ G2) t A.
+Proof.
+  intros * Ht.
+  remember (G1 ++ G2) as G.
+  revert G1 G2 D HeqG.
+  induction Ht; only 2-3: intros; subst.
+  - intros; subst.
+    constructor.
+    apply Binds_app_inv in H as [].
+    + now apply Binds_app_l.
+    + apply Binds_app_r; [easy |].
+      apply Binds_app_r; [| easy].
+      admit.
+  - apply Typing_abs with l.
+    intros.
+    rewrite app_comm_cons.
+    now apply H0.
+  - apply Typing_app with A.
+    + now apply IHHt1.
+    + now apply IHHt2.
+Admitted.
+
+Lemma weakening' :
+  forall (G D : Ctx) (t : Tm) (A : Ty),
+    Typing G t A ->
+    Typing (G ++ D) t A.
+Proof.
+  intros * Ht.
+  revert D.
+  induction Ht; intros; subst.
+  - constructor.
+    now apply Binds_app_l.
+  - apply Typing_abs with l.
+    intros.
+    rewrite app_comm_cons.
+    now apply H0.
+  - apply Typing_app with A.
     + now apply IHHt1.
     + now apply IHHt2.
 Qed.
+
+Lemma weakening'' :
+  forall (G D : Ctx) (t : Tm) (A : Ty),
+    Typing G t A ->
+    Typing (D ++ G) t A.
+Proof.
+  intros * Ht.
+  revert D.
+  induction Ht; intros; subst.
+  - constructor.
+    apply Binds_app_r; [| easy].
+    admit.
+  - apply Typing_abs with l.
+    intros.
+    rewrite app_comm_cons.
+    admit.
+  - apply Typing_app with A.
+    + now apply IHHt1.
+    + now apply IHHt2.
+Admitted.
+
