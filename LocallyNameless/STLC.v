@@ -4,6 +4,77 @@ Require Import
 
 Import ListNotations.
 
+(*
+Parameters
+  (Atom : Type)
+  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y))
+  (fresh : list Atom -> Atom)
+  (fresh_spec : forall l : list Atom, ~ In (fresh l) l).
+
+Existing Instance Decidable_eq_Atom.
+*)
+
+Inductive Atom : Type :=
+| fresh : list Atom -> Atom.
+
+Fixpoint size (x : Atom) : nat :=
+match x with
+| fresh l => 1 + fold_right (fun h t => size h + t) 0 l
+end.
+
+Definition sizes l := 1 + fold_right (fun h t => size h + t) 0 l.
+
+Require Import Lia.
+
+Lemma In_size :
+  forall (x : Atom) (l : list Atom),
+    In x l -> size x < sizes l.
+Proof.
+  induction l as [| h t IH]; intros Hin; [easy |].
+  destruct Hin as [-> | Hin]; cbn; [now lia |].
+  unfold sizes in IH.
+  specialize (IH Hin).
+  now lia.
+Qed.
+
+Lemma fresh_spec :
+  forall l : list Atom,
+    ~ In (fresh l) l.
+Proof.
+  intros l Hin.
+  apply In_size in Hin. cbn in Hin.
+  now lia.
+Qed.
+
+Fixpoint eq_dec_Atom (x y : Atom) : {x = y} + {x <> y}.
+Proof.
+  refine
+  (
+    match x, y with
+    | fresh lx, fresh ly =>
+      match list_eq_dec eq_dec_Atom lx ly with
+      | left eq => _
+      | right neq => _
+      end
+    end
+  ).
+  - now left; f_equal.
+  - now right; intros [=].
+Defined.
+
+#[export, refine] Instance Decidable_eq_Atom :
+  forall x y : Atom, Decidable (x = y) :=
+{
+  Decidable_witness :=
+    match eq_dec_Atom x y with
+    | left _ => true
+    | right _ => false
+    end;
+}.
+Proof.
+  now destruct (eq_dec_Atom x y).
+Qed.
+
 Inductive Ty : Type :=
 | TyUnit : Ty
 | TyFun : Ty -> Ty -> Ty.
@@ -31,14 +102,6 @@ Proof.
     apply andb_true_intro.
     now rewrite IH1, IH2.
 Defined.
-
-Parameters
-  (Atom : Type)
-  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y))
-  (fresh : list Atom -> Atom)
-  (fresh_spec : forall l : list Atom, ~ In (fresh l) l).
-
-Existing Instance Decidable_eq_Atom.
 
 Inductive Tm : Type :=
 | fvar (a : Atom) : Tm
@@ -342,64 +405,6 @@ Proof.
   now apply open_open in H.
 Qed.
 
-Module first_try.
-
-Inductive lc : Tm -> Prop :=
-| lc_fvar : forall x : Atom, lc x
-| lc_abs  : forall (t : Tm) (x : Atom), lc (open' x t)  -> lc (abs t)
-| lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
-
-#[export] Hint Constructors lc : core.
-
-Lemma open_lc :
-  forall (t : Tm) (i : nat) (u : Tm),
-    lc t -> t {{ i ~> u }} = t.
-Proof.
-  intros t n u Hlc; revert n u.
-  induction Hlc; cbn; intros; [easy | |].
-  - f_equal.
-    now eapply open_open', IHHlc.
-  - now f_equal.
-Qed.
-
-Lemma subst_open :
-  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
-    lc u2 ->
-    t {{ i ~> u1 }} [[ x := u2 ]]
-      =
-    t [[ x := u2 ]] {{ i ~> u1 [[ x := u2 ]] }}.
-Proof.
-  induction t; cbn; intros.
-  - rewrite open_lc; [easy |].
-    now decide (x = a).
-  - now destruct (PeanoNat.Nat.eqb i n).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-Lemma open_subst :
-  forall (t : Tm) (a b : Atom) (u : Tm),
-    a <> b -> lc u ->
-    t [[ a := u ]] {{ 0 ~> b }} = t {{ 0 ~> b }} [[ a := u ]].
-Proof.
-  intros.
-  rewrite subst_open; cbn; [| easy].
-  now decide (a = b).
-Qed.
-
-Lemma lc_subst :
-  forall (t : Tm) (x : Atom) (u : Tm),
-    lc t -> lc u -> lc (t [[ x := u ]]).
-Proof.
-  intros t x u Ht Hu; revert x u Hu.
-  induction Ht; cbn; intros.
-  - now decide (x0 = x).
-  - eapply lc_abs. rewrite open_subst; [| | easy]. unfold open' in Ht. admit. admit.
-  - now constructor; firstorder.
-Abort.
-
-End first_try.
-
 Inductive lc : Tm -> Prop :=
 | lc_fvar : forall x : Atom, lc x
 | lc_abs  : forall (t : Tm) (l : list Atom), (forall x, ~ In x l -> lc (open' x t)) -> lc (abs t)
@@ -467,62 +472,28 @@ Inductive WfCtx : Ctx -> Prop :=
     forall (x : Atom) (A : Ty) (G : Ctx),
       WfCtx G -> ~ In x (map fst G) -> WfCtx ((x, A) :: G).
 
-Inductive Binds : Ctx -> Atom -> Ty -> Prop :=
-| Binds_head :
-  forall (G : Ctx) (x : Atom) (A : Ty),
-    Binds ((x, A) :: G) x A
-| Binds_tail :
-  forall (G : Ctx) (x y : Atom) (A B : Ty),
-    x <> y ->
-    Binds G x A ->
-    Binds ((y, B) :: G) x A.
-
-#[export] Hint Constructors Binds : core.
-
-Lemma Binds_app_l :
+Lemma WfCtx_app_cons :
   forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    Binds G1 x A -> Binds (G1 ++ G2) x A.
+    WfCtx (G2 ++ (x, A) :: G1) -> WfCtx (G2 ++ G1).
 Proof.
-  now induction 1; cbn; constructor.
+  induction G2 as [| [y B] G2' IH]; cbn; intros.
+  - now inversion H.
+  - inversion H; subst.
+    constructor.
+    + now apply IH in H2.
+    + rewrite map_app, !in_app_iff in *; cbn in *.
+      now firstorder.
 Qed.
 
-Lemma Binds_app_r :
-  forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    (forall B : Ty, ~ Binds G1 x B) -> Binds G2 x A -> Binds (G1 ++ G2) x A.
-Proof.
-  induction G1 as [| [y B] G1' IH]; cbn; intros; [easy |].
-  decide (x = y); subst.
-  - contradiction (H B).
-    now constructor.
-  - constructor; [easy |].
-    apply IH; [| easy].
-    intros C HC.
-    apply (H C).
-    now constructor.
-Qed.
-
-Lemma Binds_app_inv :
-  forall (G1 G2 : Ctx) (x : Atom) (A : Ty),
-    Binds (G1 ++ G2) x A ->
-    Binds G1 x A
-      \/
-    ((forall B : Ty, ~ Binds G1 x B) /\ Binds G2 x A).
-Proof.
-  induction G1 as [| [y B] G1' IH]; cbn; intros; [now right |].
-  inversion H; subst; [now left |].
-  destruct (IH _ _ _ H6).
-  - now left; constructor.
-  - right; split; [| easy].
-    intros C HC.
-    destruct H0 as [H0 _].
-    apply (H0 C).
-    now inversion HC; subst.
-Qed.
+Definition Binds (G : Ctx) (x : Atom) (A : Ty) : Prop :=
+  In (x, A) G.
 
 Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
 | Typing_fvar :
   forall (G : Ctx) (x : Atom) (A : Ty),
-    Binds G x A -> Typing G x A
+    WfCtx G ->
+    Binds G x A ->
+    Typing G x A
 | Typing_abs :
   forall (G : Ctx) (t : Tm) (A B : Ty) (l : list Atom),
     (forall x : Atom, ~ In x l -> Typing ((x, A) :: G) (t {{ 0 ~> x }}) B) ->
@@ -535,7 +506,7 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
 
 #[export] Hint Constructors Typing : Core.
 
-Lemma weakening :
+Lemma weakening_aux :
   forall (G1 G2 D : Ctx) (t : Tm) (A : Ty),
     Typing (G1 ++ G2) t A ->
     WfCtx (G1 ++ D ++ G2) ->
@@ -544,84 +515,281 @@ Proof.
   intros * Ht.
   remember (G1 ++ G2) as G.
   revert G1 G2 D HeqG.
-  induction Ht; only 2-3: intros; subst.
-  - intros; subst.
-    constructor.
-    apply Binds_app_inv in H as [].
-    + now apply Binds_app_l.
-    + apply Binds_app_r; [easy |].
-      apply Binds_app_r; [| easy].
-      intros B HB.
-  - apply Typing_abs with l.
-    intros.
-    rewrite app_comm_cons.
-    now apply H0.
-  - apply Typing_app with A.
-    + now apply IHHt1.
-    + now apply IHHt2.
-Admitted.
-
-Lemma weakening :
-  forall (G1 G2 D : Ctx) (t : Tm) (A : Ty),
-    Typing (G1 ++ G2) t A ->
-    Typing (G1 ++ D ++ G2) t A.
-Proof.
-  intros * Ht.
-  remember (G1 ++ G2) as G.
-  revert G1 G2 D HeqG.
-  induction Ht; only 2-3: intros; subst.
-  - intros; subst.
-    constructor.
-    apply Binds_app_inv in H as [].
-    + now apply Binds_app_l.
-    + apply Binds_app_r; [easy |].
-      apply Binds_app_r; [| easy].
-      admit.
-  - apply Typing_abs with l.
-    intros.
-    rewrite app_comm_cons.
-    now apply H0.
-  - apply Typing_app with A.
-    + now apply IHHt1.
-    + now apply IHHt2.
-Admitted.
-
-Lemma weakening' :
-  forall (G D : Ctx) (t : Tm) (A : Ty),
-    Typing G t A ->
-    Typing (G ++ D) t A.
-Proof.
-  intros * Ht.
-  revert D.
   induction Ht; intros; subst.
-  - constructor.
-    now apply Binds_app_l.
-  - apply Typing_abs with l.
+  - constructor; [easy |].
+    unfold Binds in *.
+    rewrite !in_app_iff; rewrite in_app_iff in H0.
+    now firstorder.
+  - apply Typing_abs with (l ++ map fst G1 ++ map fst D ++ map fst G2).
     intros.
+    rewrite !in_app_iff in H2.
     rewrite app_comm_cons.
-    now apply H0.
+    apply H0; [now firstorder | easy |].
+    cbn; constructor; [easy |].
+    rewrite !map_app, !in_app_iff.
+    now firstorder.
   - apply Typing_app with A.
     + now apply IHHt1.
     + now apply IHHt2.
 Qed.
 
-Lemma weakening'' :
-  forall (G D : Ctx) (t : Tm) (A : Ty),
-    Typing G t A ->
-    Typing (D ++ G) t A.
+Lemma weakening :
+  forall (Γ Δ : Ctx) (t : Tm) (A : Ty),
+    WfCtx (Δ ++ Γ) -> Typing Γ t A -> Typing (Δ ++ Γ) t A.
 Proof.
-  intros * Ht.
-  revert D.
-  induction Ht; intros; subst.
-  - constructor.
-    apply Binds_app_r; [| easy].
-    admit.
-  - apply Typing_abs with l.
-    intros.
-    rewrite app_comm_cons.
-    admit.
-  - apply Typing_app with A.
-    + now apply IHHt1.
-    + now apply IHHt2.
-Admitted.
+  now intros; apply weakening_aux with (G1 := []); cbn.
+Qed.
+
+Lemma lc_Typing :
+  forall (Γ : Ctx) (t : Tm) (A : Ty),
+    Typing Γ t A -> lc t.
+Proof.
+  induction 1; only 1, 3: now constructor.
+  apply lc_abs with l.
+  unfold open'.
+  intros x Hx.
+  now apply H0.
+Qed.
+
+Lemma Binds_inv :
+  forall (Γ : Ctx) (x : Atom) (A B : Ty),
+    WfCtx Γ -> Binds Γ x A -> Binds Γ x B -> A = B.
+Proof.
+  induction 1; cbn; [easy |].
+  intros [ [= -> ->] |].
+  - intros [ [= ->] |]; [easy |].
+    contradiction H0.
+    rewrite in_map_iff.
+    now exists (x, B).
+  - intros [ [= -> ->] |].
+    + contradiction H0.
+      rewrite in_map_iff.
+      now exists (x, A).
+    + now apply IHWfCtx.
+Qed.
+
+Lemma Binds_app_cons_inv :
+  forall (Γ Δ : Ctx) (x y : Atom) (A B : Ty),
+    Binds (Δ ++ (x, A) :: Γ) y B ->
+      (x = y /\ A = B)
+        \/
+      Binds (Δ ++ Γ) y B.
+Proof.
+  induction Δ.
+  - now cbn; firstorder congruence.
+  - inversion 1; subst.
+    + now firstorder.
+    + apply IHΔ in H0.
+      now firstorder.
+Qed.
+
+Lemma Typing_subst_aux :
+  forall (Γ Δ : Ctx) (x : Atom) (t u : Tm) (A B : Ty),
+    Typing (Δ ++ (x, A) :: Γ) t B ->
+    Typing Γ u A ->
+    Typing (Δ ++ Γ) (t [[ x := u ]]) B.
+Proof.
+  intros * Ht Hu.
+  remember (Δ ++ (x, A) :: Γ) as G.
+  revert Δ x A Γ HeqG Hu.
+  induction Ht as [? y B Hwf HB | ? t' B1 B2 l Hcof IH | ? t1 t2 B1 B2 Ht1 IH1 Ht2 IH2];
+    cbn; intros; subst.
+  - apply WfCtx_app_cons in Hwf as Hwf'.
+    decide (x = y); subst.
+    + replace B with A.
+      * now apply weakening.
+      * symmetry.
+        eapply (Binds_inv _ _ _ _ Hwf HB).
+        red; rewrite in_app_iff; cbn.
+        now firstorder.
+    + apply Binds_app_cons_inv in HB as [ [-> ->] |]; [easy |].
+      now constructor.
+  - apply Typing_abs with (x :: l).
+    intros y Hy; cbn in Hy.
+    assert (x <> y /\ ~ In y l) as [Hxy Hyl] by firstorder.
+    rewrite open_subst; [| now firstorder | now apply lc_Typing in Hu].
+    now eapply (IH y Hyl ((y, B1) :: Δ)).
+  - econstructor.
+    + now eapply IH1.
+    + now eapply IH2.
+Qed.
+
+Lemma Typing_subst :
+  forall (Γ : Ctx) (x : Atom) (t u : Tm) (A B : Ty),
+    Typing ((x, A) :: Γ) t B ->
+    Typing Γ u A ->
+    Typing Γ (t [[ x := u ]]) B.
+Proof.
+  now intros; eapply Typing_subst_aux with (Δ := []) (A := A).
+Qed.
+
+Inductive Value : Tm -> Prop :=
+| Value_abs : forall t : Tm, lc (abs t) -> Value (abs t).
+
+Inductive Step : Tm -> Tm -> Prop :=
+| Step_FunComp :
+  forall (t1 t2 : Tm),
+    lc (abs t1) ->
+    Value t2 ->
+    Step (app (abs t1) t2) (t1 {{ 0 ~> t2 }})
+| Step_FunCongrL :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    Step t1 t1' ->
+    Step (app t1 t2) (app t1' t2)
+| Step_FunCongrR :
+  forall (t1 t2 t2' : Tm),
+    Value t1 ->
+    Step t2 t2' ->
+    Step (app t1 t2) (app t1 t2').
+
+#[export] Hint Constructors Step : core.
+
+Lemma open_subst' :
+  forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
+    ~ In x (fv t) ->
+      t {{ i ~> u }} = t {{ i ~> x }} [[ x := u ]].
+Proof.
+  induction t; cbn; intros i x u Hfresh.
+  - now decide (x = a); firstorder congruence.
+  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [| easy].
+    now decide (x = x).
+  - now erewrite IHt.
+  - rewrite in_app_iff in Hfresh.
+    now erewrite IHt1, IHt2; firstorder.
+Qed.
+
+Lemma preservation :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
+    Step t1 t2 ->
+    Typing Γ t1 A ->
+    Typing Γ t2 A.
+Proof.
+  intros * Hs.
+  revert Γ A.
+  induction Hs; intros Γ A Ht.
+  - inversion Ht; subst.
+    inversion H4; subst.
+    replace (t1 {{ 0 ~> t2 }}) with
+      (t1 {{ 0 ~> fresh (l ++ fv t1) }} [[ fresh (l ++ fv t1) := t2 ]]).
+    + apply Typing_subst with A0; [| easy].
+      apply H5.
+      intro Hin.
+      apply (fresh_spec (l ++ fv t1)).
+      rewrite in_app_iff.
+      now left.
+    + rewrite <- open_subst'; [easy |].
+      intro Hin.
+      apply (fresh_spec (l ++ fv t1)).
+      rewrite in_app_iff.
+      now right.
+  - inversion Ht; subst.
+    econstructor; [| now apply H5].
+    now apply IHHs.
+  - inversion Ht; subst.
+    econstructor; [now apply H3 |].
+    now apply IHHs.
+Restart.
+  intros * Hs Ht.
+  revert t2 Hs.
+  induction Ht; intros; inversion Hs; subst.
+  - inversion Ht1; subst.
+    rewrite open_subst' with (x := fresh (l ++ fv t3)).
+    + apply Typing_subst with A; [| easy].
+      apply H4.
+      intro Hin.
+      apply (fresh_spec (l ++ fv t3)).
+      rewrite in_app_iff.
+      now left.
+    + intro Hin.
+      apply (fresh_spec (l ++ fv t3)).
+      rewrite in_app_iff.
+      now right.
+  - econstructor; [| now apply Ht2].
+    now apply IHHt1.
+  - econstructor; [now apply Ht1 |].
+    now apply IHHt2.
+Qed.
+
+Lemma progress :
+  forall (t : Tm) (A : Ty),
+    Typing [] t A ->
+      Value t \/ exists t' : Tm, Step t t'.
+Proof.
+  intros t A Ht.
+  remember [] as Γ.
+  induction Ht; subst.
+  - now inversion H0.
+  - left; constructor.
+    apply lc_abs with l.
+    intros x Hx.
+    now eapply lc_Typing, H.
+  - destruct (IHHt1 eq_refl) as [ [t1' Hlc1] | [t1' Hs1] ].
+    + destruct (IHHt2 eq_refl) as [ [t2' Hlc2] | [t2' Hs2] ].
+      * right; eexists.
+        now constructor 1.
+      * right; eexists.
+        now constructor 3; eauto.
+    + right; eexists.
+      constructor 2; eauto.
+      now apply lc_Typing in Ht2.
+Qed.
+
+Lemma lc_open :
+  forall (t u : Tm),
+    lc (abs t) -> lc u ->
+      lc (t {{ 0 ~> u }}).
+Proof.
+  inversion 1; intros Hu.
+  rewrite (open_subst' _ _ (fresh (l ++ fv t))).
+  - apply lc_subst; [| easy].
+    apply H1; intros Hin.
+    apply fresh_spec with (l ++ fv t).
+    rewrite in_app_iff.
+    now left.
+  - intros Hin.
+    apply fresh_spec with (l ++ fv t).
+    rewrite in_app_iff.
+    now right.
+Qed.
+
+Lemma lc_Value :
+  forall t : Tm,
+    Value t -> lc t.
+Proof.
+  now inversion 1.
+Qed.
+
+Lemma lc_Step_l :
+  forall t t' : Tm,
+    Step t t' -> lc t.
+Proof.
+  induction 1.
+  - constructor; [easy |].
+    now apply lc_Value.
+  - now constructor.
+  - constructor; [| easy ].
+    now apply lc_Value.
+Qed.
+
+Lemma lc_Step_r :
+  forall t t' : Tm,
+    Step t t' -> lc t'.
+Proof.
+  induction 1.
+  - apply lc_open; [easy |].
+    now apply lc_Value.
+  - now constructor.
+  - constructor; [| easy ].
+    now apply lc_Value.
+Qed.
+
+Lemma WfCtx_Typing :
+  forall (Γ : Ctx) (t : Tm) (A : Ty),
+    Typing Γ t A -> WfCtx Γ.
+Proof.
+  induction 1; [easy | | easy].
+  specialize (H0 (fresh l) (fresh_spec l)).
+  now inversion H0.
+Qed.
 
