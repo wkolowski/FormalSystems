@@ -4,76 +4,17 @@ Require Import
 
 Import ListNotations.
 
-(*
-Parameters
-  (Atom : Type)
-  (Decidable_eq_Atom : forall x y : Atom, Decidable (x = y))
-  (fresh : list Atom -> Atom)
-  (fresh_spec : forall l : list Atom, ~ In (fresh l) l).
+From FormalSystems Require Import LocallyNameless.LocallyNameless.
 
-Existing Instance Decidable_eq_Atom.
-*)
+(* From FormalSystems Require Import LocallyNameless.Atom. *)
 
-Inductive Atom : Type :=
-| fresh : list Atom -> Atom.
+Arguments decide : simpl never.
 
-Fixpoint size (x : Atom) : nat :=
-match x with
-| fresh l => 1 + fold_right (fun h t => size h + t) 0 l
+Ltac decide_all :=
+repeat match goal with
+| |- context [decide (?x = ?x)] => rewrite Decidable_complete by easy
+| |- context [decide (?x = ?y)] => decide (x = y); subst; cbn; try easy
 end.
-
-Definition sizes l := 1 + fold_right (fun h t => size h + t) 0 l.
-
-Require Import Lia.
-
-Lemma In_size :
-  forall (x : Atom) (l : list Atom),
-    In x l -> size x < sizes l.
-Proof.
-  induction l as [| h t IH]; intros Hin; [easy |].
-  destruct Hin as [-> | Hin]; cbn; [now lia |].
-  unfold sizes in IH.
-  specialize (IH Hin).
-  now lia.
-Qed.
-
-Lemma fresh_spec :
-  forall l : list Atom,
-    ~ In (fresh l) l.
-Proof.
-  intros l Hin.
-  apply In_size in Hin. cbn in Hin.
-  now lia.
-Qed.
-
-Fixpoint eq_dec_Atom (x y : Atom) : {x = y} + {x <> y}.
-Proof.
-  refine
-  (
-    match x, y with
-    | fresh lx, fresh ly =>
-      match list_eq_dec eq_dec_Atom lx ly with
-      | left eq => _
-      | right neq => _
-      end
-    end
-  ).
-  - now left; f_equal.
-  - now right; intros [=].
-Defined.
-
-#[export, refine] Instance Decidable_eq_Atom :
-  forall x y : Atom, Decidable (x = y) :=
-{
-  Decidable_witness :=
-    match eq_dec_Atom x y with
-    | left _ => true
-    | right _ => false
-    end;
-}.
-Proof.
-  now destruct (eq_dec_Atom x y).
-Qed.
 
 Inductive Ty : Type :=
 | TyUnit : Ty
@@ -134,8 +75,6 @@ end.
 
 Notation "x |> f" := (f x) (at level 68, only parsing).
 
-(* Notation "t [ x ~> u ]" := (subst x u t) (at level 68). *)
-
 Notation "t [[ x := u ]]" := (subst x u t) (at level 68).
 
 Lemma subst_demo :
@@ -179,186 +118,85 @@ Proof.
     now destruct IHt1, IHt2; firstorder congruence.
 Qed.
 
-Fixpoint open (i : nat) (u t : Tm) : Tm :=
+Fixpoint open (t : Tm) (i : nat) (u : Tm) : Tm :=
 match t with
 | fvar a    => fvar a
 | bvar j    => if decide (i = j) then u else bvar j
-| abs t'    => abs (open (S i) u t')
-| app t1 t2 => app (open i u t1) (open i u t2)
+| abs t'    => abs (open t' (S i) u)
+| app t1 t2 => app (open t1 i u) (open t2 i u)
 end.
 
-(* Notation "{ n ~> t2 } t1" := (open t1 n t2) (at level 68). *)
-Notation "t {{ i ~> u }}" := (open i u t) (at level 68).
+Notation "t {{ i ~> u }}" := (open t i u) (at level 68).
 
-Definition open' (u t : Tm) : Tm :=
-  open 0 u t.
+Fixpoint close (t : Tm) (i : nat) (a : Atom) : Tm :=
+match t with
+| fvar x    => if decide (a = x) then bvar i else fvar x
+| bvar n    => bvar n
+| abs t'    => abs (close t' (S i) a)
+| app t1 t2 => app (close t1 i a) (close t2 i a)
+end.
+
+Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
 
 Lemma open_demo :
   forall y : Atom,
-    app (abs (app 1 0)) 0 |> open' y = app (abs (app y 0)) y.
+    app (abs (app 1 0)) 0 {{ 0 ~> y }} = app (abs (app y 0)) y.
 Proof.
   easy.
 Qed.
 
-(*
-Fixpoint close (a : Atom) (u t : Tm) : Tm :=
-match t with
-| fvar x    => if decide (a = x) then u else fvar x
-| bvar i    => bvar i
-| abs t'    => abs (close a (succ u) t')
-| app t1 t2 => app (close a u t1) (close a u t2)
-end.
+#[export] Instance OC_Tm : OC nat Atom Tm :=
+{
+  open := open;
+  close := close;
+}.
 
-Notation "t {{ u <~ a }}" := (close a u t) (at level 68).
-*)
-
-Fixpoint close (a : Atom) (i : nat) (t : Tm) : Tm :=
-match t with
-| fvar x    => if decide (a = x) then bvar i else fvar x
-| bvar n    => bvar n
-| abs t'    => abs (close a (S i) t')
-| app t1 t2 => app (close a i t1) (close a i t2)
-end.
-
-Notation "t {{ i <~ a }}" := (close a i t) (at level 68).
-
-(* OC 1 *)
-Lemma open_open_eq :
-  forall (t : Tm) (i : nat) (a b : Atom),
-    t {{ i ~> a }} {{ i ~> b }} = t {{ i ~> a }}.
+#[export, refine] Instance LocallyNameless_Tm : LocallyNameless nat Atom Tm := {}.
 Proof.
-  induction t; cbn; intros; [easy | | |].
-  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [easy |].
-    now destruct (PeanoNat.Nat.eqb_spec i n).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 2 *)
-Lemma close_close_eq :
-  forall (t : Tm) (a : Atom) (i j : nat),
-    t {{ i <~ a }} {{ j <~ a }} = t {{ i <~ a }}.
-Proof.
-  induction t; cbn; intros; [| easy | |].
-  - decide (a0 = a); cbn; [easy |].
-    now decide (a0 = a).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 3 *)
-Lemma open_close_eq :
-  forall (t : Tm) (i : nat) (a : Atom),
-    t {{ i ~> a }} {{ i <~ a }} = t {{ i <~ a }}.
-Proof.
-  induction t; cbn; intros; [easy | ..].
-  - destruct (PeanoNat.Nat.eqb_spec i n); subst; cbn; [| easy].
-    now decide (a = a).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 4 *)
-Lemma close_open_eq :
-  forall (t : Tm) (i : nat) (a : Atom),
-    t {{ i <~ a }} {{ i ~> a }} = t {{ i ~> a }}.
-Proof.
-  induction t; cbn; intros; [| easy | ..].
-  - decide (a0 = a); subst; cbn; [| easy].
-    now destruct (PeanoNat.Nat.eqb_spec i i).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 5 *)
-Lemma open_open_neq :
-  forall (t : Tm) (i j : nat) (a b : Atom),
-    i <> j ->
-      t {{ i ~> a }} {{ j ~> b }} = t {{ j ~> b }} {{ i ~> a }}.
-Proof.
-  induction t; cbn; intros; [easy | ..].
-  - destruct (PeanoNat.Nat.eqb_spec j n); cbn;
-      destruct (PeanoNat.Nat.eqb_spec i n); subst; cbn; [easy | | easy |].
-    + now destruct (PeanoNat.Nat.eqb_spec n n).
-    + now destruct (PeanoNat.Nat.eqb_spec j n).
-  - now rewrite IHt; [| congruence].
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 6 *)
-Lemma close_close_neq :
-  forall (t : Tm) (i j : nat) (a b : Atom),
-    a <> b ->
-      t {{ i <~ a }} {{ j <~ b }} = t {{ j <~ b }} {{ i <~ a }}.
-Proof.
-  induction t; cbn; intros; [| easy | ..].
-  - decide (a0 = a); subst; cbn;
-      decide (b = a); subst; cbn; only 1, 3: easy.
-    + now decide (a = a).
-    + now decide (a0 = a).
-  - now rewrite IHt; [| congruence].
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 7 *)
-Lemma open_close_neq :
-  forall (t : Tm) (i j : nat) (a b : Atom),
-    i <> j -> a <> b ->
-      t {{ i ~> a }} {{ j <~ b }} = t {{ j <~ b }} {{ i ~> a }}.
-Proof.
-  induction t; cbn; intros.
-  - decide (b = a); subst; cbn; [| easy].
-    now destruct (PeanoNat.Nat.eqb_spec i j).
-  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [| easy].
-    now decide (b = a); subst.
-  - now rewrite IHt; congruence.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 8 *)
-Lemma open_close_open :
-  forall (t : Tm) (i j : nat) (a b : Atom),
-    t {{ i ~> a }} {{ j <~ a }} {{ j ~> b }}
-      =
-    t {{ j ~> b }} {{ i <~ a }} {{ i ~> b }}.
-Proof.
-  induction t; cbn; intros.
-  - decide (a0 = a); cbn; [| easy].
-    now destruct (PeanoNat.Nat.eqb_spec j j), (PeanoNat.Nat.eqb_spec i i).
-  - destruct (PeanoNat.Nat.eqb_spec i n); subst; cbn;
-      destruct (PeanoNat.Nat.eqb_spec j n); subst; cbn.
-    + rewrite Decidable_complete by easy.
-      now decide (a = b); cbn; destruct (PeanoNat.Nat.eqb_spec n n).
-    + rewrite Decidable_complete by easy; cbn.
-      now destruct (PeanoNat.Nat.eqb_spec j j), (PeanoNat.Nat.eqb_spec n n).
-    + decide (a = b); cbn; [| easy].
-      now destruct (PeanoNat.Nat.eqb_spec i i).
-    + now destruct (PeanoNat.Nat.eqb_spec i n).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
-Qed.
-
-(* OC 9 *)
-Lemma close_open_close :
-  forall (t : Tm) (i j : nat) (a b : Atom),
-    t {{ i <~ a }} {{ i ~> b }} {{ j <~ b }}
-      =
-    t {{ j <~ b }} {{ i ~> a }} {{ j <~ a }}.
-Proof.
-  induction t; cbn; intros.
-  - decide (b = a); subst; cbn; decide (a0 = a); subst; cbn.
-    + now destruct (PeanoNat.Nat.eqb_spec i j), (PeanoNat.Nat.eqb_spec i i); cbn;
-        rewrite ?Decidable_complete by easy.
-    + rewrite Decidable_complete by easy.
-      destruct (PeanoNat.Nat.eqb_spec i j); cbn; [| easy].
-      now rewrite Decidable_complete.
-    + destruct (PeanoNat.Nat.eqb_spec i i); cbn; [| easy].
-      now rewrite Decidable_complete.
-    + now decide (b = a).
-  - destruct (PeanoNat.Nat.eqb_spec i n); subst; cbn; [| easy].
-    now rewrite !Decidable_complete.
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
+  all: cbn.
+  - induction t; cbn; intros; [easy | | |].
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros; [| easy | |].
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros; [easy | ..].
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros; [| easy | ..].
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros; [easy | ..].
+    + now decide_all.
+    + now rewrite IHt; [| congruence].
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros; [| easy | ..].
+    + now decide_all.
+    + now rewrite IHt; [| congruence].
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros.
+    + now decide_all.
+    + now decide_all.
+    + now rewrite IHt; congruence.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros.
+    + now decide_all.
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+  - induction t; cbn; intros.
+    + now decide_all.
+    + now decide_all.
+    + now rewrite IHt.
+    + now rewrite IHt1, IHt2.
+Restart.
+  all: cbn;
+    (induction t; cbn; intros;
+      [now decide_all | now decide_all | now rewrite IHt; congruence | now rewrite IHt1, IHt2]).
 Qed.
 
 Lemma open_from_subst :
@@ -368,8 +206,7 @@ Lemma open_from_subst :
 Proof.
   induction t; cbn; intros.
   - now decide (a0 = a); subst; firstorder.
-  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [| easy].
-    now decide (a = a).
+  - now decide_all.
   - now rewrite <- IHt.
   - rewrite in_app_iff in H.
     now rewrite <- IHt1, <- IHt2; firstorder.
@@ -383,8 +220,8 @@ Lemma open_open :
 Proof.
   induction t; cbn; intros * Hneq H.
   - easy.
-  - destruct (PeanoNat.Nat.eqb_spec i n); [| easy].
-    destruct (PeanoNat.Nat.eqb_spec j n); [| easy].
+  - decide (i = n); subst; cbn; [| easy].
+    decide (j = n); [| easy].
     now congruence.
   - inversion H.
     f_equal.
@@ -396,18 +233,9 @@ Proof.
     + now eapply IHt2, H2.
 Qed.
 
-Lemma open_open' :
-  forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
-    t {{ 0 ~> x }} {{ S i ~> u }} = t {{ 0 ~> x }} ->
-      t {{ S i ~> u }} = t.
-Proof.
-  intros.
-  now apply open_open in H.
-Qed.
-
 Inductive lc : Tm -> Prop :=
 | lc_fvar : forall x : Atom, lc x
-| lc_abs  : forall (t : Tm) (l : list Atom), (forall x, ~ In x l -> lc (open' x t)) -> lc (abs t)
+| lc_abs  : forall (t : Tm) (l : list Atom), (forall x, ~ In x l -> lc (t {{ 0 ~> x }})) -> lc (abs t)
 | lc_app  : forall t1 t2 : Tm, lc t1 -> lc t2 -> lc (app t1 t2).
 
 #[export] Hint Constructors lc : core.
@@ -419,8 +247,9 @@ Proof.
   intros t n u Hlc; revert n u.
   induction Hlc; cbn; intros; [easy | |].
   - f_equal.
-    apply open_open' with (fresh l), H0.
-    now apply fresh_spec.
+    eapply open_open; cycle 1.
+    + now apply (H0 (fresh l)), fresh_spec.
+    + easy.
   - now f_equal.
 Qed.
 
@@ -434,7 +263,7 @@ Proof.
   induction t; cbn; intros.
   - rewrite open_lc; [easy |].
     now decide (x = a).
-  - now destruct (PeanoNat.Nat.eqb i n).
+  - now decide (i = n).
   - now rewrite IHt.
   - now rewrite IHt1, IHt2.
 Qed.
@@ -546,7 +375,6 @@ Lemma lc_Typing :
 Proof.
   induction 1; only 1, 3: now constructor.
   apply lc_abs with l.
-  unfold open'.
   intros x Hx.
   now apply H0.
 Qed.
@@ -652,7 +480,7 @@ Lemma open_subst' :
 Proof.
   induction t; cbn; intros i x u Hfresh.
   - now decide (x = a); firstorder congruence.
-  - destruct (PeanoNat.Nat.eqb_spec i n); cbn; [| easy].
+  - decide (i = n); cbn; [| easy].
     now decide (x = x).
   - now erewrite IHt.
   - rewrite in_app_iff in Hfresh.
@@ -792,4 +620,3 @@ Proof.
   specialize (H0 (fresh l) (fresh_spec l)).
   now inversion H0.
 Qed.
-
