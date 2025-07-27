@@ -1,6 +1,3 @@
-Require Import
-  Coq.Classes.DecidableClass.
-
 From FormalSystems Require Export LocallyNameless.Atom.
 
 Class OC (Index Atom Term : Type) : Type :=
