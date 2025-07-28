@@ -23,6 +23,8 @@ Class isAtom (Atom : Type) : Type :=
   Fresh (x : Atom) (l : list Atom) : Prop := ~ In x l;
 }.
 
+Arguments fresh Atom !_ : simpl nomatch.
+
 Notation "x # l" := (Fresh x l) (at level 68).
 
 (** * Freshness tactics *)

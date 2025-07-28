@@ -1,19 +1,26 @@
 From FormalSystems Require Export LocallyNameless.Atom.
 
-Class OC (Index Atom Term : Type) : Type :=
-{
-  open  : Term -> Index -> Atom -> Term;
-  close : Term -> Index -> Atom -> Term;
-}.
+Class Open (Index Atom Term : Type) : Type :=
+  open : Term -> Index -> Atom -> Term.
+
+Class Close (Index Atom Term : Type) : Type :=
+  close : Term -> Index -> Atom -> Term.
+
+Arguments open Index Atom Term Open !_ _ _.
+Arguments close Index Atom Term Close !_ _ _.
 
 Notation "t {{ i ~> a }}" := (open t i a) (at level 68).
 Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
 
-Class LocallyNameless (Index Atom Term : Type) : Type :=
+Class LocallyNameless
+  (Index Atom Term : Type)
+  (LNO : Open Index Atom Term)
+  (LNC : Close Index Atom Term) : Type :=
 {
   LocallyNameless_isAtom :: isAtom Atom;
   LocallyNameless_Decidable_eq_Index :: forall i j : Index, Decidable (i = j);
-  LocallyNameless_OC :: OC Index Atom Term;
+(*   LocallyNameless_Open :: Open Index Atom Term; *)
+(*   LocallyNameless_Close :: Close Index Atom Term; *)
   open_open_eq : (* OC 1 *)
     forall (t : Term) (i : Index) (a b : Atom),
       t {{ i ~> a }} {{ i ~> b }} = t {{ i ~> a }};
