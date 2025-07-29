@@ -82,8 +82,8 @@ match t with
 | app t1 t2 => app (open t1 i u) (open t2 i u)
 end.
 
-Notation "t {{ i ~> u }}" := (open t i u) (at level 68).
-
+(* Notation "t {{ i ~> u }}" := (open t i u) (at level 68).
+ *)
 Fixpoint close (t : Tm) (i : nat) (a : Atom) : Tm :=
 match t with
 | fvar x    => if decide (a = x) then bvar i else fvar x
@@ -92,15 +92,50 @@ match t with
 | app t1 t2 => app (close t1 i a) (close t2 i a)
 end.
 
-Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
+(* Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
+ *)
 
-Lemma open_demo :
-  forall y : Atom,
-    app (abs (app 1 0)) 0 {{ 0 ~> y }} = app (abs (app y 0)) y.
-Proof.
-  easy.
-Qed.
+(*
+#[export] Instance Open_Tm : Open nat Atom Tm :=
+  fix open (t : Tm) (i : nat) (u : Atom) : Tm :=
+    let _ : Open _ _ _ := @open in
+    match t with
+    | fvar a    => fvar a
+    | bvar j    => if decide (i = j) then u else bvar j
+    | abs t'    => abs (t' {{ S i ~> u }})
+    | app t1 t2 => app (t1 {{ i ~> u }}) (t2 {{ i ~> u }})
+    end.
 
+#[export] Instance Close_Tm : Close nat Atom Tm :=
+  fix close (t : Tm) (i : nat) (a : Atom) : Tm :=
+    let _ : Close _ _ _ := @close in
+    match t with
+    | fvar x    => if decide (a = x) then bvar i else fvar x
+    | bvar n    => bvar n
+    | abs t'    => abs (t' {{ S i <~ a }})
+    | app t1 t2 => app (t1 {{ i <~ a }}) (t2 {{ i <~ a }})
+    end.
+*)
+
+#[export] Instance Open_Tm : Open nat Atom Tm :=
+  fix open (t : Tm) (i : nat) (a : Atom) : Tm :=
+    match t with
+    | fvar a    => fvar a
+    | bvar j    => if decide (i = j) then a else bvar j
+    | abs t'    => abs (open t' (S i) a)
+    | app t1 t2 => app (open t1 i a) (open t2 i a)
+    end.
+
+#[export] Instance Close_Tm : Close nat Atom Tm :=
+  fix close (t : Tm) (i : nat) (a : Atom) : Tm :=
+    match t with
+    | fvar x    => if decide (a = x) then bvar i else fvar x
+    | bvar n    => bvar n
+    | abs t'    => abs (close t' (S i) a)
+    | app t1 t2 => app (close t1 i a) (close t2 i a)
+    end.
+
+(*
 Lemma open_from_subst :
   forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
     x # fv t ->
@@ -113,15 +148,10 @@ Proof.
   - red in H; rewrite in_app_iff in H.
     now rewrite <- IHt1, <- IHt2; firstorder.
 Qed.
-
-#[export] Instance OC_Tm : OC nat Atom Tm :=
-{
-  open := open;
-  close := close;
-}.
+*)
 
 #[export, refine] Instance LocallyNameless_Tm :
-  LocallyNameless nat Atom Tm := {}.
+  LocallyNameless nat Atom Tm Open_Tm Close_Tm := {}.
 Proof.
   all: cbn;
     (induction t; cbn; intros;
