@@ -27,7 +27,7 @@ Arguments fresh Atom !_ : simpl nomatch.
 
 Notation "x # l" := (Fresh x l) (at level 68).
 
-(** * Freshness tactics *)
+(** ** Freshness tactics *)
 
 Lemma incl_app_l :
   forall {A : Type} (l1 l2 l3 : list A),
