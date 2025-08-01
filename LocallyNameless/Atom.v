@@ -3,7 +3,7 @@ Require Export
   Coq.Classes.DecidableClass
   Lia.
 
-Import ListNotations.
+Export ListNotations.
 
 Arguments decide : simpl never.
 
@@ -11,6 +11,7 @@ Ltac decide_all :=
 repeat match goal with
 | |- context [decide (?x = ?x)] => rewrite Decidable_complete by easy
 | |- context [decide (?x = ?y)] => decide (x = y); subst; cbn; try easy
+| H : context [decide (?x = ?y)] |- _ => decide (x = y); subst; try easy; cbn in H
 end.
 
 (** * Class of Atom-like types *)
@@ -76,11 +77,10 @@ End sec_Fresh_lemmas.
 Ltac solve_fresh :=
 repeat match goal with
 | |- fresh _ # _ => apply fresh_incl
-(* | |- Fresh (fresh _) _ => apply fresh_incl *)
-(* | |- ~ In (fresh _) _ => apply fresh_incl *)
 | |- incl ?l ?l => apply incl_refl
 | |- incl _ _ => now apply incl_app_l
 | |- incl _ _ => apply incl_app_r
+| H : ?x # ?l1 |- ?x # ?l2 => apply (Fresh_incl x l2 l1); [clear H | easy]
 end.
 
 (** * Inductive Atoms *)

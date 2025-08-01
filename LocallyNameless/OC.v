@@ -1,5 +1,7 @@
 From FormalSystems Require Export LocallyNameless.Atom.
 
+(** * Opening and closing *)
+
 Class Open (Index Atom Term : Type) : Type :=
   open : Term -> Index -> Atom -> Term.
 
@@ -12,10 +14,12 @@ Arguments close Index Atom Term Close !_ _ _.
 Notation "t {{ i ~> a }}" := (open t i a) (at level 68).
 Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
 
+(** * OC sets *)
+
 Class OC
   (Index Atom Term : Type)
   (OCO : Open Index Atom Term)
-  (OCCC : Close Index Atom Term) : Type :=
+  (OCC : Close Index Atom Term) : Type :=
 {
   OC_isAtom :: isAtom Atom;
   OC_Decidable_eq_Index :: forall i j : Index, Decidable (i = j);
@@ -55,7 +59,7 @@ Class OC
       t {{ j <~ b }} {{ i ~> a }} {{ j <~ a }}
 }.
 
-(** ** OC set of indices and atoms *)
+(** ** The OC set of indices and atoms *)
 
 Section IA.
 
@@ -85,33 +89,26 @@ Qed.
 
 End IA.
 
-(** ** Freshness from the paper *)
+(** * Freshness *)
 
 Section Fresh'_lemmas.
 
 Context
-  (Index Atom Term : Type)
-  (Open_Term : Open Index Atom Term)
-  (Close_Term : Close Index Atom Term)
-  (OC_Term : OC Index Atom Term Open_Term Close_Term).
+  {Index Atom Term : Type}
+  {Open_Term : Open Index Atom Term}
+  {Close_Term : Close Index Atom Term}
+  {OC_Term : OC Index Atom Term Open_Term Close_Term}.
 
 (* Lemma 2.4 from the paper *)
-Lemma Fresh'_invariant_aux :
+Lemma close_invariant :
   forall (t : Term) (i j : Index) (a : Atom),
     t {{ i <~ a }} = t <-> t {{ j <~ a }} = t.
 Proof.
   now split; intros [= <-]; rewrite close_close_eq.
 Qed.
 
-Lemma Fresh'_invariant_aux' :
-  forall (t : Term) (i : Index) (a : Atom),
-    t {{ i <~ a }} = t <-> forall j : Index, t {{ j <~ a }} = t.
-Proof.
-  split; [| easy].
-  now intros [= <-] j; rewrite close_close_eq.
-Qed.
-
-Lemma Fresh'_invariant_aux_open :
+(* Lemma 2.7 *)
+Lemma open_invariant :
   forall (t : Term) (i : Index) (a b : Atom),
     t {{ i ~> a }} = t <-> t {{ i ~> b }} = t.
 Proof.
@@ -136,7 +133,7 @@ Lemma Fresh'_invariant :
     Fresh' a t <-> t {{ i <~ a }} = t.
 Proof.
   intros; unfold Fresh'.
-  now rapply Fresh'_invariant_aux.
+  now apply close_invariant.
 Qed.
 
 End Fresh'.
@@ -152,5 +149,53 @@ Context
 Definition lci (i : nat) (t : Term) : Prop :=
   forall j : nat, i <= j -> exists a : Atom, t {{ j ~> a }} = t.
 
+(* Lemma 2.6 *)
+
+Lemma lci_le :
+  forall (i j : nat) (t : Term),
+    i <= j -> lci i t -> lci j t.
+Proof.
+  unfold lci.
+  intros i j t Hij Hlci k Hjk.
+  apply Hlci.
+  now lia.
+Qed.
+
+(* Corollary of lemma 2.7 *)
+Lemma open_lci :
+  forall (t : Term) (i : nat),
+    lci i t -> forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t.
+Proof.
+  unfold lci.
+  intros t i Hlci j a Hle.
+  destruct (Hlci j Hle) as [b Hb].
+  now apply (open_invariant t j a b).
+Qed.
+
+(* Corollary 2.8 *)
+Lemma close_open_lci :
+  forall (t : Term) (i : nat) (a : Atom),
+    lci i t -> t {{ i <~ a }} {{ i ~> a }} = t.
+Proof.
+  intros t i a Hlci.
+  rewrite close_open_eq.
+  apply (open_lci t i Hlci).
+  now lia.
+Qed.
+
 End lci.
 
+(** * Support *)
+
+Section support.
+
+Context
+  {Atom Term : Type}
+  {Open_Term : Open nat Atom Term}
+  {Close_Term : Close nat Atom Term}
+  {OC_Term : OC nat Atom Term Open_Term Close_Term}.
+
+Definition supports (l : list Atom) (t : Term) : Prop :=
+  forall a : Atom, a # l -> Fresh' a t.
+
+End support.

@@ -1,10 +1,4 @@
-Require Import
-  List
-  Coq.Classes.DecidableClass.
-
-Import ListNotations.
-
-From FormalSystems Require Export LocallyNameless.OC.
+From FormalSystems Require Export LocallyNameless.LocallyNameless.
 
 Inductive Ty : Type :=
 | TyUnit : Ty
@@ -68,16 +62,6 @@ Proof.
     [now decide_all | now decide_all | now rewrite IHt; congruence | now rewrite IHt1, IHt2].
 Qed.
 
-Fixpoint subst (x : Atom) (u t : Tm) : Tm :=
-match t with
-| fvar y    => if decide (x = y) then u else fvar y
-| bvar n    => bvar n
-| abs t'    => abs (subst x u t')
-| app t1 t2 => app (subst x u t1) (subst x u t2)
-end.
-
-Notation "t [[ x := u ]]" := (subst x u t) (at level 68).
-
 Fixpoint fv (t : Tm) : list Atom :=
 match t with
 | fvar x    => [x]
@@ -86,17 +70,77 @@ match t with
 | app t1 t2 => fv t1 ++ fv t2
 end.
 
+#[export, refine] Instance LocallyNameless_Tm :
+  LocallyNameless Atom Tm Open_Tm Close_Tm OC_Tm :=
+{
+  fv :=
+    fix fv (t : Tm) : list Atom :=
+    match t with
+    | fvar x    => [x]
+    | bvar _    => []
+    | abs t'    => fv t'
+    | app t1 t2 => fv t1 ++ fv t2
+    end;
+}.
+Proof.
+  - unfold supports, Fresh'.
+    induction t; cbn.
+    + now firstorder decide_all.
+    + easy.
+    + intros a Hfresh.
+      f_equal.
+      now apply Fresh'_invariant, IHt.
+    + intros a Hfresh.
+      now rewrite IHt1, IHt2; only 2-3: solve_fresh.
+  - unfold lci.
+    induction t as [a | i | t' | t1 IHt1 t2 IHt2]; cbn.
+    + exists 0.
+      intros _ _.
+      now exists (fresh []).
+    + exists (S i).
+      intros j Hij.
+      exists (fresh []).
+      now decide_all; lia.
+    + destruct IHt' as [i IH].
+      exists i.
+      intros j Hij.
+      destruct (IH (S j) ltac:(lia)) as [a Ha].
+      exists a.
+      now rewrite Ha.
+    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2].
+      exists (max i1 i2).
+      intros j Hle.
+      destruct
+        (IH1 (max i1 i2) ltac:(lia)) as [a1 Ha1],
+        (IH2 (max i1 i2) ltac:(lia)) as [a2 Ha2].
+      exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+      f_equal.
+      * rewrite (open_lci _ i1); [easy | | now lia].
+        now rapply IH1.
+      * rewrite (open_lci _ i2); [easy | | now lia].
+        now rapply IH2.
+Defined.
+
+Fixpoint subst (t : Tm) (x : Atom) (u : Tm) : Tm :=
+match t with
+| fvar y    => if decide (x = y) then u else fvar y
+| bvar n    => bvar n
+| abs t'    => abs (subst t' x u)
+| app t1 t2 => app (subst t1 x u) (subst t2 x u)
+end.
+
+Notation "t [[ x := u ]]" := (subst t x u) (at level 68).
+
 Lemma subst_fv :
   forall (x : Atom) (u t : Tm),
     x # fv t -> t [[ x := u ]] = t.
 Proof.
   induction t; cbn; intros.
-  - decide (x = a); [| easy].
-    now firstorder congruence.
+  - decide_all.
+    now firstorder.
   - easy.
   - now rewrite IHt.
-  - red in H; rewrite in_app_iff in H.
-    now firstorder congruence.
+  - now rewrite IHt1, IHt2; solve_fresh.
 Qed.
 
 Fixpoint open' (t : Tm) (i : nat) (u : Tm) : Tm :=
@@ -109,6 +153,13 @@ end.
 
 Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
 
+Lemma open'_atom :
+  forall (t : Tm) (i : nat) (a : Atom),
+    t {[ i ~> a ]} = t {{ i ~> a }}.
+Proof.
+  now induction t; cbn; firstorder congruence.
+Qed.
+
 Lemma open'_from_subst :
   forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
     x # fv t ->
@@ -118,106 +169,27 @@ Proof.
   - now decide (x = a); subst; firstorder.
   - now decide_all.
   - now rewrite <- IHt.
-  - red in H; rewrite in_app_iff in H.
-    now rewrite <- IHt1, <- IHt2; firstorder.
+  - now rewrite (IHt1 _ x), (IHt2 _ x); solve_fresh.
 Qed.
 
 Lemma Fresh'_spec :
   forall (x : Atom) (t : Tm),
     Fresh' x t <-> x # fv t.
 Proof.
-  split; unfold Fresh, Fresh'.
-  - intros H.
-    induction t; cbn; intros.
-    + intros [-> |]; [| easy].
-      cbn in H.
-      now decide (x = x).
-    + easy.
-    + apply IHt.
-      cbn in H; inversion H; subst.
-      now rewrite close_close_eq.
-    + cbn in H; inversion H; subst.
-      rewrite H1, H2, in_app_iff.
-      now firstorder.
-  - induction t; cbn.
-    + now decide_all; firstorder.
-    + easy.
-    + intros Hfresh.
-      now rewrite <- IHt, close_close_eq by easy.
-    + rewrite in_app_iff.
-      now firstorder congruence.
-Qed.
-
-Lemma open'_open' :
-  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
-    i <> j ->
-    t {[ i ~> u1 ]} {[ j ~> u2 ]} = t {[ i ~> u1 ]} ->
-      t {[ j ~> u2 ]} = t.
-Proof.
-  induction t; cbn; intros * Hneq H.
-  - easy.
-  - decide (i = n); subst; cbn; [| easy].
-    decide (j = n); [| easy].
-    now congruence.
-  - inversion H.
-    f_equal.
-    eapply IHt, H1.
-    now congruence.
-  - inversion H.
-    f_equal.
-    + now eapply IHt1, H1.
-    + now eapply IHt2, H2.
-Qed.
-
-Inductive lc : Tm -> Prop :=
-| lc_fvar :
-  forall x : Atom,
-    lc x
-| lc_abs :
-  forall (t : Tm) (l : list Atom)
-    (Hcof : forall x, x # l -> lc (t {{ 0 ~> x }})),
-    lc (abs t)
-| lc_app :
-  forall t1 t2 : Tm,
-    lc t1 ->
-    lc t2 ->
-    lc (app t1 t2).
-
-#[export] Hint Constructors lc : core.
-
-Lemma open'_atom :
-  forall (t : Tm) (i : nat) (a : Atom),
-    t {[ i ~> a ]} = t {{ i ~> a }}.
-Proof.
-  now induction t; cbn; firstorder congruence.
-Qed.
-
-Lemma open'_lc :
-  forall (t : Tm) (i : nat) (u : Tm),
-    lc t -> t {[ i ~> u ]} = t.
-Proof.
-  intros t i u Hlc; revert i u.
-  induction Hlc; cbn; intros; [easy | | now congruence].
-  f_equal.
-  eapply open'_open' with (i := 0); [easy |].
-  rewrite open'_atom.
-  apply (H (fresh l)).
-  now solve_fresh.
-Qed.
-
-Lemma subst_open' :
-  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
-    lc u2 ->
-    t {[ i ~> u1 ]} [[ x := u2 ]]
-      =
-    t [[ x := u2 ]] {[ i ~> u1 [[ x := u2 ]] ]}.
-Proof.
+  split; [| now rapply supports_fv].
+  unfold Fresh, Fresh'.
+  intros H.
   induction t; cbn; intros.
-  - rewrite open'_lc; [easy |].
-    now decide (x = a).
-  - now decide (i = n).
-  - now rewrite IHt.
-  - now rewrite IHt1, IHt2.
+  - intros [-> |]; [| easy].
+    cbn in H.
+    now decide (x = x).
+  - easy.
+  - apply IHt.
+    cbn in H; inversion H; subst.
+    now rewrite close_close_eq.
+  - cbn in H; inversion H; subst.
+    rewrite H1, H2, in_app_iff.
+    now firstorder.
 Qed.
 
 Lemma open_open :
@@ -247,6 +219,95 @@ Restart.
   rewrite (open_close_neq t j i b a) in Heq.
 Admitted.
 
+Lemma open'_open' :
+  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
+    i <> j ->
+    t {[ i ~> u1 ]} {[ j ~> u2 ]} = t {[ i ~> u1 ]} ->
+      t {[ j ~> u2 ]} = t.
+Proof.
+  induction t; cbn; intros * Hneq H.
+  - easy.
+  - now decide_all.
+  - inversion H.
+    f_equal.
+    eapply IHt, H1.
+    now congruence.
+  - inversion H.
+    f_equal.
+    + now eapply IHt1, H1.
+    + now eapply IHt2, H2.
+Qed.
+
+Inductive lc : Tm -> Prop :=
+| lc_fvar :
+  forall x : Atom,
+    lc x
+| lc_abs :
+  forall (t : Tm) (l : list Atom)
+    (Hcof : forall x, x # l -> lc (t {{ 0 ~> x }})),
+    lc (abs t)
+| lc_app :
+  forall t1 t2 : Tm,
+    lc t1 ->
+    lc t2 ->
+    lc (app t1 t2).
+
+#[export] Hint Constructors lc : core.
+
+Lemma lci_spec :
+  forall t : Tm,
+    lc t -> lci 0 t.
+Proof.
+  unfold lci.
+  induction 1; cbn; intros j Hle.
+  - now exists x.
+  - destruct (H (fresh l) (fresh_spec l) (S j) ltac:(lia)) as [a Heq].
+    exists a.
+    f_equal.
+    now apply open_open with 0 (fresh l).
+  - destruct (IHlc1 j Hle) as [a1 IH1].
+    destruct (IHlc2 j Hle) as [a2 IH2].
+    exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+    f_equal.
+    + now rewrite open_invariant, IH1.
+    + now rewrite open_invariant, IH2.
+Qed.
+
+Lemma open'_lc :
+  forall (t : Tm) (i : nat) (u : Tm),
+    lc t -> t {[ i ~> u ]} = t.
+Proof.
+  intros t i u Hlc; revert i u.
+  induction Hlc; cbn; intros; [easy | | now congruence].
+  f_equal.
+  eapply open'_open' with (i := 0); [easy |].
+  rewrite open'_atom.
+  apply (H (fresh l)).
+  now solve_fresh.
+Restart.
+  intros t i u Hlc.
+  rewrite (open'_from_subst _ _ (fresh (fv t))) by solve_fresh.
+  rewrite (open_lci t i); [.. | now lia].
+  - now rewrite subst_fv by solve_fresh.
+  - apply lci_le with 0; [now lia |].
+    now apply lci_spec.
+Qed.
+
+Lemma subst_open' :
+  forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
+    lc u2 ->
+    t {[ i ~> u1 ]} [[ x := u2 ]]
+      =
+    t [[ x := u2 ]] {[ i ~> u1 [[ x := u2 ]] ]}.
+Proof.
+  induction t; cbn; intros.
+  - decide_all.
+    now rewrite open'_lc.
+  - now decide_all.
+  - now rewrite IHt.
+  - now rewrite IHt1, IHt2.
+Qed.
+
 Lemma open_lc :
   forall (t : Tm) (i : nat) (a : Atom),
     lc t -> t {{ i ~> a }} = t.
@@ -257,6 +318,10 @@ Proof.
   eapply open_open with (i := 0); [easy |].
   apply (H (fresh l)).
   now solve_fresh.
+Restart.
+  intros.
+  apply open_lci with i; [| now lia].
+  now eapply lci_le, lci_spec; [lia |].
 Qed.
 
 Lemma subst_open :
@@ -299,7 +364,7 @@ Lemma lc_subst :
 Proof.
   intros t x u Ht Hu; revert x u Hu.
   induction Ht; cbn; intros.
-  - now decide (x0 = x).
+  - now decide_all.
   - apply lc_abs with (x :: l).
     intros y Hin.
     rewrite open_subst; [| now firstorder | easy].
@@ -308,43 +373,89 @@ Proof.
   - now constructor; [apply IHHt1 | apply IHHt2].
 Qed.
 
-Definition lci' (i : nat) (t : Tm) : Prop :=
-  forall j : nat, i <= j -> t {{ j ~> fresh (fv t) }} = t.
-
-Lemma lci'_spec :
+Lemma lc_spec :
   forall t : Tm,
-    lc t -> lci' 0 t.
+    lc t <-> forall (i : nat) (a : Atom), t {{ i ~> a }} = t.
 Proof.
-  unfold lci'.
-  induction 1; cbn; intros j Hle; [easy | |].
-  - f_equal.
-    specialize (Hcof (fresh l) (fresh_spec l)).
-    rewrite <- open'_atom.
-    rewrite open'_lc; [easy |].
-    admit.
-  - f_equal.
-    +
+  split.
+  - induction 1; intros i a; cbn.
+    + easy.
+    + f_equal.
+      apply (open_open _ 0 _ (fresh l)); [easy |].
+      now apply H, fresh_spec.
+    + now rewrite IHlc1, IHlc2.
+  - induction t; intros Hopen.
+    + now constructor.
+    + specialize (Hopen n (fresh [])); cbn in Hopen.
+      now decide_all.
+    + cbn in Hopen.
+      apply lc_abs with []; intros x _.
 Abort.
 
-Lemma lci_spec :
-  forall t : Tm,
-    lc t -> lci 0 t.
+Fixpoint candidate (t : Tm) (i : nat) : Tm :=
+match t with
+| fvar a => fvar a
+| bvar j => if decide (i <= j) then bvar j else fvar (fresh [])
+| abs t' => candidate t' i
+| app t1 t2 => app (candidate t1 i) (candidate t2 i)
+end.
+
+Lemma lci_spec' :
+  forall (t : Tm) (i : nat),
+    lc (candidate t i) -> lci i t.
 Proof.
   unfold lci.
-  induction 1; cbn; intros j Hle.
-  - now exists x.
-  - destruct (H (fresh l) (fresh_spec l) (S j) ltac:(lia)) as [a Heq].
+  induction t; cbn; intros i Hlc j Hij.
+  - now exists (fresh []).
+  - decide (i <= n); [easy |].
+    decide (j = n); [now lia |].
+    now exists (fresh []).
+  - destruct (IHt _ Hlc (S j) ltac:(lia)) as [a Ha].
     exists a.
-    f_equal.
-    apply open_open with 0 (fresh l); [easy |].
-    apply Heq.
-  - destruct (IHlc1 j Hle) as [a1 IH1].
-    destruct (IHlc2 j Hle) as [a2 IH2].
+    now rewrite Ha.
+  - inversion Hlc; subst.
+    destruct
+      (IHt1 _ H1 j Hij) as [a1 IH1],
+      (IHt2 _ H2 j Hij) as [a2 IH2].
     exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
     f_equal.
-    + now rewrite Fresh'_invariant_aux_open; [apply IH1 | typeclasses eauto].
-    + now rewrite Fresh'_invariant_aux_open; [apply IH2 | typeclasses eauto].
+    + now rewrite open_invariant, IH1.
+    + now rewrite open_invariant, IH2.
 Qed.
+
+Lemma lci_spec'' :
+  forall (t : Tm) (i : nat),
+    lci i t -> lc (candidate t i).
+Proof.
+  unfold lci.
+  induction t; cbn; intros i Hlci.
+  - now constructor.
+  - decide (i <= n).
+    + destruct (Hlci n H) as [a Ha].
+      now decide_all.
+    + now constructor.
+  - cut (lc (abs (candidate t i))).
+    admit.
+    apply lc_abs with []; intros x _.
+    Search lc open.
+Abort.
+(*
+    apply IHt.
+    intros j Hij.
+    destruct (Hlci j Hij) as [a Ha].
+    exists a.
+    apply (open_open t (S j) j a); [easy |].
+    inversion Ha. rewrite !H0.
+    admit.
+  - constructor.
+    + apply IHt1; intros j Hij.
+      destruct (Hlci j Hij) as [a [= Ha1 Ha2] ].
+      now exists a.
+    + apply IHt2; intros j Hij.
+      destruct (Hlci j Hij) as [a [= Ha1 Ha2] ].
+      now exists a.
+Abort.
+*)
 
 Definition Ctx : Type := list (Atom * Ty).
 
