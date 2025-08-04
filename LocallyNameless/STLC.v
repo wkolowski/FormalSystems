@@ -1,5 +1,7 @@
 From FormalSystems Require Export LocallyNameless.LocallyNameless.
 
+(** * Types *)
+
 Inductive Ty : Type :=
 | TyUnit : Ty
 | TyFun  : Ty -> Ty -> Ty.
@@ -28,6 +30,8 @@ Proof.
     now rewrite IH1, IH2.
 Defined.
 
+(** * Terms *)
+
 Inductive Tm : Type :=
 | fvar (a : Atom) : Tm
 | bvar : nat -> Tm
@@ -36,6 +40,8 @@ Inductive Tm : Type :=
 
 Coercion fvar : Atom >-> Tm.
 Coercion bvar : nat >-> Tm.
+
+(** ** Opening and closing *)
 
 #[export] Instance Open_Tm : Open nat Atom Tm :=
   fix open (t : Tm) (i : nat) (a : Atom) : Tm :=
@@ -61,6 +67,8 @@ Proof.
   all: induction t; cbn; intros;
     [now decide_all | now decide_all | now rewrite IHt; congruence | now rewrite IHt1, IHt2].
 Qed.
+
+(** ** Locally nameless terms *)
 
 Fixpoint fv (t : Tm) : list Atom :=
 match t with
@@ -121,6 +129,124 @@ Proof.
         now rapply IH2.
 Defined.
 
+(** ** Characterization of local closure *)
+
+Inductive lc' : nat -> Tm -> Prop :=
+| lc'_fvar :
+  forall (i : nat) (x : Atom),
+    lc' i x
+| lc'_bvar :
+  forall (i n : nat),
+    n < i -> lc' i (bvar n)
+| lc'_abs :
+  forall (i : nat) (t' : Tm),
+    lc' (S i) t' -> lc' i (abs t')
+| lc'_app :
+  forall (i : nat) (t1 t2 : Tm),
+    lc' i t1 -> lc' i t2 -> lc' i (app t1 t2).
+
+Lemma lc'_spec :
+  forall (i : nat) (t : Tm),
+    lc' i t <-> lci i t.
+Proof.
+  unfold lci.
+  split.
+  - induction 1; intros j Hij; cbn.
+    + now exists (fresh []).
+    + exists (fresh []).
+      now decide_all; lia.
+    + destruct (IHlc' (S j) ltac:(lia)) as [a Ha].
+      now exists a; f_equal.
+    + destruct
+        (IHlc'1 j Hij) as [a1 IH1],
+        (IHlc'2 j Hij) as [a2 IH2].
+      exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+      f_equal.
+      * now rewrite open_invariant, IH1.
+      * now rewrite open_invariant, IH2.
+  - revert i.
+    induction t as [a | n | t' IH | t1 IH1 t2 IH2]; cbn; intros i Hlci.
+    + now constructor.
+    + constructor.
+      destruct (PeanoNat.Nat.lt_ge_cases n i); [easy |].
+      destruct (Hlci _ H) as [a Ha].
+      now decide_all.
+    + constructor.
+      apply IH; intros j Hle.
+      destruct j as [| j']; [now lia |].
+      destruct (Hlci j' ltac:(lia)) as [a [=] ].
+      now exists a.
+    + constructor.
+      * apply IH1; intros j Hij.
+        destruct (Hlci j Hij) as [a Ha].
+        now exists a; congruence.
+      * apply IH2; intros j Hij.
+        destruct (Hlci j Hij) as [a Ha].
+        now exists a; congruence.
+Qed.
+
+(** ** Characterization of freshness *)
+
+Lemma Fresh'_spec :
+  forall (x : Atom) (t : Tm),
+    Fresh' x t <-> x # fv t.
+Proof.
+  split; [| now rapply supports_fv].
+  unfold Fresh, Fresh'.
+  intros H.
+  induction t; cbn; intros.
+  - intros [-> |]; [| easy].
+    cbn in H.
+    now decide (x = x).
+  - easy.
+  - apply IHt.
+    cbn in H; inversion H; subst.
+    now rewrite close_close_eq.
+  - cbn in H; inversion H; subst.
+    rewrite H1, H2, in_app_iff.
+    now firstorder.
+Qed.
+
+(** ** Opening with a term *)
+
+Fixpoint open' (t : Tm) (i : nat) (u : Tm) : Tm :=
+match t with
+| fvar a    => fvar a
+| bvar j    => if decide (i = j) then u else bvar j
+| abs t'    => abs (open' t' (S i) u)
+| app t1 t2 => app (open' t1 i u) (open' t2 i u)
+end.
+
+Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
+
+Lemma open'_atom :
+  forall (t : Tm) (i : nat) (a : Atom),
+    t {[ i ~> a ]} = t {{ i ~> a }}.
+Proof.
+  now induction t; cbn; firstorder congruence.
+Qed.
+
+Lemma open'_open' :
+  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
+    i <> j ->
+    t {[ i ~> u1 ]} {[ j ~> u2 ]} = t {[ i ~> u1 ]} ->
+      t {[ j ~> u2 ]} = t.
+Proof.
+  induction t; cbn; intros * Hneq H.
+  - easy.
+  - now decide_all.
+  - inversion H.
+    f_equal.
+    eapply IHt, H1.
+    now congruence.
+  - inversion H.
+    f_equal.
+    + now eapply IHt1, H1.
+    + now eapply IHt2, H2.
+Qed.
+
+(** ** Substitution *)
+
 Fixpoint subst (t : Tm) (x : Atom) (u : Tm) : Tm :=
 match t with
 | fvar y    => if decide (x = y) then u else fvar y
@@ -143,23 +269,6 @@ Proof.
   - now rewrite IHt1, IHt2; solve_fresh.
 Qed.
 
-Fixpoint open' (t : Tm) (i : nat) (u : Tm) : Tm :=
-match t with
-| fvar a    => fvar a
-| bvar j    => if decide (i = j) then u else bvar j
-| abs t'    => abs (open' t' (S i) u)
-| app t1 t2 => app (open' t1 i u) (open' t2 i u)
-end.
-
-Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
-
-Lemma open'_atom :
-  forall (t : Tm) (i : nat) (a : Atom),
-    t {[ i ~> a ]} = t {{ i ~> a }}.
-Proof.
-  now induction t; cbn; firstorder congruence.
-Qed.
-
 Lemma open'_from_subst :
   forall (t : Tm) (i : nat) (x : Atom) (u : Tm),
     x # fv t ->
@@ -172,26 +281,6 @@ Proof.
   - now rewrite (IHt1 _ x), (IHt2 _ x); solve_fresh.
 Qed.
 
-Lemma Fresh'_spec :
-  forall (x : Atom) (t : Tm),
-    Fresh' x t <-> x # fv t.
-Proof.
-  split; [| now rapply supports_fv].
-  unfold Fresh, Fresh'.
-  intros H.
-  induction t; cbn; intros.
-  - intros [-> |]; [| easy].
-    cbn in H.
-    now decide (x = x).
-  - easy.
-  - apply IHt.
-    cbn in H; inversion H; subst.
-    now rewrite close_close_eq.
-  - cbn in H; inversion H; subst.
-    rewrite H1, H2, in_app_iff.
-    now firstorder.
-Qed.
-
 Lemma open_open :
   forall (t : Tm) (i j : nat) (a b : Atom),
     i <> j ->
@@ -200,43 +289,17 @@ Lemma open_open :
 Proof.
   induction t; cbn; intros * Hneq H.
   - easy.
-  - now revert H; decide_all.
-  - f_equal.
-    eapply IHt; cycle 1; cbn.
-    + inversion H; cbn in *.
-      now apply H1.
-    + now congruence.
+  - now decide_all.
+  - inversion H.
+    f_equal.
+    now eapply IHt, H1; lia.
   - inversion H.
     f_equal.
     + now apply IHt1 in H1.
     + now apply IHt2 in H2.
-Restart.
-  intros t i j a b Hneq.
-  rewrite open_open_neq by easy.
-  intros Heq.
-  rewrite <- close_open_eq in Heq.
-  rewrite <- close_open_eq.
-  rewrite (open_close_neq t j i b a) in Heq.
-Admitted.
-
-Lemma open'_open' :
-  forall (t : Tm) (i j : nat) (u1 u2 : Tm),
-    i <> j ->
-    t {[ i ~> u1 ]} {[ j ~> u2 ]} = t {[ i ~> u1 ]} ->
-      t {[ j ~> u2 ]} = t.
-Proof.
-  induction t; cbn; intros * Hneq H.
-  - easy.
-  - now decide_all.
-  - inversion H.
-    f_equal.
-    eapply IHt, H1.
-    now congruence.
-  - inversion H.
-    f_equal.
-    + now eapply IHt1, H1.
-    + now eapply IHt2, H2.
 Qed.
+
+(** ** Local closure *)
 
 Inductive lc : Tm -> Prop :=
 | lc_fvar :
@@ -254,7 +317,7 @@ Inductive lc : Tm -> Prop :=
 
 #[export] Hint Constructors lc : core.
 
-Lemma lci_spec :
+Lemma lci_lc :
   forall t : Tm,
     lc t -> lci 0 t.
 Proof.
@@ -290,7 +353,7 @@ Restart.
   rewrite (open_lci t i); [.. | now lia].
   - now rewrite subst_fv by solve_fresh.
   - apply lci_le with 0; [now lia |].
-    now apply lci_spec.
+    now apply lci_lc.
 Qed.
 
 Lemma subst_open' :
@@ -321,7 +384,7 @@ Proof.
 Restart.
   intros.
   apply open_lci with i; [| now lia].
-  now eapply lci_le, lci_spec; [lia |].
+  now eapply lci_le, lci_lc; [lia |].
 Qed.
 
 Lemma subst_open :
@@ -373,89 +436,15 @@ Proof.
   - now constructor; [apply IHHt1 | apply IHHt2].
 Qed.
 
-Lemma lc_spec :
-  forall t : Tm,
-    lc t <-> forall (i : nat) (a : Atom), t {{ i ~> a }} = t.
+Lemma open_lc' :
+  forall (t : Tm) (i j : nat) (a : Atom),
+    i <= j -> lc' i t -> t {{ j ~> a }} = t.
 Proof.
-  split.
-  - induction 1; intros i a; cbn.
-    + easy.
-    + f_equal.
-      apply (open_open _ 0 _ (fresh l)); [easy |].
-      now apply H, fresh_spec.
-    + now rewrite IHlc1, IHlc2.
-  - induction t; intros Hopen.
-    + now constructor.
-    + specialize (Hopen n (fresh [])); cbn in Hopen.
-      now decide_all.
-    + cbn in Hopen.
-      apply lc_abs with []; intros x _.
-Abort.
-
-Fixpoint candidate (t : Tm) (i : nat) : Tm :=
-match t with
-| fvar a => fvar a
-| bvar j => if decide (i <= j) then bvar j else fvar (fresh [])
-| abs t' => candidate t' i
-| app t1 t2 => app (candidate t1 i) (candidate t2 i)
-end.
-
-Lemma lci_spec' :
-  forall (t : Tm) (i : nat),
-    lc (candidate t i) -> lci i t.
-Proof.
-  unfold lci.
-  induction t; cbn; intros i Hlc j Hij.
-  - now exists (fresh []).
-  - decide (i <= n); [easy |].
-    decide (j = n); [now lia |].
-    now exists (fresh []).
-  - destruct (IHt _ Hlc (S j) ltac:(lia)) as [a Ha].
-    exists a.
-    now rewrite Ha.
-  - inversion Hlc; subst.
-    destruct
-      (IHt1 _ H1 j Hij) as [a1 IH1],
-      (IHt2 _ H2 j Hij) as [a2 IH2].
-    exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
-    f_equal.
-    + now rewrite open_invariant, IH1.
-    + now rewrite open_invariant, IH2.
+  intros.
+  apply open_lci with j; [| now lia].
+  now eapply lci_le, lc'_spec; eauto.
 Qed.
 
-Lemma lci_spec'' :
-  forall (t : Tm) (i : nat),
-    lci i t -> lc (candidate t i).
-Proof.
-  unfold lci.
-  induction t; cbn; intros i Hlci.
-  - now constructor.
-  - decide (i <= n).
-    + destruct (Hlci n H) as [a Ha].
-      now decide_all.
-    + now constructor.
-  - cut (lc (abs (candidate t i))).
-    admit.
-    apply lc_abs with []; intros x _.
-    Search lc open.
-Abort.
-(*
-    apply IHt.
-    intros j Hij.
-    destruct (Hlci j Hij) as [a Ha].
-    exists a.
-    apply (open_open t (S j) j a); [easy |].
-    inversion Ha. rewrite !H0.
-    admit.
-  - constructor.
-    + apply IHt1; intros j Hij.
-      destruct (Hlci j Hij) as [a [= Ha1 Ha2] ].
-      now exists a.
-    + apply IHt2; intros j Hij.
-      destruct (Hlci j Hij) as [a [= Ha1 Ha2] ].
-      now exists a.
-Abort.
-*)
 
 Definition Ctx : Type := list (Atom * Ty).
 

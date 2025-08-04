@@ -183,6 +183,25 @@ Proof.
   now lia.
 Qed.
 
+Lemma open_lci' :
+  forall (t : Term) (i : nat),
+    (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t) -> lci i t.
+Proof.
+  unfold lci.
+  intros t i H j Hij.
+  exists (fresh []).
+  now apply H.
+Qed.
+
+Lemma lci_forall :
+  forall (t : Term) (i : nat),
+    lci i t <-> (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t).
+Proof.
+  split.
+  - now apply open_lci.
+  - now apply open_lci'.
+Qed.
+
 End lci.
 
 (** * Support *)
