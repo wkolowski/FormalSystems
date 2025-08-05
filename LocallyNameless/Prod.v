@@ -4,7 +4,8 @@ From FormalSystems Require Export LocallyNameless.LocallyNameless.
 
 Inductive Ty : Type :=
 | TyUnit : Ty
-| TyFun  : Ty -> Ty -> Ty.
+| TyFun  : Ty -> Ty -> Ty
+| TyProd : Ty -> Ty -> Ty.
 
 Fixpoint eq_dec_Ty (A B : Ty) : {A = B} + {A <> B}.
 Proof.
@@ -30,7 +31,10 @@ Inductive Tm : Type :=
 | fvar (a : Atom) : Tm
 | bvar : nat -> Tm
 | abs  : Tm -> Tm
-| app  : Tm -> Tm -> Tm.
+| app  : Tm -> Tm -> Tm
+| pair : Tm -> Tm -> Tm
+| outl : Tm -> Tm
+| outr : Tm -> Tm.
 
 Coercion fvar : Atom >-> Tm.
 Coercion bvar : nat >-> Tm.
@@ -60,10 +64,13 @@ Defined.
 #[export] Instance Open_Tm : Open nat Atom Tm :=
   fix open (t : Tm) (i : nat) (a : Atom) : Tm :=
     match t with
-    | fvar a    => fvar a
-    | bvar j    => if decide (i = j) then a else bvar j
-    | abs t'    => abs (open t' (S i) a)
-    | app t1 t2 => app (open t1 i a) (open t2 i a)
+    | fvar a     => fvar a
+    | bvar j     => if decide (i = j) then a else bvar j
+    | abs t'     => abs (open t' (S i) a)
+    | app t1 t2  => app (open t1 i a) (open t2 i a)
+    | pair t1 t2 => pair (open t1 i a) (open t2 i a)
+    | outl t'    => outl (open t' i a)
+    | outr t'    => outr (open t' i a)
     end.
 
 #[export] Instance Close_Tm : Close nat Atom Tm :=
@@ -73,13 +80,24 @@ Defined.
     | bvar n    => bvar n
     | abs t'    => abs (close t' (S i) a)
     | app t1 t2 => app (close t1 i a) (close t2 i a)
+    | pair t1 t2 => pair (close t1 i a) (close t2 i a)
+    | outl t'    => outl (close t' i a)
+    | outr t'    => outr (close t' i a)
     end.
 
 #[export, refine] Instance OC_Tm :
   OC nat Atom Tm Open_Tm Close_Tm := {}.
 Proof.
   all: induction t; cbn; intros;
-    [now decide_all | now decide_all | now rewrite IHt; congruence | now rewrite IHt1, IHt2].
+  [
+    now decide_all              |
+    now decide_all              |
+    now rewrite IHt; congruence |
+    now rewrite IHt1, IHt2      |
+    now rewrite IHt1, IHt2      |
+    now rewrite IHt             |
+    now rewrite IHt
+  ].
 Qed.
 
 Lemma open_open :
@@ -98,31 +116,35 @@ Proof.
     f_equal.
     + now apply IHt1 in H1.
     + now apply IHt2 in H2.
+  - inversion H.
+    f_equal.
+    + now apply IHt1 in H1.
+    + now apply IHt2 in H2.
+  - inversion H.
+    f_equal.
+    now eapply IHt, H1; lia.
+  - inversion H.
+    f_equal.
+    now eapply IHt, H1; lia.
 Qed.
 
 (** ** Locally nameless *)
 
 Fixpoint fv (t : Tm) : list Atom :=
 match t with
-| fvar x    => [x]
-| bvar _    => []
-| abs t'    => fv t'
-| app t1 t2 => fv t1 ++ fv t2
+| fvar x     => [x]
+| bvar _     => []
+| abs t'     => fv t'
+| app t1 t2  => fv t1 ++ fv t2
+| pair t1 t2 => fv t1 ++ fv t2
+| outl t'    => fv t'
+| outr t'    => fv t'
 end.
 
 #[export, refine] Instance LocallyNameless_Tm :
   LocallyNameless Atom Tm Open_Tm Close_Tm OC_Tm :=
 {
   fv := fv;
-(*
-    fix fv (t : Tm) : list Atom :=
-    match t with
-    | fvar x    => [x]
-    | bvar _    => []
-    | abs t'    => fv t'
-    | app t1 t2 => fv t1 ++ fv t2
-    end;
-*)
 }.
 Proof.
   - unfold supports, Fresh'.
@@ -134,8 +156,16 @@ Proof.
       now apply Fresh'_invariant, IHt.
     + intros a Hfresh.
       now rewrite IHt1, IHt2; only 2-3: solve_fresh.
+    + intros a Hfresh.
+      now rewrite IHt1, IHt2; only 2-3: solve_fresh.
+    + intros a Hfresh.
+      f_equal.
+      now apply Fresh'_invariant, IHt.
+    + intros a Hfresh.
+      f_equal.
+      now apply Fresh'_invariant, IHt.
   - unfold LocallyClosed.
-    induction t as [a | i | t' | t1 IHt1 t2 IHt2]; cbn.
+    induction t as [a | i | t' | t1 IHt1 t2 IHt2 | t1 IHt1 t2 IHt2 | t' IH | t' IH]; cbn.
     + exists 0.
       intros _ _.
       now exists (fresh []).
@@ -161,6 +191,30 @@ Proof.
         now rapply IH1.
       * rewrite (open_LocallyClosed _ i2); [easy | | now lia].
         now rapply IH2.
+    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2].
+      exists (max i1 i2).
+      intros j Hle.
+      destruct
+        (IH1 (max i1 i2) ltac:(lia)) as [a1 Ha1],
+        (IH2 (max i1 i2) ltac:(lia)) as [a2 Ha2].
+      exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+      f_equal.
+      * rewrite (open_LocallyClosed _ i1); [easy | | now lia].
+        now rapply IH1.
+      * rewrite (open_LocallyClosed _ i2); [easy | | now lia].
+        now rapply IH2.
+    + destruct IH as [i IH].
+      exists i.
+      intros j Hij.
+      destruct (IH j Hij) as [a Ha].
+      exists a.
+      now rewrite Ha.
+    + destruct IH as [i IH].
+      exists i.
+      intros j Hij.
+      destruct (IH j Hij) as [a Ha].
+      exists a.
+      now rewrite Ha.
 Defined.
 
 (** ** Characterization of local closure *)
@@ -177,7 +231,16 @@ Inductive LocallyClosed' : nat -> Tm -> Prop :=
     LocallyClosed' (S i) t' -> LocallyClosed' i (abs t')
 | LocallyClosed'_app :
   forall (i : nat) (t1 t2 : Tm),
-    LocallyClosed' i t1 -> LocallyClosed' i t2 -> LocallyClosed' i (app t1 t2).
+    LocallyClosed' i t1 -> LocallyClosed' i t2 -> LocallyClosed' i (app t1 t2)
+| LocallyClosed'_pair :
+  forall (i : nat) (t1 t2 : Tm),
+    LocallyClosed' i t1 -> LocallyClosed' i t2 -> LocallyClosed' i (pair t1 t2)
+| LocallyClosed'_outl :
+  forall (i : nat) (t' : Tm),
+    LocallyClosed' i t' -> LocallyClosed' i (outl t')
+| LocallyClosed'_outr :
+  forall (i : nat) (t' : Tm),
+    LocallyClosed' i t' -> LocallyClosed' i (outr t').
 
 Lemma LocallyClosed'_spec :
   forall (i : nat) (t : Tm),
@@ -198,8 +261,20 @@ Proof.
       f_equal.
       * now rewrite open_invariant, IH1.
       * now rewrite open_invariant, IH2.
+    + destruct
+        (IHLocallyClosed'1 j Hij) as [a1 IH1],
+        (IHLocallyClosed'2 j Hij) as [a2 IH2].
+      exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+      f_equal.
+      * now rewrite open_invariant, IH1.
+      * now rewrite open_invariant, IH2.
+    + destruct (IHLocallyClosed' j Hij) as [a Ha].
+      now exists a; f_equal.
+    + destruct (IHLocallyClosed' j Hij) as [a Ha].
+      now exists a; f_equal.
   - revert i.
-    induction t as [a | n | t' IH | t1 IH1 t2 IH2]; cbn; intros i Hlc.
+    induction t as [a | n | t' IH | t1 IH1 t2 IH2 | t1 IH1 t2 IH2 | t' IH | t' IH];
+      cbn; intros i Hlc.
     + now constructor.
     + constructor.
       destruct (PeanoNat.Nat.lt_ge_cases n i); [easy |].
@@ -217,6 +292,21 @@ Proof.
       * apply IH2; intros j Hij.
         destruct (Hlc j Hij) as [a Ha].
         now exists a; congruence.
+    + constructor.
+      * apply IH1; intros j Hij.
+        destruct (Hlc j Hij) as [a Ha].
+        now exists a; congruence.
+      * apply IH2; intros j Hij.
+        destruct (Hlc j Hij) as [a Ha].
+        now exists a; congruence.
+    + constructor.
+      apply IH; intros j Hij.
+      destruct (Hlc j Hij) as [a [=] ].
+      now exists a.
+    + constructor.
+      apply IH; intros j Hij.
+      destruct (Hlc j Hij) as [a [=] ].
+      now exists a.
 Qed.
 
 Lemma open_LocallyClosed' :
@@ -248,16 +338,28 @@ Proof.
   - cbn in H; inversion H; subst.
     rewrite H1, H2, in_app_iff.
     now firstorder.
+  - cbn in H; inversion H; subst.
+    rewrite H1, H2, in_app_iff.
+    now firstorder.
+  - apply IHt.
+    cbn in H; inversion H; subst.
+    now rewrite close_close_eq.
+  - apply IHt.
+    cbn in H; inversion H; subst.
+    now rewrite close_close_eq.
 Qed.
 
 (** ** Substitution *)
 
 Fixpoint subst (t : Tm) (x : Atom) (u : Tm) : Tm :=
 match t with
-| fvar y    => if decide (x = y) then u else fvar y
-| bvar n    => bvar n
-| abs t'    => abs (subst t' x u)
-| app t1 t2 => app (subst t1 x u) (subst t2 x u)
+| fvar y     => if decide (x = y) then u else fvar y
+| bvar n     => bvar n
+| abs t'     => abs (subst t' x u)
+| app t1 t2  => app (subst t1 x u) (subst t2 x u)
+| pair t1 t2 => pair (subst t1 x u) (subst t2 x u)
+| outl t'    => outl (subst t' x u)
+| outr t'    => outr (subst t' x u)
 end.
 
 Notation "t [[ x := u ]]" := (subst t x u) (at level 68).
@@ -272,16 +374,22 @@ Proof.
   - easy.
   - now rewrite IHt.
   - now rewrite IHt1, IHt2; solve_fresh.
+  - now rewrite IHt1, IHt2; solve_fresh.
+  - now rewrite IHt.
+  - now rewrite IHt.
 Qed.
 
 (** ** Opening with a term *)
 
 Fixpoint open' (t : Tm) (i : nat) (u : Tm) : Tm :=
 match t with
-| fvar a    => fvar a
-| bvar j    => if decide (i = j) then u else bvar j
-| abs t'    => abs (open' t' (S i) u)
-| app t1 t2 => app (open' t1 i u) (open' t2 i u)
+| fvar a     => fvar a
+| bvar j     => if decide (i = j) then u else bvar j
+| abs t'     => abs (open' t' (S i) u)
+| app t1 t2  => app (open' t1 i u) (open' t2 i u)
+| pair t1 t2 => pair (open' t1 i u) (open' t2 i u)
+| outl t'    => outl (open' t' i u)
+| outr t'    => outr (open' t' i u)
 end.
 
 Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
@@ -303,6 +411,9 @@ Proof.
   - now decide_all.
   - now rewrite <- IHt.
   - now rewrite (IHt1 _ x), (IHt2 _ x); solve_fresh.
+  - now rewrite (IHt1 _ x), (IHt2 _ x); solve_fresh.
+  - now rewrite <- IHt.
+  - now rewrite <- IHt.
 Qed.
 
 Lemma open'_open' :
@@ -322,6 +433,18 @@ Proof.
     f_equal.
     + now eapply IHt1, H1.
     + now eapply IHt2, H2.
+  - inversion H.
+    f_equal.
+    + now eapply IHt1, H1.
+    + now eapply IHt2, H2.
+  - inversion H.
+    f_equal.
+    eapply IHt, H1.
+    now congruence.
+  - inversion H.
+    f_equal.
+    eapply IHt, H1.
+    now congruence.
 Qed.
 
 (** ** Local closure *)
@@ -338,7 +461,20 @@ Inductive lc : Tm -> Prop :=
   forall t1 t2 : Tm,
     lc t1 ->
     lc t2 ->
-    lc (app t1 t2).
+    lc (app t1 t2)
+| lc_pair :
+  forall t1 t2 : Tm,
+    lc t1 ->
+    lc t2 ->
+    lc (pair t1 t2)
+| lc_outl :
+  forall t' : Tm,
+    lc t' ->
+    lc (outl t')
+| lc_outr :
+  forall t' : Tm,
+    lc t' ->
+    lc (outr t').
 
 #[export] Hint Constructors lc : core.
 
@@ -359,6 +495,18 @@ Proof.
     f_equal.
     + now rewrite open_invariant, IH1.
     + now rewrite open_invariant, IH2.
+  - destruct (IHlc1 j Hle) as [a1 IH1].
+    destruct (IHlc2 j Hle) as [a2 IH2].
+    exists (fresh (fv t1 ++ fv t2 ++ [a1; a2])).
+    f_equal.
+    + now rewrite open_invariant, IH1.
+    + now rewrite open_invariant, IH2.
+  - destruct (IHlc j Hle) as [a Ha].
+    exists a.
+    now rewrite Ha.
+  - destruct (IHlc j Hle) as [a Ha].
+    exists a.
+    now rewrite Ha.
 Qed.
 
 Lemma open'_lc :
@@ -386,6 +534,9 @@ Proof.
   - now decide_all.
   - now rewrite IHt.
   - now rewrite IHt1, IHt2.
+  - now rewrite IHt1, IHt2.
+  - now rewrite IHt.
+  - now rewrite IHt.
 Qed.
 
 Lemma open_lc :
@@ -408,6 +559,9 @@ Proof.
   - now decide_all.
   - now rewrite IHt.
   - now rewrite IHt1, IHt2.
+  - now rewrite IHt1, IHt2.
+  - now rewrite IHt.
+  - now rewrite IHt.
 Qed.
 
 Lemma subst_open :
@@ -421,6 +575,9 @@ Proof.
   - now decide_all.
   - now rewrite IHt.
   - now rewrite IHt1, IHt2.
+  - now rewrite IHt1, IHt2.
+  - now rewrite IHt.
+  - now rewrite IHt.
 Qed.
 
 Lemma lc_subst :
@@ -436,6 +593,11 @@ Proof.
     apply H; [| easy].
     now firstorder.
   - now constructor; [apply IHHt1 | apply IHHt2].
+  - now constructor; [apply IHHt1 | apply IHHt2].
+  - constructor.
+    now apply IHHt.
+  - constructor.
+    now apply IHHt.
 Qed.
 
 Lemma lc_open :
@@ -526,7 +688,20 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
   forall (Γ : Ctx) (t1 t2 : Tm) (A B : Ty),
     Typing Γ t1 (TyFun A B) ->
     Typing Γ t2 A ->
-    Typing Γ (app t1 t2) B.
+    Typing Γ (app t1 t2) B
+| Typing_pair :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A B : Ty),
+    Typing Γ t1 A ->
+    Typing Γ t2 B ->
+    Typing Γ (pair t1 t2) (TyProd A B)
+| Typing_outl :
+  forall (Γ : Ctx) (t' : Tm) (A B : Ty),
+    Typing Γ t' (TyProd A B) ->
+    Typing Γ (outl t') A
+| Typing_outr :
+  forall (Γ : Ctx) (t' : Tm) (A B : Ty),
+    Typing Γ t' (TyProd A B) ->
+    Typing Γ (outr t') B.
 
 #[export] Hint Constructors Typing : Core.
 
@@ -539,13 +714,16 @@ Proof.
   - apply lc_abs with l; intros x Hx.
     now apply H.
   - now constructor.
+  - now constructor.
+  - now constructor.
+  - now constructor.
 Qed.
 
 Lemma WfCtx_Typing :
   forall (Γ : Ctx) (t : Tm) (A : Ty),
     Typing Γ t A -> WfCtx Γ.
 Proof.
-  induction 1; [easy | | easy].
+  induction 1; only 1, 2-6: try easy.
   apply (WfCtx_app_cons _ [] (fresh l) A), H.
   now solve_fresh.
 Qed.
@@ -577,6 +755,13 @@ Proof.
   - apply Typing_app with A.
     + now apply IHHt1.
     + now apply IHHt2.
+  - constructor.
+    + now apply IHHt1.
+    + now apply IHHt2.
+  - apply Typing_outl with B.
+    now apply IHHt.
+  - apply Typing_outr with A.
+    now apply IHHt.
 Qed.
 
 Lemma weakening :
@@ -599,7 +784,9 @@ Proof.
   intros * Ht Hu.
   remember (Δ ++ (x, A) :: Γ) as G.
   revert Δ x A Γ HeqG Hu.
-  induction Ht as [? y B Hwf HB | ? t' B1 B2 l Hcof IH | ? t1 t2 B1 B2 Ht1 IH1 Ht2 IH2];
+  induction Ht as
+    [? y B Hwf HB | ? t' B1 B2 l Hcof IH | ? t1 t2 B1 B2 Ht1 IH1 Ht2 IH2 |
+     ? t1 t2 B1 B2 Ht1 IH1 Ht2 IH2 | ? t' B1 B2 Ht' IH | ? t' B1 B2 Ht' IH];
     cbn; intros; subst.
   - apply WfCtx_app_cons in Hwf as Hwf'.
     decide (x = y); subst.
@@ -619,6 +806,13 @@ Proof.
   - econstructor.
     + now eapply IH1.
     + now eapply IH2.
+  - constructor.
+    + now eapply IH1.
+    + now eapply IH2.
+  - apply Typing_outl with B2.
+    now eapply IH.
+  - apply Typing_outr with B1.
+    now eapply IH.
 Qed.
 
 Lemma Typing_subst :
@@ -635,7 +829,15 @@ Qed.
 (** ** Values *)
 
 Inductive Value : Tm -> Prop :=
-| Value_abs : forall t : Tm, lc (abs t) -> Value (abs t).
+| Value_abs  :
+  forall t : Tm,
+    lc (abs t) ->
+    Value (abs t)
+| Value_pair :
+  forall t1 t2 : Tm,
+    Value t1 ->
+    Value t2 ->
+    Value (pair t1 t2).
 
 #[export] Hint Constructors Value : core.
 
@@ -643,7 +845,7 @@ Lemma lc_Value :
   forall t : Tm,
     Value t -> lc t.
 Proof.
-  now inversion 1.
+  now induction 1; eauto.
 Qed.
 
 (** ** Reduction *)
@@ -663,7 +865,17 @@ Inductive Step : Tm -> Tm -> Prop :=
   forall (t1 t2 t2' : Tm),
     Value t1 ->
     Step t2 t2' ->
-    Step (app t1 t2) (app t1 t2').
+    Step (app t1 t2) (app t1 t2')
+| Step_OutlPair :
+  forall v1 v2 : Tm,
+    Value v1 ->
+    Value v2 ->
+    Step (outl (pair v1 v2)) v1
+| Step_OutrPair :
+  forall v1 v2 : Tm,
+    Value v1 ->
+    Value v2 ->
+    Step (outr (pair v1 v2)) v2.
 
 #[export] Hint Constructors Step : core.
 
@@ -677,6 +889,8 @@ Proof.
   - now constructor.
   - constructor; [| easy ].
     now apply lc_Value.
+  - now do 2 constructor; apply lc_Value.
+  - now do 2 constructor; apply lc_Value.
 Qed.
 
 Lemma lc_Step_r :
@@ -689,6 +903,8 @@ Proof.
   - now constructor.
   - constructor; [| easy ].
     now apply lc_Value.
+  - now apply lc_Value.
+  - now apply lc_Value.
 Qed.
 
 (** ** Progress and preservation *)
@@ -708,6 +924,8 @@ Proof.
     now solve_fresh.
   - now econstructor; eauto.
   - now econstructor; eauto.
+  - now inversion Ht; subst.
+  - now inversion Ht; subst.
 Qed.
 
 Lemma progress :
@@ -723,8 +941,8 @@ Proof.
     apply lc_abs with l.
     intros x Hx.
     now eapply lc_Typing, Hcof.
-  - destruct (IHHt1 eq_refl) as [ [t1' Hlc1] | [t1' Hs1] ].
-    + now destruct (IHHt2 eq_refl) as [ [t2' Hlc2] | [t2' Hs2] ]; eauto.
+  - destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ].
+    + destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; eauto.
     + now apply lc_Typing in Ht2; eauto.
 Qed.
 

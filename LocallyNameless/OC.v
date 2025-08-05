@@ -138,7 +138,7 @@ Qed.
 
 End Fresh'.
 
-Section lci.
+Section LocallyClosed.
 
 Context
   {Atom Term : Type}
@@ -146,63 +146,63 @@ Context
   {Close_Term : Close nat Atom Term}
   {OC_Term : OC nat Atom Term Open_Term Close_Term}.
 
-Definition lci (i : nat) (t : Term) : Prop :=
+Definition LocallyClosed (i : nat) (t : Term) : Prop :=
   forall j : nat, i <= j -> exists a : Atom, t {{ j ~> a }} = t.
 
 (* Lemma 2.6 *)
 
-Lemma lci_le :
+Lemma LocallyClosed_le :
   forall (i j : nat) (t : Term),
-    i <= j -> lci i t -> lci j t.
+    i <= j -> LocallyClosed i t -> LocallyClosed j t.
 Proof.
-  unfold lci.
-  intros i j t Hij Hlci k Hjk.
-  apply Hlci.
+  unfold LocallyClosed.
+  intros i j t Hij HLocallyClosed k Hjk.
+  apply HLocallyClosed.
   now lia.
 Qed.
 
 (* Corollary of lemma 2.7 *)
-Lemma open_lci :
+Lemma open_LocallyClosed :
   forall (t : Term) (i : nat),
-    lci i t -> forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t.
+    LocallyClosed i t -> forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t.
 Proof.
-  unfold lci.
-  intros t i Hlci j a Hle.
-  destruct (Hlci j Hle) as [b Hb].
+  unfold LocallyClosed.
+  intros t i HLocallyClosed j a Hle.
+  destruct (HLocallyClosed j Hle) as [b Hb].
   now apply (open_invariant t j a b).
 Qed.
 
 (* Corollary 2.8 *)
-Lemma close_open_lci :
+Lemma close_open_LocallyClosed :
   forall (t : Term) (i : nat) (a : Atom),
-    lci i t -> t {{ i <~ a }} {{ i ~> a }} = t.
+    LocallyClosed i t -> t {{ i <~ a }} {{ i ~> a }} = t.
 Proof.
-  intros t i a Hlci.
+  intros t i a HLocallyClosed.
   rewrite close_open_eq.
-  apply (open_lci t i Hlci).
+  apply (open_LocallyClosed t i HLocallyClosed).
   now lia.
 Qed.
 
-Lemma open_lci' :
+Lemma open_LocallyClosed' :
   forall (t : Term) (i : nat),
-    (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t) -> lci i t.
+    (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t) -> LocallyClosed i t.
 Proof.
-  unfold lci.
+  unfold LocallyClosed.
   intros t i H j Hij.
   exists (fresh []).
   now apply H.
 Qed.
 
-Lemma lci_forall :
+Lemma LocallyClosed_forall :
   forall (t : Term) (i : nat),
-    lci i t <-> (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t).
+    LocallyClosed i t <-> (forall (j : nat) (a : Atom), i <= j -> t {{ j ~> a }} = t).
 Proof.
   split.
-  - now apply open_lci.
-  - now apply open_lci'.
+  - now apply open_LocallyClosed.
+  - now apply open_LocallyClosed'.
 Qed.
 
-End lci.
+End LocallyClosed.
 
 (** * Support *)
 

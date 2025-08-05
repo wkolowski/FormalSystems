@@ -11,7 +11,7 @@ Class LocallyNameless
 {
   fv : Term -> list Atom;
   supports_fv : forall t : Term, supports (fv t) t;
-  finite_index_support : forall t : Term, exists i : nat, lci i t;
+  finite_index_support : forall t : Term, exists i : nat, LocallyClosed i t;
 }.
 
 Section LocallyNameless_IA.
@@ -33,7 +33,7 @@ Context
 Proof.
   - intros [i | a]; unfold supports, Fresh'; cbn; [easy |].
     now intros b; decide_all; firstorder.
-  - intros [i | a]; unfold lci; cbn.
+  - intros [i | a]; unfold LocallyClosed; cbn.
     + exists (S i).
       intros j Hle.
       exists (fresh []).
@@ -54,14 +54,14 @@ Context
   (OC : OC nat Atom Term OCO OCC).
 
 Lemma finite_index_support_spec :
-  (forall t : Term, exists i : nat, lci i t)
+  (forall t : Term, exists i : nat, LocallyClosed i t)
     <->
   (exists bv : Term -> list nat,
     forall (t : Term) (i : nat) (a : Atom),
       ~ In i (bv t) -> t {{ i ~> a }} = t).
 Proof.
   split.
-  - intros Hlci.
+  - intros HLocallyClosed.
 Abort.
 
 End wut.
