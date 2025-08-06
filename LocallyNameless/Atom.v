@@ -97,18 +97,8 @@ Definition sizes l := 1 + fold_right (fun h t => size h + t) 0 l.
 
 Fixpoint eq_dec_Atom (x y : Atom) : {x = y} + {x <> y}.
 Proof.
-  refine
-  (
-    match x, y with
-    | mkAtom lx, mkAtom ly =>
-      match list_eq_dec eq_dec_Atom lx ly with
-      | left eq => _
-      | right neq => _
-      end
-    end
-  ).
-  - now left; f_equal.
-  - now right; intros [=].
+  decide equality.
+  exact (list_eq_dec eq_dec_Atom _ _).
 Defined.
 
 #[export, refine] Instance Decidable_eq_Atom :

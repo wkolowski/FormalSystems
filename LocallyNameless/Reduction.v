@@ -1,94 +1,123 @@
 From FormalSystems Require Export LocallyNameless.STLC.
 
-(** * Experiments with the definition of reduction *)
+(** * Old definition of reduction *)
 
-(** ** Contraction *)
-
-Inductive Contraction : Tm -> Tm -> Prop :=
-| Contraction_Fun :
+Inductive Step : Tm -> Tm -> Prop :=
+| Step_FunComp :
   forall (t1 t2 : Tm),
     lc (abs t1) ->
     Value t2 ->
-    Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]}).
-
-#[export] Hint Constructors Contraction : core.
-
-Lemma lc_Contraction_l :
-  forall t t' : Tm,
-    Contraction t t' -> lc t.
-Proof.
-  intros t t'; destruct 1 as [t t' Hlc Hv].
-  constructor; [easy |].
-  now apply lc_Value.
-Qed.
-
-Lemma lc_Contraction_r :
-  forall t t' : Tm,
-    Contraction t t' -> lc t'.
-Proof.
-  intros t t'; destruct 1 as [t t' Hlc Hv].
-  apply lc_open; [easy |].
-  now apply lc_Value.
-Qed.
-
-(** ** A more modular definition *)
-
-Module modular.
-
-Inductive Step' : Tm -> Tm -> Prop :=
-| Step'_Contraction :
-  forall t t' : Tm,
-    Contraction t t' ->
-    Step' t t'
-| Step'_FunCongrL :
+    Step (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
+| Step_FunCompAbort :
+  forall (t1 t2 : Tm),
+    lc t1 ->
+    lc t2 ->
+    Step (app (abort t1) t2) (abort t1)
+| Step_FunCongrL :
   forall (t1 t1' t2 : Tm),
     lc t2 ->
-    Step' t1 t1' ->
-    Step' (app t1 t2) (app t1' t2)
-| Step'_FunCongrR :
+    Step t1 t1' ->
+    Step (app t1 t2) (app t1' t2)
+| Step_FunCongrR :
   forall (t1 t2 t2' : Tm),
     Value t1 ->
-    Step' t2 t2' ->
-    Step' (app t1 t2) (app t1 t2').
+    Step t2 t2' ->
+    Step (app t1 t2) (app t1 t2')
+| Step_OutlPair :
+  forall v1 v2 : Tm,
+    Value v1 ->
+    Value v2 ->
+    Step (outl (pair v1 v2)) v1
+| Step_OutlAbort :
+  forall t : Tm,
+    lc t ->
+    Step (outl (abort t)) (abort t)
+| Step_OutrPair :
+  forall v1 v2 : Tm,
+    Value v1 ->
+    Value v2 ->
+    Step (outr (pair v1 v2)) v2
+| Step_OutrAbort :
+  forall t : Tm,
+    lc t ->
+    Step (outr (abort t)) (abort t)
+| Step_PairCongrL :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    Step t1 t1' ->
+    Step (pair t1 t2) (pair t1' t2)
+| Step_PairCongrR :
+  forall (t1 t2 t2' : Tm),
+    Value t1 ->
+    Step t2 t2' ->
+    Step (pair t1 t2) (pair t1 t2')
+| Step_OutlCongr :
+  forall (t t' : Tm),
+    Step t t' ->
+    Step (outl t) (outl t')
+| Step_OutrCongr :
+  forall (t t' : Tm),
+    Step t t' ->
+    Step (outr t) (outr t').
 
-#[export] Hint Constructors Step' : core.
+#[export] Hint Constructors Step : core.
 
-Lemma Step'_spec :
+(** * Experiments with the definition of reduction *)
+
+Lemma Step_spec :
   forall t t' : Tm,
-    Step' t t' <-> Step t t'.
+    STLC.Step t t' <-> Step t t'.
 Proof.
   split.
-  - induction 1.
-    + destruct H.
-      now constructor.
-    + now constructor.
-    + now constructor.
-  - induction 1.
-    + now constructor.
-    + now constructor 2.
-    + now constructor 3.
+  - induction 1; [| | now constructor..].
+    + now inversion H; subst; constructor.
+    + now inversion H; subst; constructor.
+  - induction 1; eauto.
 Qed.
 
-Lemma lc_Step'_l :
+Lemma lc_Step_l :
   forall t t' : Tm,
-    Step' t t' -> lc t.
+    Step t t' -> lc t.
 Proof.
   induction 1.
-  - now apply lc_Contraction_l in H.
+  - constructor; [easy |].
+    now apply lc_Value.
+  - constructor; [| easy].
+    now constructor.
   - now constructor.
   - constructor; [| easy ].
     now apply lc_Value.
+  - now do 2 constructor; apply lc_Value.
+  - now do 2 constructor.
+  - now do 2 constructor; apply lc_Value.
+  - now do 2 constructor.
+  - now constructor.
+  - constructor; [| easy].
+    now apply lc_Value.
+  - now constructor.
+  - now constructor.
 Qed.
 
-Lemma lc_Step'_r :
+Lemma lc_Step_r :
   forall t t' : Tm,
-    Step' t t' -> lc t'.
+    Step t t' -> lc t'.
 Proof.
   induction 1.
-  - now apply lc_Contraction_r in H.
+  - apply lc_open; [easy |].
+    now apply lc_Value.
+  - now constructor.
   - now constructor.
   - constructor; [| easy ].
     now apply lc_Value.
+  - now apply lc_Value.
+  - now constructor.
+  - now apply lc_Value.
+  - now constructor.
+  - now constructor.
+  - constructor; [| easy].
+    now apply lc_Value.
+  - now constructor.
+  - now constructor.
 Qed.
 
 Lemma preservation :
@@ -104,7 +133,16 @@ Proof.
     apply Typing_subst with A; [| easy].
     apply Hcof.
     now solve_fresh.
+  - now constructor; inversion Ht1.
   - now econstructor; eauto.
+  - now econstructor; eauto.
+  - now econstructor; eauto.
+  - now econstructor; eauto.
+  - now inversion Ht; subst.
+  - now constructor; inversion Ht.
+  - now econstructor; eauto.
+  - now inversion Ht; subst.
+  - now constructor; inversion Ht.
   - now econstructor; eauto.
 Qed.
 
@@ -118,14 +156,30 @@ Proof.
   induction Ht; subst.
   - now inversion H0.
   - left; constructor.
-    apply lc_abs with l; intros x Hx.
+    apply lc_abs with l.
+    intros x Hx.
     now eapply lc_Typing, Hcof.
-  - destruct (IHHt1 eq_refl) as [ [t1' Hlc1] | [t1' Hs1] ].
-    + now destruct (IHHt2 eq_refl) as [ [t2' Hlc2] | [t2' Hs2] ]; eauto.
-    + now apply lc_Typing in Ht2; eauto.
+  - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ].
+    + inversion Hv; subst; inversion Ht1; subst.
+      * now destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; eauto.
+      * now apply lc_Typing in H2, Ht2; eauto.
+    + right.
+      destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ].
+      * now apply lc_Value in Hv2; eauto.
+      * now apply lc_Step_l in Hs2; eauto.
+  - destruct (IHHt eq_refl) as [Hv | [t'' Hs] ].
+    + now apply lc_Value in Hv; eauto.
+    + now apply lc_Step_l in Hs; eauto.
+  - destruct (IHHt1 eq_refl) as [Hv1 | [t1' Hs1] ].
+    + now destruct (IHHt2 eq_refl) as [Hv2 | [t2' Hs1] ]; eauto.
+    + destruct (IHHt2 eq_refl) as [Hv2 | [t2' Hs2] ].
+      * now apply lc_Value in Hv2; eauto.
+      * now apply lc_Step_l in Hs2; eauto.
+  - destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    now inversion Hv; subst; inversion Ht; subst; eauto.
+  - destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    now inversion Hv; subst; inversion Ht; subst; eauto.
 Qed.
-
-End modular.
 
 (** ** Definitions based on evaluation contexts *)
 
@@ -150,20 +204,6 @@ Proof.
   easy.
 Qed.
 
-Lemma preservation_Contraction :
-  forall (Γ : Ctx) (t t' : Tm) (A : Ty),
-    Contraction t t' ->
-    Typing Γ t A ->
-    Typing Γ t' A.
-Proof.
-  induction 1; inversion 1; subst.
-  inversion H5; subst.
-  rewrite open'_spec with (x := fresh (l ++ fv t1)) by solve_fresh.
-  apply Typing_subst with A0; [| easy].
-  apply Hcof.
-  now solve_fresh.
-Qed.
-
 (** *** Definition of reduction as an inductive type *)
 
 Module inductive.
@@ -171,7 +211,10 @@ Module inductive.
 Inductive Step' : Tm -> Tm -> Prop :=
 | mkStep' :
   forall (E : EvalCtx) (t t' : Tm),
-    Contraction t t' -> Step' (plug E t) (plug E t').
+    Contraction t t' -> Step' (plug E t) (plug E t')
+| Step'_Abortion :
+  forall (E : EvalCtx) (t t' : Tm),
+    Abortion t t' -> Step' (plug E t) (plug E t').
 
 #[export] Hint Constructors Step' : core.
 
@@ -180,13 +223,14 @@ Lemma Step'_spec :
     Step' t t' <-> Step t t'.
 Proof.
   split.
-  - destruct 1 as [E t t' [] ].
-    induction E; cbn; intros.
-    + now constructor.
-    + now constructor; [| apply IHE].
-    + now constructor; [| apply IHE].
+  - destruct 1 as [E t t' Hc | E t t' Ha].
+    + induction E; cbn; intros; [| now eauto..].
+      now inversion Hc; constructor; eauto.
+    + induction E; cbn; intros; [| now eauto..].
+      now inversion Ha; constructor; eauto.
   - induction 1.
-    + now apply (mkStep' Hole _ (t1 {{ 0 ~> t2 }})).
+    + now apply (mkStep' Hole _ (t1 {{ 0 ~> t2 }})); constructor.
+    + 
     + destruct IHStep as [E u u' HC].
       now apply (mkStep' (FunCongrL E t2 H)).
     + destruct IHStep as [E u u' HC].
