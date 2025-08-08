@@ -7,7 +7,8 @@ Inductive Ty : Type :=
 | TyUnit  : Ty
 | TyEmpty : Ty
 | TyProd  : Ty -> Ty -> Ty
-| TySum   : Ty -> Ty -> Ty.
+| TySum   : Ty -> Ty -> Ty
+| TyNat   : Ty.
 
 Fixpoint eq_dec_Ty (A B : Ty) : {A = B} + {A <> B}.
 Proof.
@@ -34,6 +35,7 @@ Inductive Tm : Type :=
 | bvar       : nat -> Tm
 | abs        : Tm -> Tm
 | app        : Tm -> Tm -> Tm
+| annot      : Tm -> Ty -> Tm
 | unit       : Tm
 | elimUnit   : Tm -> Tm -> Tm
 | elimUnit'  : Tm -> Tm -> Tm
@@ -44,7 +46,11 @@ Inductive Tm : Type :=
 | outr       : Tm -> Tm
 | inl        : Tm -> Tm
 | inr        : Tm -> Tm
-| case       : Tm.
+| case       : Tm -> Tm -> Tm -> Tm
+| case''     : Tm
+| zero       : Tm
+| succ       : Tm -> Tm
+| rec        : Tm -> Tm -> Tm -> Tm.
 
 Coercion fvar : Atom >-> Tm.
 Coercion bvar : nat >-> Tm.
@@ -54,6 +60,7 @@ Proof.
   decide equality.
   - exact (eq_dec_Atom a a0).
   - exact (PeanoNat.Nat.eq_dec n n0).
+  - exact (eq_dec_Ty t1 t3).
 Defined.
 
 #[export, refine] Instance Decidable_eq_Tm :
@@ -73,11 +80,14 @@ Defined.
 
 #[export] Instance Open_Tm : Open nat Atom Tm :=
   fix open (t : Tm) (i : nat) (a : Atom) : Tm :=
+(*     let _ : Open nat Atom Tm := open in *)
     match t with
     | fvar a          => fvar a
     | bvar j          => if decide (i = j) then a else bvar j
+(*     | abs t'          => abs (t' {{ S i ~> a }}) *)
     | abs t'          => abs (open t' (S i) a)
     | app t1 t2       => app (open t1 i a) (open t2 i a)
+    | annot t' A      => annot (open t' i a) A
     | unit            => unit
     | elimUnit t1 t2  => elimUnit (open t1 i a) (open t2 (S i) a)
     | elimUnit' t1 t2 => elimUnit' (open t1 i a) (open t2 i a)
@@ -88,7 +98,11 @@ Defined.
     | outr t'         => outr (open t' i a)
     | inl t'          => inl (open t' i a)
     | inr t'          => inr (open t' i a)
-    | case            => case
+    | case t1 t2 t3   => case (open t1 i a) (open t2 (S i) a) (open t3 (S i) a)
+    | case''          => case''
+    | zero            => zero
+    | succ t'         => succ (open t' i a)
+    | rec t1 t2 t3    => rec (open t1 i a) (open t2 (S i) a) (open t3 i a)
     end.
 
 #[export] Instance Close_Tm : Close nat Atom Tm :=
@@ -98,6 +112,7 @@ Defined.
     | bvar n          => bvar n
     | abs t'          => abs (close t' (S i) a)
     | app t1 t2       => app (close t1 i a) (close t2 i a)
+    | annot t' A      => annot (close t' i a) A
     | unit            => unit
     | elimUnit t1 t2  => elimUnit (close t1 i a) (close t2 (S i) a)
     | elimUnit' t1 t2 => elimUnit' (close t1 i a) (close t2 i a)
@@ -108,14 +123,18 @@ Defined.
     | outr t'         => outr (close t' i a)
     | inl t'          => inl (close t' i a)
     | inr t'          => inr (close t' i a)
-    | case            => case
+    | case t1 t2 t3   => case (close t1 i a) (close t2 (S i) a) (close t3 (S i) a)
+    | case''          => case''
+    | zero            => zero
+    | succ t'         => succ (close t' i a)
+    | rec t1 t2 t3    => rec (close t1 i a) (close t2 (S i) a) (close t3 i a)
     end.
 
 #[export, refine] Instance OC_Tm :
   OC nat Atom Tm Open_Tm Close_Tm := {}.
 Proof.
   all: induction t; cbn; intros;
-    decide_all; rewrite 1?IHt, 1?IHt1, 1?IHt2; congruence.
+    decide_all; rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; congruence.
 Qed.
 
 Lemma open_open :
@@ -131,21 +150,26 @@ Qed.
 
 Fixpoint fv (t : Tm) : list Atom :=
 match t with
-| fvar x     => [x]
-| bvar _     => []
-| abs t'     => fv t'
-| app t1 t2  => fv t1 ++ fv t2
-| unit       => []
-| elimUnit t1 t2 => fv t1 ++ fv t2
+| fvar x          => [x]
+| bvar _          => []
+| abs t'          => fv t'
+| app t1 t2       => fv t1 ++ fv t2
+| annot t' A      => fv t'
+| unit            => []
+| elimUnit t1 t2  => fv t1 ++ fv t2
 | elimUnit' t1 t2 => fv t1 ++ fv t2
-| elimUnit'' => []
-| abort t'   => fv t'
-| pair t1 t2 => fv t1 ++ fv t2
-| outl t'    => fv t'
-| outr t'    => fv t'
-| inl t'     => fv t'
-| inr t'     => fv t'
-| case       => []
+| elimUnit''      => []
+| abort t'        => fv t'
+| pair t1 t2      => fv t1 ++ fv t2
+| outl t'         => fv t'
+| outr t'         => fv t'
+| inl t'          => fv t'
+| inr t'          => fv t'
+| case t1 t2 t3   => fv t1 ++ fv t2 ++ fv t3
+| case''          => []
+| zero            => []
+| succ t'         => fv t'
+| rec t1 t2 t3    => fv t1 ++ fv t2 ++ fv t3
 end.
 
 #[export, refine] Instance LocallyNameless_Tm :
@@ -156,10 +180,15 @@ end.
 Proof.
   - unfold supports, Fresh'.
     induction t; cbn; only 1: rename a into b; intros a Ha;
-      try (now rewrite 1?IHt, 1?IHt1, 1?IHt2 by solve_fresh).
+      try (now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh).
     + now firstorder decide_all.
     + now f_equal; rewrite close_invariant, IHt.
     + rewrite IHt1 by solve_fresh; f_equal.
+      now rewrite close_invariant, IHt2 by solve_fresh.
+    + rewrite IHt1 by solve_fresh; f_equal.
+      * now rewrite close_invariant, IHt2 by solve_fresh.
+      * now rewrite close_invariant, IHt3 by solve_fresh.
+    + rewrite IHt1, IHt3 by solve_fresh; f_equal.
       now rewrite close_invariant, IHt2 by solve_fresh.
   - intros t.
     setoid_rewrite LocallyClosed_forall.
@@ -168,8 +197,14 @@ Proof.
       try (now destruct IHt as [i IH]; exists i; intros j a Hij; rewrite IH; [| lia]);
       try (now destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2];
         exists (max i1 i2); intros j a Hle; rewrite IH1, IH2; [| lia..]).
-    exists (S n); intros j a Hij.
-    now decide_all; lia.
+    + exists (S n); intros j a Hij.
+      now decide_all; lia.
+    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
+      exists (max i1 (max i2 i3)); intros j a Hle.
+      now rewrite IH1, IH2, IH3; [| lia..].
+    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
+      exists (max i1 (max i2 i3)); intros j a Hle.
+      now rewrite IH1, IH2, IH3; [| lia..].
 Defined.
 
 (** ** Characterization of local closure *)
@@ -187,6 +222,9 @@ Inductive LocallyClosed' : nat -> Tm -> Prop :=
 | LocallyClosed'_app :
   forall (i : nat) (t1 t2 : Tm),
     LocallyClosed' i t1 -> LocallyClosed' i t2 -> LocallyClosed' i (app t1 t2)
+| LocallyClosed'_annot :
+  forall (i : nat) (t' : Tm) (A : Ty),
+    LocallyClosed' i t' -> LocallyClosed' i (annot t' A)
 | LocallyClosed'_unit :
   forall i : nat,
     LocallyClosed' i unit
@@ -222,9 +260,26 @@ Inductive LocallyClosed' : nat -> Tm -> Prop :=
   forall (i : nat) (t' : Tm),
     LocallyClosed' i t' -> LocallyClosed' i (inr t')
 | LocallyClosed'_case :
+  forall (i : nat) (t1 t2 t3 : Tm),
+    LocallyClosed' i t1 ->
+    LocallyClosed' (S i) t2 ->
+    LocallyClosed' (S i) t3 ->
+    LocallyClosed' i (case t1 t2 t3)
+| LocallyClosed'_case'' :
   forall (i : nat),
-    LocallyClosed' i case.
-
+    LocallyClosed' i case''
+| LocallyClosed'_zero :
+  forall (i : nat),
+    LocallyClosed' i zero
+| LocallyClosed'_succ :
+  forall (i : nat) (t' : Tm),
+    LocallyClosed' i t' -> LocallyClosed' i (succ t')
+| LocallyClosed'_rec :
+  forall (i : nat) (t1 t2 t3 : Tm),
+    LocallyClosed' i t1 ->
+    LocallyClosed' (S i) t2 ->
+    LocallyClosed' i t3 ->
+    LocallyClosed' i (rec t1 t2 t3).
 
 #[export] Hint Constructors LocallyClosed' : core.
 
@@ -238,19 +293,19 @@ Proof.
     + now decide_all; lia.
     + now rewrite IHLocallyClosed'; [| lia].
     + now rewrite IHLocallyClosed'1, IHLocallyClosed'2; [| lia..].
+    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
+    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
   - revert i.
     induction t; cbn; intros i Hlc; constructor; try easy;
     try match goal with
     | IH : forall _, _ -> LocallyClosed' _ ?t  |- LocallyClosed' _ ?t =>
       now apply IH; intros j a Hij; injection (Hlc j a Hij)
+    | IH : forall _, _ -> LocallyClosed' _ ?t  |- LocallyClosed' _ ?t =>
+      now apply IH; intros [| j'] a Hle; [now lia |]; injection (Hlc j' a ltac:(lia))
     end.
-    + destruct (PeanoNat.Nat.lt_ge_cases n i); [easy |].
-      specialize (Hlc n (fresh []) H).
-      now decide_all.
-    + apply IHt; intros [| j'] a Hle; [now lia |].
-      now injection (Hlc j' a ltac:(lia)).
-    + apply IHt2; intros [| j'] a Hle; [now lia |].
-      now injection (Hlc j' a ltac:(lia)).
+    destruct (PeanoNat.Nat.lt_ge_cases n i); [easy |].
+    specialize (Hlc n (fresh []) H).
+    now decide_all.
 Qed.
 
 Lemma open_LocallyClosed' :
@@ -275,7 +330,16 @@ Proof.
   - now firstorder decide_all.
   - apply IHt.
     now rewrite (close_invariant _ 0 1).
-  - intros []; [now apply IHt1; congruence |].
+  - intros []; [now apply IHt1 |].
+    apply IHt2; [| easy].
+    now rewrite (close_invariant _ 0 1).
+  - intros []; [now apply IHt1 |].
+    destruct H.
+    + apply IHt2; [| easy].
+      now rewrite (close_invariant _ 0 1).
+    + apply IHt3; [| easy].
+      now rewrite (close_invariant _ 0 1).
+  - intros [| []]; [now apply IHt1 | | now apply IHt3].
     apply IHt2; [| easy].
     now rewrite (close_invariant _ 0 1).
 Qed.
@@ -284,21 +348,26 @@ Qed.
 
 Fixpoint subst (t : Tm) (x : Atom) (u : Tm) : Tm :=
 match t with
-| fvar y     => if decide (x = y) then u else fvar y
-| bvar n     => bvar n
-| abs t'     => abs (subst t' x u)
-| app t1 t2  => app (subst t1 x u) (subst t2 x u)
-| unit       => unit
-| elimUnit t1 t2 => elimUnit (subst t1 x u) (subst t2 x u)
+| fvar y          => if decide (x = y) then u else fvar y
+| bvar n          => bvar n
+| abs t'          => abs (subst t' x u)
+| app t1 t2       => app (subst t1 x u) (subst t2 x u)
+| annot t' A      => annot (subst t' x u) A
+| unit            => unit
+| elimUnit t1 t2  => elimUnit (subst t1 x u) (subst t2 x u)
 | elimUnit' t1 t2 => elimUnit' (subst t1 x u) (subst t2 x u)
-| elimUnit'' => elimUnit''
-| abort t'   => abort (subst t' x u)
-| pair t1 t2 => pair (subst t1 x u) (subst t2 x u)
-| outl t'    => outl (subst t' x u)
-| outr t'    => outr (subst t' x u)
-| inl t'     => inl (subst t' x u)
-| inr t'     => inr (subst t' x u)
-| case       => case
+| elimUnit''      => elimUnit''
+| abort t'        => abort (subst t' x u)
+| pair t1 t2      => pair (subst t1 x u) (subst t2 x u)
+| outl t'         => outl (subst t' x u)
+| outr t'         => outr (subst t' x u)
+| inl t'          => inl (subst t' x u)
+| inr t'          => inr (subst t' x u)
+| case t1 t2 t3   => case (subst t1 x u) (subst t2 x u) (subst t3 x u)
+| case''          => case''
+| zero            => zero
+| succ t'         => succ (subst t' x u)
+| rec t1 t2 t3    => rec (subst t1 x u) (subst t2 x u) (subst t3 x u)
 end.
 
 Notation "t [[ x := u ]]" := (subst t x u) (at level 68).
@@ -308,28 +377,33 @@ Lemma subst_fv :
     x # fv t -> t [[ x := u ]] = t.
 Proof.
   now induction t; cbn; intros;
-    [firstorder decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2 by solve_fresh..].
+    [firstorder decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh..].
 Qed.
 
 (** ** Opening with a term *)
 
 Fixpoint open' (t : Tm) (i : nat) (u : Tm) : Tm :=
 match t with
-| fvar a     => fvar a
-| bvar j     => if decide (i = j) then u else bvar j
-| abs t'     => abs (open' t' (S i) u)
-| app t1 t2  => app (open' t1 i u) (open' t2 i u)
-| unit       => unit
-| elimUnit t1 t2 => elimUnit (open' t1 i u) (open' t2 (S i) u)
+| fvar a          => fvar a
+| bvar j          => if decide (i = j) then u else bvar j
+| abs t'          => abs (open' t' (S i) u)
+| app t1 t2       => app (open' t1 i u) (open' t2 i u)
+| annot t' A      => annot (open' t' i u) A
+| unit            => unit
+| elimUnit t1 t2  => elimUnit (open' t1 i u) (open' t2 (S i) u)
 | elimUnit' t1 t2 => elimUnit' (open' t1 i u) (open' t2 i u)
-    | elimUnit'' => elimUnit''
-| abort t'   => abort (open' t' i u)
-| pair t1 t2 => pair (open' t1 i u) (open' t2 i u)
-| outl t'    => outl (open' t' i u)
-| outr t'    => outr (open' t' i u)
-| inl t'     => inl (open' t' i u)
-| inr t'     => inr (open' t' i u)
-| case       => case
+| elimUnit''      => elimUnit''
+| abort t'        => abort (open' t' i u)
+| pair t1 t2      => pair (open' t1 i u) (open' t2 i u)
+| outl t'         => outl (open' t' i u)
+| outr t'         => outr (open' t' i u)
+| inl t'          => inl (open' t' i u)
+| inr t'          => inr (open' t' i u)
+| case t1 t2 t3   => case (open' t1 i u) (open' t2 (S i) u) (open' t3 (S i) u)
+| case''          => case''
+| zero            => zero
+| succ t'         => succ (open' t' i u)
+| rec t1 t2 t3    => rec (open' t1 i u) (open' t2 (S i) u) (open' t3 i u)
 end.
 
 Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
@@ -347,7 +421,7 @@ Lemma open'_spec :
       t {[ i ~> u ]} = t {{ i ~> x }} [[ x := u ]].
 Proof.
   induction t; cbn; intros;
-    try now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x) by solve_fresh.
+    try now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x), 1?(IHt3 _ x) by solve_fresh.
   - now firstorder decide_all.
   - now decide_all.
 Qed.
@@ -376,6 +450,10 @@ Inductive lc : Tm -> Prop :=
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     lc (app t1 t2)
+| lc_annot :
+  forall (t' : Tm) (A : Ty)
+    (Hlc' : lc t'),
+    lc (annot t' A)
 | lc_unit : lc unit
 | lc_elimUnit :
   forall (t1 t2 : Tm) (l : list Atom)
@@ -413,7 +491,24 @@ Inductive lc : Tm -> Prop :=
   forall (t' : Tm)
     (Hlc' : lc t'),
     lc (inr t')
-| lc_case : lc case.
+| lc_case :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall y : Atom, y # l -> lc (t3 {{ 0 ~> y }})),
+    lc (case t1 t2 t3)
+| lc_case'' : lc case''
+| lc_zero : lc zero
+| lc_succ :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    lc (succ t')
+| lc_rec :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : lc t3),
+    lc (rec t1 t2 t3).
 
 #[export] Hint Constructors lc : core.
 
@@ -422,9 +517,15 @@ Lemma LocallyClosed_lc :
     lc t -> LocallyClosed 0 t.
 Proof.
   setoid_rewrite LocallyClosed_forall.
-  induction 1; cbn; intros j a Hle; f_equal; try now unshelve eauto.
-  - now eapply open_open, (H _ (fresh_spec l)); lia.
-  - now eapply open_open, (H0 _ (fresh_spec l)); lia.
+  induction 1; cbn; intros j a Hle; try now f_equal; unshelve eauto.
+  - now f_equal; eapply open_open, (H _ (fresh_spec l)); lia.
+  - f_equal; [now eauto |].
+    now eapply open_open, (H0 _ (fresh_spec l)); lia.
+  - f_equal; [now eauto | |].
+    + now eapply open_open, (H0 _ (fresh_spec l)); lia.
+    + now eapply open_open, (H1 _ (fresh_spec l)); lia.
+  - f_equal; [now eauto | | now eauto].
+    now eapply open_open, (H0 _ (fresh_spec l)); lia.
 Qed.
 
 Lemma open_lc :
@@ -450,7 +551,7 @@ Lemma open_subst :
     t [[ x := b ]] {{ i ~> if decide (a = x) then b else a }}.
 Proof.
   now induction t; cbn; intros;
-    [decide_all | decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2..].
+    [decide_all | decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
 Qed.
 
 Lemma subst_open :
@@ -458,7 +559,7 @@ Lemma subst_open :
     a <> b -> lc u ->
     t [[ a := u ]] {{ i ~> b }} = t {{ i ~> b }} [[ a := u ]].
 Proof.
-  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2..].
+  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
   - decide_all.
     now rewrite open_lc.
   - now decide_all.
@@ -472,11 +573,13 @@ Proof.
   induction Ht; cbn; intros; try now eauto.
   - now decide_all.
   - apply lc_abs with (x :: l).
-    intros y Hy.
-    now rewrite subst_open; firstorder.
+    now intros y Hy; rewrite subst_open; firstorder.
   - apply lc_elimUnit with (x :: l); [now apply IHHt |].
-    intros y Hy.
-    now rewrite subst_open; firstorder.
+    now intros y Hy; rewrite subst_open; firstorder.
+  - now apply lc_case with (x :: l); [now apply IHHt | |];
+      intros y Hy; rewrite subst_open; firstorder.
+  - now apply lc_rec with (x :: l); [now apply IHHt1 | | now apply IHHt2];
+      intros y Hy; rewrite subst_open; firstorder.
 Qed.
 
 Lemma open'_lc :
@@ -510,6 +613,21 @@ Proof.
   now intros; rewrite open'_lc.
 Qed.
 
+Lemma lc_open''' :
+  forall (t u : Tm),
+    (exists l : list Atom, forall x : Atom, x # l -> lc (t {{ 0 ~> x }})) ->
+    lc u ->
+      lc (t {[ 0 ~> u ]}).
+Proof.
+  intros t u [l Hlct] Hlcu.
+  rewrite (open'_spec _ _ (fresh (l ++ fv t))) by solve_fresh.
+  apply lc_subst; [| easy].
+  apply Hlct.
+  now solve_fresh.
+Qed.
+
+#[export] Hint Resolve lc_open''' : core.
+
 Lemma open'_subst :
   forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
     lc u2 ->
@@ -517,7 +635,7 @@ Lemma open'_subst :
       =
     t [[ x := u2 ]] {[ i ~> u1 [[ x := u2 ]] ]}.
 Proof.
-  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2..].
+  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
   - decide_all.
     now rewrite open'_lc.
   - now decide_all.
@@ -601,6 +719,10 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
     (Ht1 : Typing Γ t1 (TyFun A B))
     (Ht2 : Typing Γ t2 A),
     Typing Γ (app t1 t2) B
+| Typing_annot :
+  forall (Γ : Ctx) (t' : Tm) (A : Ty)
+    (Ht' : Typing Γ t' A),
+    Typing Γ (annot t' A) A
 | Typing_unit :
   forall (Γ : Ctx)
     (Hwf : WfCtx Γ),
@@ -645,9 +767,29 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
     (Ht' : Typing Γ t' B),
     Typing Γ (inr t') (TySum A B)
 | Typing_case :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty) (l : list Atom)
+    (Ht1 : Typing Γ t1 (TySum A B))
+    (Ht2 : forall x : Atom, x # l -> Typing ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
+    (Ht3 : forall y : Atom, y # l -> Typing ((y, B) :: Γ) (t3 {{ 0 ~> y }}) C),
+    Typing Γ (case t1 t2 t3) C
+| Typing_case'' :
   forall (Γ : Ctx) (A B C : Ty)
     (Hwf : WfCtx Γ),
-    Typing Γ case (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C))).
+    Typing Γ case'' (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C)))
+| Typing_zero :
+  forall (Γ : Ctx)
+    (Hwf : WfCtx Γ),
+    Typing Γ zero TyNat
+| Typing_succ :
+  forall (Γ : Ctx) (t' : Tm)
+    (Ht' : Typing Γ t' TyNat),
+    Typing Γ (succ t') TyNat
+| Typing_rec :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A : Ty) (l : list Atom)
+    (Ht1 : Typing Γ t1 A)
+    (Ht2 : forall x : Atom, x # l -> Typing ((x, A) :: Γ) (t2 {{ 0 ~> x }}) A)
+    (Ht3 : Typing Γ t3 TyNat),
+    Typing Γ (rec t1 t2 t3) A.
 
 #[export] Hint Constructors Typing : core.
 
@@ -700,6 +842,28 @@ Proof.
     cbn; constructor; [easy |].
     rewrite !map_app.
     now solve_fresh.
+  - apply Typing_case with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
+      [now apply IHHt | |].
+    + intros x Hx.
+      rewrite app_comm_cons.
+      apply H; [now solve_fresh | easy |].
+      cbn; constructor; [easy |].
+      rewrite !map_app.
+      now solve_fresh.
+    + intros x Hx.
+      rewrite app_comm_cons.
+      apply H0; [now solve_fresh | easy |].
+      cbn; constructor; [easy |].
+      rewrite !map_app.
+      now solve_fresh.
+  - apply Typing_rec with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
+      [now apply IHHt1 | | now apply IHHt2].
+    intros x Hx.
+    rewrite app_comm_cons.
+    apply H; [now solve_fresh | easy |].
+    cbn; constructor; [easy |].
+    rewrite !map_app.
+    now solve_fresh.
 Qed.
 
 Lemma weakening :
@@ -744,6 +908,20 @@ Proof.
     assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
     rewrite subst_open; [| now firstorder | now eauto].
     now eapply (H y Hyl ((y, TyUnit) :: Δ)).
+  - apply Typing_case with A B (x :: l); [now eapply IHHt | |].
+    + intros y Hy.
+      assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
+      rewrite subst_open; [| now firstorder | now eauto].
+      now eapply (H y Hyl ((y, A) :: Δ)).
+    + intros y Hy.
+      assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
+      rewrite subst_open; [| now firstorder | now eauto].
+      now eapply (H0 y Hyl ((y, B) :: Δ)).
+  - apply Typing_rec with (x :: l); [now eapply IHHt1 | | now eapply IHHt2].
+    intros y Hy.
+    assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
+    rewrite subst_open; [| now firstorder | now eauto].
+    now eapply (H y Hyl ((y, A) :: Δ)).
 Qed.
 
 Lemma Typing_subst :
@@ -785,16 +963,21 @@ Inductive Value : Tm -> Prop :=
   forall v : Tm,
     Value v ->
     Value (inr v)
-| Value_case : Value case
-| Value_case1 :
+| Value_case'' : Value case''
+| Value_case''1 :
   forall (t1 : Tm),
     lc t1 ->
-    Value (app case t1)
-| Value_case2 :
+    Value (app case'' t1)
+| Value_case''2 :
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
-    Value (app (app case t1) t2).
+    Value (app (app case'' t1) t2)
+| Value_zero : Value zero
+| Vale_succ :
+  forall (t' : Tm)
+    (Hv' : Value t'),
+    Value (succ t').
 
 #[export] Hint Constructors Value : core.
 
@@ -817,6 +1000,10 @@ Inductive Contraction : Tm -> Tm -> Prop :=
     (Hlc1 : lc (abs t1))
     (Hv2 : Value t2),
     Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
+| Contraction_Annot :
+  forall (t : Tm) (A : Ty)
+    (Hlc : lc t),
+    Contraction (annot t A) t
 | Contraction_Unit :
   forall (t : Tm) (l : list Atom)
     (Hlc : forall x : Atom, x # l -> lc (t {{0 ~> x}})),
@@ -840,17 +1027,40 @@ Inductive Contraction : Tm -> Tm -> Prop :=
     (Hv2 : Value v2),
     Contraction (outr (pair v1 v2)) v2
 | Contraction_CaseInl :
-  forall (t1 t2 v : Tm)
-    (Hlc1 : lc t1)
-    (Hlc2 : lc t2)
-    (Hv : Value v),
-    Contraction (app (app (app case t1) t2) (inl v)) (app t1 v)
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hv1 : Value t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    Contraction (case (inl t1) t2 t3) (t2 {[ 0 ~> t1 ]})
 | Contraction_CaseInr :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hv1 : Value t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    Contraction (case (inr t1) t2 t3) (t3 {[ 0 ~> t1 ]})
+| Contraction_CaseInl'' :
   forall (t1 t2 v : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
     (Hv : Value v),
-    Contraction (app (app (app case t1) t2) (inr v)) (app t2 v).
+    Contraction (app (app (app case'' t1) t2) (inl v)) (app t1 v)
+| Contraction_CaseInr'' :
+  forall (t1 t2 v : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv : Value v),
+    Contraction (app (app (app case'' t1) t2) (inr v)) (app t2 v)
+| Contraction_RecZero :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hv1 : Value t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
+    Contraction (rec t1 t2 zero) t1
+| Contraction_RecSucc :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hv1 : Value t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hv3 : Value t3),
+    Contraction (rec t1 t2 (succ t3)) (t2 {[ 0 ~> rec t1 t2 t3 ]}).
 
 #[export] Hint Constructors Contraction : core.
 
@@ -865,12 +1075,8 @@ Lemma lc_Contraction_r :
   forall t t' : Tm,
     Contraction t t' -> lc t'.
 Proof.
-  inversion 1; subst; try now unshelve eauto.
-  - now apply lc_open'; eauto.
-  - rewrite (open'_spec _ _ (fresh (l ++ fv t0))) by solve_fresh.
-    apply lc_subst; [| easy].
-    apply Hlc.
-    now solve_fresh.
+  inversion 1; subst; try now eauto 6.
+  now apply lc_open'; eauto.
 Qed.
 
 #[export] Hint Resolve lc_Contraction_l lc_Contraction_r : core.
@@ -887,6 +1093,7 @@ Proof.
     apply Typing_subst with A0; [| easy].
     apply Ht'.
     now solve_fresh.
+  - easy.
   - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by solve_fresh.
     apply Typing_subst with TyUnit; [| easy].
     apply Ht2.
@@ -895,22 +1102,42 @@ Proof.
   - now inversion Ht1; subst.
   - now inversion Ht'.
   - now inversion Ht'.
+  - inversion Ht1; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
+    apply Typing_subst with A0; [| easy].
+    apply Ht2.
+    now solve_fresh.
+  - inversion Ht1; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh.
+    apply Typing_subst with B; [| easy].
+    apply Ht3.
+    now solve_fresh.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
       inversion H15; subst; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
       inversion H15; subst; eauto.
+  - easy.
+  - inversion Ht3; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
+    eapply Typing_subst with A; [| now eauto].
+    apply Ht2.
+    now solve_fresh.
 Qed.
 
 Inductive Abortion : Tm -> Tm -> Prop :=
 | Abortion_Fun :
-  forall (t1 t2 : Tm),
-    lc t1 ->
-    lc t2 ->
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
     Abortion (app (abort t1) t2) (abort t1)
+| Abort_Annot :
+  forall (t : Tm) (A : Ty)
+    (Hlc' : lc t),
+    Abortion (annot (abort t) A) (abort t)
 | Abortion_Unit :
   forall (t1 t2 : Tm) (l : list Atom)
     (Hlc1 : lc t1)
-    (Hcof : forall x : Atom, x # l -> lc (t2 {{0 ~> x}})),
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}})),
     Abortion (elimUnit (abort t1) t2) (abort t1)
 | Abortion_Unit' :
   forall (t1 t2 : Tm)
@@ -934,11 +1161,33 @@ Inductive Abortion : Tm -> Tm -> Prop :=
     (Hlc : lc t),
     Abortion (inr (abort t)) (abort t)
 | Abort_Case :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{0 ~> x}})),
+    Abortion (case (abort t1) t2 t3) (abort t1)
+| Abort_Case'' :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
     (Hlc3 : lc t3),
-    Abortion (app (app (app case t1) t2) (abort t3)) (abort t3).
+    Abortion (app (app (app case'' t1) t2) (abort t3)) (abort t3)
+| Abortion_Succ :
+  forall (t : Tm)
+    (Hlc' : lc t),
+    Abortion (succ (abort t)) (abort t)
+| Abortion_RecZero :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : lc t3),
+    Abortion (rec (abort t1) t2 t3) (abort t1)
+| Abortion_RecArg :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : lc t3),
+    Abortion (rec t1 t2 (abort t3)) (abort t3).
 
 #[export] Hint Constructors Abortion : core.
 
@@ -946,7 +1195,7 @@ Lemma lc_Abortion_l :
   forall t t' : Tm,
     Abortion t t' -> lc t.
 Proof.
-  now inversion 1; subst; eauto.
+  now inversion 1; subst; auto; eauto.
 Qed.
 
 Lemma lc_Abortion_r :
@@ -966,13 +1215,18 @@ Lemma preservation_Abortion :
 Proof.
   induction 1; inversion 1; subst; constructor.
   - now inversion Ht1.
+  - now inversion Ht'.
   - now inversion Ht1.
   - now inversion Ht1.
   - now inversion Ht'.
   - now inversion Ht'.
   - now inversion Ht'.
   - now inversion Ht'.
+  - now inversion Ht1.
   - now inversion Ht2.
+  - now inversion Ht'.
+  - now inversion Ht1.
+  - now inversion Ht3.
 Qed.
 
 (** ** Reduction *)
@@ -998,7 +1252,7 @@ Inductive Step : Tm -> Tm -> Prop :=
     Step (app t1 t2) (app t1 t2')
 | Step_ElimUnitCongr :
   forall (t1 t1' t2 : Tm) (l : list Atom)
-    (Hcof : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
     Step t1 t1' ->
     Step (elimUnit t1 t2) (elimUnit t1' t2)
 | Step_ElimUnitCongr' :
@@ -1031,7 +1285,29 @@ Inductive Step : Tm -> Tm -> Prop :=
 | Step_InrCongr :
   forall t t' : Tm,
     Step t t' ->
-    Step (inr t) (inr t').
+    Step (inr t) (inr t')
+| Step_Case :
+  forall (t1 t1' t2 t3 : Tm) (l : list Atom)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    Step t1 t1' ->
+    Step (case t1 t2 t3) (case t1' t2 t3)
+| Step_Succ :
+  forall (t t' : Tm),
+    Step t t' ->
+    Step (succ t) (succ t')
+| Step_RecZero :
+  forall (t1 t1' t2 t3 : Tm) (l : list Atom)
+    (Hs1 : Step t1 t1')
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : lc t3),
+    Step (rec t1 t2 t3) (rec t1' t2 t3)
+| Step_RecArg :
+  forall (t1 t2 t3 t3' : Tm) (l : list Atom)
+    (Hv1 : Value t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hs3 : Step t3 t3'),
+    Step (rec t1 t2 t3) (rec t1 t2 t3').
 
 #[export] Hint Constructors Step : core.
 
@@ -1083,6 +1359,7 @@ Proof.
       inversion Ht2; subst; inversion Hv2; subst; eauto.
       * inversion Ht2; subst; inversion Ht6.
       * inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
+  - now right; eauto.
   - now left.
   - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
     inversion Hv; subst; inversion Ht; subst; eauto 6.
@@ -1105,7 +1382,18 @@ Proof.
     + now inversion Ht1.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto 7].
+    inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
+    + now inversion Ht1.
+    + now inversion Ht1.
   - now left.
+  - now left.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt1 eq_refl) as [Hv1 | [t1' Hs1] ]; [| now eauto 6].
+    destruct (IHHt2 eq_refl) as [Hv3 | [t3' Hs3] ]; [| now eauto 6].
+    inversion Hv3; subst; inversion Ht3; subst; [now eauto 7 | | | now eauto 7..].
+    + now inversion Ht0.
+    + now inversion Ht0.
 Qed.
 
 (** * Bidirectional typing *)
@@ -1120,6 +1408,10 @@ Inductive Infer : Ctx -> Tm -> Ty -> Prop :=
     (Hi1 : Infer Γ t1 (TyFun A B))
     (Hc2 : Check Γ t2 A),
     Infer Γ (app t1 t2) B
+| Infer_annot :
+  forall (Γ : Ctx) (t : Tm) (A : Ty)
+    (Hc' : Check Γ t A),
+    Infer Γ (annot t A) A
 | Infer_unit :
   forall (Γ : Ctx),
     Infer Γ unit TyUnit
@@ -1141,6 +1433,26 @@ Inductive Infer : Ctx -> Tm -> Ty -> Prop :=
   forall (Γ : Ctx) (t : Tm) (A B : Ty)
     (Hi : Infer Γ t (TyProd A B)),
     Infer Γ (outr t) B
+| Infer_case :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C1 C2 : Ty) (l : list Atom)
+    (Hi1 : Infer Γ t1 (TySum A B))
+    (Hi2 : forall x : Atom, x # l -> Infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C1)
+    (Hi3 : forall x : Atom, x # l -> Infer ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C2)
+    (Heq : C1 = C2),
+    Infer Γ (case t1 t2 t3) C1
+| Infer_case_asym :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty) (l : list Atom)
+    (Hi1 : Infer Γ t1 (TySum A B))
+    (Hi2 : forall x : Atom, x # l -> Infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
+    (Hc3 : forall x : Atom, x # l -> Check ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C),
+    Infer Γ (case t1 t2 t3) C
+| Infer_zero :
+  forall (Γ : Ctx),
+    Infer Γ zero TyNat
+| Infer_succ :
+  forall (Γ : Ctx) (t : Tm)
+    (Hc' : Check Γ t TyNat),
+    Infer Γ (succ t) TyNat
 
 with Check : Ctx -> Tm -> Ty -> Prop :=
 | Check_Infer :
@@ -1177,8 +1489,14 @@ with Check : Ctx -> Tm -> Ty -> Prop :=
     (Hc : Check Γ t' B),
     Check Γ (inr t') (TySum A B)
 | Check_case :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty) (l : list Atom)
+    (Hi1 : Infer Γ t1 (TySum A B))
+    (Hc2 : forall x : Atom, x # l -> Check ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
+    (Hc3 : forall x : Atom, x # l -> Check ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C),
+    Check Γ (case t1 t2 t3) C
+| Check_case'' :
   forall (Γ : Ctx) (A B C : Ty),
-    Check Γ case (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C))).
+    Check Γ case'' (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C))).
 
 #[export] Hint Constructors Infer Check : core.
 
@@ -1195,6 +1513,8 @@ Proof.
     + apply Typing_app with A.
       * now apply Typing_Infer.
       * now apply Typing_Check.
+    + constructor.
+      now apply Typing_Check.
     + now constructor.
     + apply Typing_elimUnit with (l ++ map fst Γ).
       * now apply Typing_Check.
@@ -1205,6 +1525,26 @@ Proof.
     + now constructor; apply Typing_Infer.
     + now apply Typing_outl with B, Typing_Infer.
     + now apply Typing_outr with A, Typing_Infer.
+    + apply Typing_case with A B  (l ++ map fst Γ).
+      * now apply Typing_Infer.
+      * intros x Hx.
+        apply Typing_Infer.
+        -- now constructor; solve_fresh.
+        -- now apply Hi2; solve_fresh.
+      * intros x Hx.
+        apply Typing_Infer.
+        -- now constructor; solve_fresh.
+        -- now subst; apply Hi3; solve_fresh.
+    + apply Typing_case with A B  (l ++ map fst Γ).
+      * now apply Typing_Infer.
+      * intros x Hx.
+        apply Typing_Infer.
+        -- now constructor; solve_fresh.
+        -- now apply Hi2; solve_fresh.
+      * intros x Hx.
+        apply Typing_Check.
+        -- now constructor; solve_fresh.
+        -- now subst; apply Hc3; solve_fresh.
   - intros Γ t A Hwf; destruct 1.
     + now apply Typing_Infer.
     + apply Typing_abs with (l ++ map fst Γ); intros x Hx.
@@ -1222,5 +1562,15 @@ Proof.
       * now apply Typing_Check.
     + now constructor; apply Typing_Check.
     + now constructor; apply Typing_Check.
+    + apply Typing_case with A B  (l ++ map fst Γ).
+      * now apply Typing_Infer.
+      * intros x Hx.
+        apply Typing_Check.
+        -- now constructor; solve_fresh.
+        -- now apply Hc2; solve_fresh.
+      * intros x Hx.
+        apply Typing_Check.
+        -- now constructor; solve_fresh.
+        -- now apply Hc3; solve_fresh.
     + now constructor.
 Qed.

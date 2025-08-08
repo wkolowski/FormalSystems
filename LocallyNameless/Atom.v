@@ -88,13 +88,6 @@ end.
 Inductive Atom : Type :=
 | mkAtom : list Atom -> Atom.
 
-Fixpoint size (x : Atom) : nat :=
-match x with
-| mkAtom l => 1 + fold_right (fun h t => size h + t) 0 l
-end.
-
-Definition sizes l := 1 + fold_right (fun h t => size h + t) 0 l.
-
 Fixpoint eq_dec_Atom (x y : Atom) : {x = y} + {x <> y}.
 Proof.
   decide equality.
@@ -113,6 +106,13 @@ Defined.
 Proof.
   now destruct (eq_dec_Atom x y).
 Defined.
+
+Fixpoint size (x : Atom) : nat :=
+match x with
+| mkAtom l => 1 + fold_right (fun h t => size h + t) 0 l
+end.
+
+Definition sizes l := 1 + fold_right (fun h t => size h + t) 0 l.
 
 Lemma In_size :
   forall (x : Atom) (l : list Atom),

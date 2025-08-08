@@ -11,10 +11,12 @@ Class Close (Index Atom Term : Type) : Type :=
 Arguments open Index Atom Term Open !_ _ _.
 Arguments close Index Atom Term Close !_ _ _.
 
-Notation "t {{ i ~> a }}" := (open t i a) (at level 68).
+Notation "t {{ i ~> a }}" := (open t i a) (at level 68 (*, left associativity*)).
 Notation "t {{ i <~ a }}" := (close t i a) (at level 68).
 
 (** * OC sets *)
+
+(** Try primitive projections *)
 
 Class OC
   (Index Atom Term : Type)
