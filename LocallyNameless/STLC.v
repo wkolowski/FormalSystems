@@ -44,9 +44,11 @@ Inductive Tm : Type :=
 | pair       : Tm -> Tm -> Tm
 | outl       : Tm -> Tm
 | outr       : Tm -> Tm
+| elimProd   : Tm -> Tm -> Tm
 | inl        : Tm -> Tm
 | inr        : Tm -> Tm
 | case       : Tm -> Tm -> Tm -> Tm
+| case'      : Tm -> Tm -> Tm -> Tm
 | case''     : Tm
 | zero       : Tm
 | succ       : Tm -> Tm
@@ -96,9 +98,11 @@ Defined.
     | pair t1 t2      => pair (open t1 i a) (open t2 i a)
     | outl t'         => outl (open t' i a)
     | outr t'         => outr (open t' i a)
+    | elimProd t1 t2  => elimProd (open t1 i a) (open t2 (S (S i)) a)
     | inl t'          => inl (open t' i a)
     | inr t'          => inr (open t' i a)
     | case t1 t2 t3   => case (open t1 i a) (open t2 (S i) a) (open t3 (S i) a)
+    | case' t1 t2 t3  => case' (open t1 i a) (open t2 i a) (open t3 i a)
     | case''          => case''
     | zero            => zero
     | succ t'         => succ (open t' i a)
@@ -121,9 +125,11 @@ Defined.
     | pair t1 t2      => pair (close t1 i a) (close t2 i a)
     | outl t'         => outl (close t' i a)
     | outr t'         => outr (close t' i a)
+    | elimProd t1 t2  => elimProd (close t1 i a) (close t2 (S (S i)) a)
     | inl t'          => inl (close t' i a)
     | inr t'          => inr (close t' i a)
     | case t1 t2 t3   => case (close t1 i a) (close t2 (S i) a) (close t3 (S i) a)
+    | case' t1 t2 t3  => case' (close t1 i a) (close t2 i a) (close t3 i a)
     | case''          => case''
     | zero            => zero
     | succ t'         => succ (close t' i a)
@@ -163,9 +169,11 @@ match t with
 | pair t1 t2      => fv t1 ++ fv t2
 | outl t'         => fv t'
 | outr t'         => fv t'
+| elimProd t1 t2  => fv t1 ++ fv t2
 | inl t'          => fv t'
 | inr t'          => fv t'
 | case t1 t2 t3   => fv t1 ++ fv t2 ++ fv t3
+| case' t1 t2 t3  => fv t1 ++ fv t2 ++ fv t3
 | case''          => []
 | zero            => []
 | succ t'         => fv t'
@@ -186,6 +194,8 @@ Proof.
     + rewrite IHt1 by solve_fresh; f_equal.
       now rewrite close_invariant, IHt2 by solve_fresh.
     + rewrite IHt1 by solve_fresh; f_equal.
+      now rewrite close_invariant, IHt2 by solve_fresh.
+    + rewrite IHt1 by solve_fresh; f_equal.
       * now rewrite close_invariant, IHt2 by solve_fresh.
       * now rewrite close_invariant, IHt3 by solve_fresh.
     + rewrite IHt1, IHt3 by solve_fresh; f_equal.
@@ -199,6 +209,9 @@ Proof.
         exists (max i1 i2); intros j a Hle; rewrite IH1, IH2; [| lia..]).
     + exists (S n); intros j a Hij.
       now decide_all; lia.
+    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
+      exists (max i1 (max i2 i3)); intros j a Hle.
+      now rewrite IH1, IH2, IH3; [| lia..].
     + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
       exists (max i1 (max i2 i3)); intros j a Hle.
       now rewrite IH1, IH2, IH3; [| lia..].
@@ -253,6 +266,11 @@ Inductive LocallyClosed' : nat -> Tm -> Prop :=
 | LocallyClosed'_outr :
   forall (i : nat) (t' : Tm),
     LocallyClosed' i t' -> LocallyClosed' i (outr t')
+| LocallyClosed'_elimProd :
+  forall (i : nat) (t1 t2 : Tm),
+    LocallyClosed' i t1 ->
+    LocallyClosed' (S (S i)) t2 ->
+    LocallyClosed' i (elimProd t1 t2)
 | LocallyClosed'_inl :
   forall (i : nat) (t' : Tm),
     LocallyClosed' i t' -> LocallyClosed' i (inl t')
@@ -265,6 +283,12 @@ Inductive LocallyClosed' : nat -> Tm -> Prop :=
     LocallyClosed' (S i) t2 ->
     LocallyClosed' (S i) t3 ->
     LocallyClosed' i (case t1 t2 t3)
+| LocallyClosed'_case' :
+  forall (i : nat) (t1 t2 t3 : Tm),
+    LocallyClosed' i t1 ->
+    LocallyClosed' i t2 ->
+    LocallyClosed' i t3 ->
+    LocallyClosed' i (case' t1 t2 t3)
 | LocallyClosed'_case'' :
   forall (i : nat),
     LocallyClosed' i case''
@@ -293,6 +317,7 @@ Proof.
     + now decide_all; lia.
     + now rewrite IHLocallyClosed'; [| lia].
     + now rewrite IHLocallyClosed'1, IHLocallyClosed'2; [| lia..].
+    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2; [| lia..].
     + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
     + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
   - revert i.
@@ -302,6 +327,8 @@ Proof.
       now apply IH; intros j a Hij; injection (Hlc j a Hij)
     | IH : forall _, _ -> LocallyClosed' _ ?t  |- LocallyClosed' _ ?t =>
       now apply IH; intros [| j'] a Hle; [now lia |]; injection (Hlc j' a ltac:(lia))
+    | IH : forall _, _ -> LocallyClosed' _ ?t  |- LocallyClosed' _ ?t =>
+      now apply IH; intros [| [| j']] a Hle; [now lia.. |]; injection (Hlc j' a ltac:(lia))
     end.
     destruct (PeanoNat.Nat.lt_ge_cases n i); [easy |].
     specialize (Hlc n (fresh []) H).
@@ -334,6 +361,9 @@ Proof.
     apply IHt2; [| easy].
     now rewrite (close_invariant _ 0 1).
   - intros []; [now apply IHt1 |].
+    apply IHt2; [| easy].
+    now rewrite (close_invariant _ 0 2).
+  - intros []; [now apply IHt1 |].
     destruct H.
     + apply IHt2; [| easy].
       now rewrite (close_invariant _ 0 1).
@@ -361,9 +391,11 @@ match t with
 | pair t1 t2      => pair (subst t1 x u) (subst t2 x u)
 | outl t'         => outl (subst t' x u)
 | outr t'         => outr (subst t' x u)
+| elimProd t1 t2  => elimProd (subst t1 x u) (subst t2 x u)
 | inl t'          => inl (subst t' x u)
 | inr t'          => inr (subst t' x u)
 | case t1 t2 t3   => case (subst t1 x u) (subst t2 x u) (subst t3 x u)
+| case' t1 t2 t3  => case' (subst t1 x u) (subst t2 x u) (subst t3 x u)
 | case''          => case''
 | zero            => zero
 | succ t'         => succ (subst t' x u)
@@ -397,9 +429,11 @@ match t with
 | pair t1 t2      => pair (open' t1 i u) (open' t2 i u)
 | outl t'         => outl (open' t' i u)
 | outr t'         => outr (open' t' i u)
+| elimProd t1 t2  => elimProd (open' t1 i u) (open' t2 (S (S i)) u)
 | inl t'          => inl (open' t' i u)
 | inr t'          => inr (open' t' i u)
 | case t1 t2 t3   => case (open' t1 i u) (open' t2 (S i) u) (open' t3 (S i) u)
+| case' t1 t2 t3  => case' (open' t1 i u) (open' t2 i u) (open' t3 i u)
 | case''          => case''
 | zero            => zero
 | succ t'         => succ (open' t' i u)
@@ -483,6 +517,11 @@ Inductive lc : Tm -> Prop :=
   forall (t' : Tm)
     (Hlc' : lc t'),
     lc (outr t')
+| lc_elimProd :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x y : Atom, x # l -> y # ([x] ++ l) -> lc (t2 {{ 0 ~> x }} {{ 1 ~> y }})),
+    lc (elimProd t1 t2)
 | lc_inl :
   forall (t' : Tm)
     (Hlc' : lc t'),
@@ -497,6 +536,12 @@ Inductive lc : Tm -> Prop :=
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : forall y : Atom, y # l -> lc (t3 {{ 0 ~> y }})),
     lc (case t1 t2 t3)
+| lc_case' :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    lc (case' t1 t2 t3)
 | lc_case'' : lc case''
 | lc_zero : lc zero
 | lc_succ :
@@ -521,6 +566,9 @@ Proof.
   - now f_equal; eapply open_open, (H _ (fresh_spec l)); lia.
   - f_equal; [now eauto |].
     now eapply open_open, (H0 _ (fresh_spec l)); lia.
+  - f_equal; [now eauto |].
+    now eapply open_open, open_open,
+      (H0 _ _ (fresh_spec l) (fresh_spec ([fresh l] ++ l))); lia.
   - f_equal; [now eauto | |].
     + now eapply open_open, (H0 _ (fresh_spec l)); lia.
     + now eapply open_open, (H1 _ (fresh_spec l)); lia.
@@ -576,6 +624,8 @@ Proof.
     now intros y Hy; rewrite subst_open; firstorder.
   - apply lc_elimUnit with (x :: l); [now apply IHHt |].
     now intros y Hy; rewrite subst_open; firstorder.
+  - now apply lc_elimProd with (x :: l); [now apply IHHt |];
+     intros y z Hy Hz; rewrite !subst_open; firstorder.
   - now apply lc_case with (x :: l); [now apply IHHt | |];
       intros y Hy; rewrite subst_open; firstorder.
   - now apply lc_rec with (x :: l); [now apply IHHt1 | | now apply IHHt2];
@@ -626,7 +676,20 @@ Proof.
   now solve_fresh.
 Qed.
 
-#[export] Hint Resolve lc_open''' : core.
+Lemma lc_open'''' :
+  forall (t u : Tm) (i : nat),
+    (exists l : list Atom, forall x : Atom, x # l -> lc (t {{ i ~> x }})) ->
+    lc u ->
+      lc (t {[ i ~> u ]}).
+Proof.
+  intros t u i [l Hlct] Hlcu.
+  rewrite (open'_spec _ _ (fresh (l ++ fv t))) by solve_fresh.
+  apply lc_subst; [| easy].
+  apply Hlct.
+  now solve_fresh.
+Qed.
+
+#[export] Hint Resolve lc_open''' lc_open'''' : core.
 
 Lemma open'_subst :
   forall (t : Tm) (i : nat) (u1 : Tm) (x : Atom) (u2 : Tm),
@@ -758,6 +821,12 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
   forall (Γ : Ctx) (t' : Tm) (A B : Ty)
     (Ht' : Typing Γ t' (TyProd A B)),
     Typing Γ (outr t') B
+| Typing_elimProd :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A B C : Ty) (l : list Atom)
+    (Ht1 : Typing Γ t1 (TyProd A B))
+    (Ht2 : forall x y : Atom, x # l -> y # ([x] ++ l) ->
+      Typing ((y, B) :: (x, A) :: Γ) (t2 {{ 0 ~> x }} {{ 1 ~> y }}) C),
+    Typing Γ (elimProd t1 t2) C
 | Typing_inl :
   forall (Γ : Ctx) (t' : Tm) (A B : Ty)
     (Ht' : Typing Γ t' A),
@@ -772,6 +841,12 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
     (Ht2 : forall x : Atom, x # l -> Typing ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
     (Ht3 : forall y : Atom, y # l -> Typing ((y, B) :: Γ) (t3 {{ 0 ~> y }}) C),
     Typing Γ (case t1 t2 t3) C
+| Typing_case' :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty)
+    (Ht1 : Typing Γ t1 (TyFun A C))
+    (Ht2 : Typing Γ t2 (TyFun B C))
+    (Ht3 : Typing Γ t3 (TySum A B)),
+    Typing Γ (case' t1 t2 t3) C
 | Typing_case'' :
   forall (Γ : Ctx) (A B C : Ty)
     (Hwf : WfCtx Γ),
@@ -842,6 +917,19 @@ Proof.
     cbn; constructor; [easy |].
     rewrite !map_app.
     now solve_fresh.
+  - apply Typing_elimProd with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
+      [now apply IHHt |].
+    intros x y Hx Hy.
+    rewrite 2!app_comm_cons.
+    apply H; cbn; [now solve_fresh |  | easy |].
+    + unfold Fresh in Hx, Hy; cbn in Hy; rewrite in_app_iff in Hx, Hy.
+      now firstorder.
+    + constructor; cbn.
+      * constructor; [easy |].
+        now rewrite !map_app; solve_fresh.
+      * rewrite !map_app.
+        unfold Fresh in Hx, Hy; cbn in Hy; rewrite in_app_iff in Hx, Hy.
+        now firstorder.
   - apply Typing_case with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt | |].
     + intros x Hx.
@@ -908,6 +996,13 @@ Proof.
     assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
     rewrite subst_open; [| now firstorder | now eauto].
     now eapply (H y Hyl ((y, TyUnit) :: Δ)).
+  - apply Typing_elimProd with A B (x :: l); [now eapply IHHt |].
+    intros y z Hy Hz.
+    assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
+    assert (x <> z /\ z # [y] ++ l) as [Hzy Hzl] by firstorder.
+    rewrite subst_open; [| now firstorder | now eauto].
+    rewrite subst_open; [| now firstorder | now eauto].
+    now eapply (H y z Hyl Hzl ((z, B) :: (y, A) :: Δ)).
   - apply Typing_case with A B (x :: l); [now eapply IHHt | |].
     + intros y Hy.
       assert (x <> y /\ y # l) as [Hxy Hyl] by firstorder.
@@ -1026,6 +1121,12 @@ Inductive Contraction : Tm -> Tm -> Prop :=
     (Hv1 : Value v1)
     (Hv2 : Value v2),
     Contraction (outr (pair v1 v2)) v2
+| Contraction_ElimProd :
+  forall (v1 v2 t : Tm) (l : list Atom)
+    (Hv1 : Value v1)
+    (Hv2 : Value v2)
+    (Hlc3 : forall x y : Atom, x # l -> y # [x] ++ l -> lc (t {{ 0 ~> x }} {{ 1 ~> y }})),
+    Contraction (elimProd (pair v1 v2) t) (t {[ 0 ~> v1 ]} {[ 1 ~> v2 ]})
 | Contraction_CaseInl :
   forall (t1 t2 t3 : Tm) (l : list Atom)
     (Hv1 : Value t1)
@@ -1038,6 +1139,18 @@ Inductive Contraction : Tm -> Tm -> Prop :=
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
     Contraction (case (inr t1) t2 t3) (t3 {[ 0 ~> t1 ]})
+| Contraction_Case'Inl :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv3 : Value t3),
+    Contraction (case' t1 t2 (inl t3)) (app t1 t3)
+| Contraction_Case'Inr :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv3 : Value t3),
+    Contraction (case' t1 t2 (inr t3)) (app t2 t3)
 | Contraction_CaseInl'' :
   forall (t1 t2 v : Tm)
     (Hlc1 : lc t1)
@@ -1076,7 +1189,18 @@ Lemma lc_Contraction_r :
     Contraction t t' -> lc t'.
 Proof.
   inversion 1; subst; try now eauto 6.
-  now apply lc_open'; eauto.
+  - now apply lc_open'; eauto.
+  - pose (x := fresh (l ++ fv t0)).
+    pose (y := fresh ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
+    rewrite (open'_spec _ _ y) by (subst y; solve_fresh).
+    apply lc_subst; [| now eauto].
+    rewrite (open'_spec _ _ x) by (subst x; solve_fresh).
+    rewrite subst_open; [| | now eauto].
+    + apply lc_subst; [| now eauto].
+      apply Hlc3; subst x y; [now solve_fresh |].
+      now rewrite app_assoc; solve_fresh.
+    + pose (fresh_spec ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
+      now firstorder.
 Qed.
 
 #[export] Hint Resolve lc_Contraction_l lc_Contraction_r : core.
@@ -1103,6 +1227,8 @@ Proof.
   - now inversion Ht'.
   - now inversion Ht'.
   - inversion Ht1; subst.
+    rewrite open'_spec
+  - inversion Ht1; subst.
     rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     apply Typing_subst with A0; [| easy].
     apply Ht2.
@@ -1112,6 +1238,8 @@ Proof.
     apply Typing_subst with B; [| easy].
     apply Ht3.
     now solve_fresh.
+  - now inversion Ht3; eauto.
+  - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
       inversion H15; subst; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -1166,6 +1294,12 @@ Inductive Abortion : Tm -> Tm -> Prop :=
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{0 ~> x}})),
     Abortion (case (abort t1) t2 t3) (abort t1)
+| Abort_Case' :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    Abortion (case' t1 t2 (abort t3)) (abort t3)
 | Abort_Case'' :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
@@ -1213,20 +1347,10 @@ Lemma preservation_Abortion :
     Typing Γ t A ->
     Typing Γ t' A.
 Proof.
-  induction 1; inversion 1; subst; constructor.
-  - now inversion Ht1.
-  - now inversion Ht'.
-  - now inversion Ht1.
-  - now inversion Ht1.
-  - now inversion Ht'.
-  - now inversion Ht'.
-  - now inversion Ht'.
-  - now inversion Ht'.
-  - now inversion Ht1.
-  - now inversion Ht2.
-  - now inversion Ht'.
-  - now inversion Ht1.
-  - now inversion Ht3.
+  now induction 1; inversion 1; subst; constructor;
+    match goal with
+    | H : Typing _ (abort _) _ |- _ => inversion H
+    end.
 Qed.
 
 (** ** Reduction *)
@@ -1292,6 +1416,12 @@ Inductive Step : Tm -> Tm -> Prop :=
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
     Step t1 t1' ->
     Step (case t1 t2 t3) (case t1' t2 t3)
+| Step_Case' :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : Step t3 t3'),
+    Step (case' t1 t2 t3) (case' t1 t2 t3')
 | Step_Succ :
   forall (t t' : Tm),
     Step t t' ->
@@ -1386,6 +1516,10 @@ Proof.
     inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
     + now inversion Ht1.
     + now inversion Ht1.
+  - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
+    inversion Hv3; subst; inversion Ht3; subst; [now eauto 6.. | |].
+    + now inversion Ht0.
+    + now inversion Ht0.
   - now left.
   - now left.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
@@ -1494,6 +1628,12 @@ with Check : Ctx -> Tm -> Ty -> Prop :=
     (Hc2 : forall x : Atom, x # l -> Check ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
     (Hc3 : forall x : Atom, x # l -> Check ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C),
     Check Γ (case t1 t2 t3) C
+| Check_case' :
+  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty)
+    (Hi3 : Infer Γ t3 (TySum A B))
+    (Hc1 : Check Γ t1 (TyFun A C))
+    (Hc2 : Check Γ t2 (TyFun B C)),
+    Check Γ (case' t1 t2 t3) C
 | Check_case'' :
   forall (Γ : Ctx) (A B C : Ty),
     Check Γ case'' (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C))).
@@ -1508,25 +1648,16 @@ with Typing_Check :
   forall (Γ : Ctx) (t : Tm) (A : Ty),
     WfCtx Γ -> Check Γ t A -> Typing Γ t A.
 Proof.
-  - intros ? t A Hwf; destruct 1.
-    + now constructor.
-    + apply Typing_app with A.
-      * now apply Typing_Infer.
-      * now apply Typing_Check.
-    + constructor.
-      now apply Typing_Check.
-    + now constructor.
-    + apply Typing_elimUnit with (l ++ map fst Γ).
-      * now apply Typing_Check.
-      * intros x Hx.
-        apply Typing_Infer.
-        -- now constructor; solve_fresh.
-        -- now apply Hi2; solve_fresh.
-    + now constructor; apply Typing_Infer.
-    + now apply Typing_outl with B, Typing_Infer.
-    + now apply Typing_outr with A, Typing_Infer.
-    + apply Typing_case with A B  (l ++ map fst Γ).
-      * now apply Typing_Infer.
+  - intros ? t A Hwf; destruct 1; try now constructor; auto.
+    + now apply Typing_app with A; auto.
+    + apply Typing_elimUnit with (l ++ map fst Γ); [now auto |].
+      intros x Hx.
+      apply Typing_Infer.
+      * now constructor; solve_fresh.
+      * now apply Hi2; solve_fresh.
+    + now econstructor; eauto.
+    + now econstructor; eauto.
+    + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Infer.
         -- now constructor; solve_fresh.
@@ -1535,8 +1666,7 @@ Proof.
         apply Typing_Infer.
         -- now constructor; solve_fresh.
         -- now subst; apply Hi3; solve_fresh.
-    + apply Typing_case with A B  (l ++ map fst Γ).
-      * now apply Typing_Infer.
+    + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Infer.
         -- now constructor; solve_fresh.
@@ -1545,25 +1675,12 @@ Proof.
         apply Typing_Check.
         -- now constructor; solve_fresh.
         -- now subst; apply Hc3; solve_fresh.
-  - intros Γ t A Hwf; destruct 1.
+  - intros Γ t A Hwf; destruct 1; try now constructor; auto.
     + now apply Typing_Infer.
     + apply Typing_abs with (l ++ map fst Γ); intros x Hx.
       red in Hx; rewrite in_app_iff in Hx.
-      apply Typing_Check.
-      * now firstorder.
-      * now apply Hc; firstorder.
-    + constructor.
-      * now apply Typing_Check.
-      * now apply Typing_Check.
-    + now constructor.
-    + now constructor; apply Typing_Check.
-    + constructor.
-      * now apply Typing_Check.
-      * now apply Typing_Check.
-    + now constructor; apply Typing_Check.
-    + now constructor; apply Typing_Check.
-    + apply Typing_case with A B  (l ++ map fst Γ).
-      * now apply Typing_Infer.
+      now firstorder.
+    + apply Typing_case with A B  (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Check.
         -- now constructor; solve_fresh.
@@ -1572,5 +1689,278 @@ Proof.
         apply Typing_Check.
         -- now constructor; solve_fresh.
         -- now apply Hc3; solve_fresh.
-    + now constructor.
+    + now apply Typing_case' with A B; auto.
 Qed.
+
+Lemma Infer_det :
+  forall (Γ : Ctx) (t : Tm) (A1 A2 : Ty),
+    WfCtx Γ ->
+    Infer Γ t A1 ->
+    Infer Γ t A2 ->
+    A1 = A2.
+Proof.
+  intros * Hwf Hi1 Hi2; revert A2 Hi2.
+  induction Hi1; inversion 1; subst; try easy.
+  - now eapply Binds_inv; eauto.
+  - now firstorder congruence.
+  - apply (H (fresh (l ++ l0 ++ map fst Γ))).
+    + now solve_fresh.
+    + now constructor; solve_fresh.
+    + now apply Hi1; solve_fresh.
+  - now firstorder congruence.
+  - now firstorder congruence.
+  - now firstorder congruence.
+  - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
+    apply (H (fresh (l ++ l0 ++ map fst Γ))).
+    + now solve_fresh.
+    + now constructor; solve_fresh.
+    + now apply Hi5; solve_fresh.
+  - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
+    apply (H (fresh (l ++ l0 ++ map fst Γ))).
+    + now solve_fresh.
+    + now constructor; solve_fresh.
+    + now apply Hi5; solve_fresh.
+  - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
+    apply (H (fresh (l ++ l0 ++ map fst Γ))).
+    + now solve_fresh.
+    + now constructor; solve_fresh.
+    + now apply Hi4; solve_fresh.
+  - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
+    apply (H (fresh (l ++ l0 ++ map fst Γ))).
+    + now solve_fresh.
+    + now constructor; solve_fresh.
+    + now apply Hi4; solve_fresh.
+Qed.
+
+Inductive Mode : Type :=
+| infer
+| check (T : Ty).
+
+Require Import Recdef Bool.
+
+Definition typeRet (m : Mode) : Type :=
+match m with
+| infer => option Ty
+| check _ => bool
+end.
+
+Fixpoint size (t : Tm) : nat :=
+match t with
+| fvar x          => 1
+| bvar n          => 1
+| abs t'          => 1 + size t'
+| app t1 t2       => 1 + size t1 + size t2
+| annot t' A      => 1 + size t'
+| unit            => 1
+| elimUnit t1 t2  => 1 + size t1 + size t2
+| elimUnit' t1 t2 => 1 + size t1 + size t2
+| elimUnit''      => 1
+| abort t'        => 1 + size t'
+| pair t1 t2      => 1 + size t1 + size t2
+| outl t'         => 1 + size t'
+| outr t'         => 1 + size t'
+| inl t'          => 1 + size t'
+| inr t'          => 1 + size t'
+| case t1 t2 t3   => 1 + size t1 + size t2 + size t3
+| case' t1 t2 t3  => 1 + size t1 + size t2 + size t3
+| case''          => 1
+| zero            => 1
+| succ t'         => 1 + size t'
+| rec t1 t2 t3    => 1 + size t1 + size t2 + size t3
+end.
+
+Function type (m : Mode) (Γ : Ctx) (t : Tm) {measure size t} : typeRet m :=
+match m, t with
+| infer, fvar x          => None
+| infer, bvar n          => None
+| infer, abs t'          => None
+| infer, app t1 t2       =>
+  match type infer Γ t1 with
+  | Some (TyFun A B) => if type (check A) Γ t2 then Some B else None
+  | _ => None
+  end
+| infer, annot t' A      => if type (check A) Γ t' then Some A else None
+| infer, unit            => Some TyUnit
+| infer, elimUnit t1 t2  =>
+  if type (check TyUnit) Γ t1
+  then let x := fresh (fv t2) in type infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x }})
+  else None
+| infer, elimUnit' t1 t2 => None
+| infer, elimUnit''      => None
+| infer, abort t'        => None
+| infer, pair t1 t2      =>
+  match type infer Γ t1, type infer Γ t2 with
+  | Some A, Some B => Some (TyProd A B)
+  | _, _ => None
+  end
+| infer, outl t'         =>
+  match type infer Γ t' with
+  | Some (TyProd A B) => Some A
+  | _ => None
+  end
+| infer, outr t'         =>
+  match type infer Γ t' with
+  | Some (TyProd A B) => Some B
+  | _ => None
+  end
+| infer, inl t'          => None
+| infer, inr t'          => None
+| infer, case t1 t2 t3   =>
+  match type infer Γ t1 with
+  | Some (TySum A B) =>
+    let x := fresh (fv t1) in
+    let y := fresh (fv t2) in
+      match
+        type infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}),
+        type infer ((y, B) :: Γ) (t3 {{ 0 ~> y }})
+      with
+      | Some C1, Some C2 => if decide (C1 = C2) then Some C1 else None
+      | _, _ => None
+      end
+  | _ => None
+  end
+| infer, case' t1 t2 t3  => None
+| infer, case''          => None
+| infer, zero            => Some TyNat
+| infer, succ t'         => if type (check TyNat) Γ t' then Some TyNat else None
+| infer, rec t1 t2 t3    =>
+  if type (check TyNat) Γ t3
+  then
+    match type infer Γ t1 with
+    | Some A =>
+      let
+        x := fresh (fv t2)
+      in
+        if type (check A) ((x, A) :: Γ) (t2 {{ 0 ~> x }})
+        then Some A
+        else None
+    | _ => None
+    end
+  else None
+| check (TyFun A B), abs t' => let x := fresh (fv t') in type (check B) ((x, A) :: Γ) t'
+| check A, elimUnit' t1 t2  => type (check TyUnit) Γ t1 && type (check (TyFun TyUnit A)) Γ t2
+| check T, elimUnit'' =>
+  match T with
+  | TyFun (TyFun TyUnit A) (TyFun TyUnit B) => decide (A = B)
+  | _ => false
+  end
+| check _, abort t'        => type (check TyEmpty) Γ t'
+| check (TyProd A B), pair t1 t2 => type (check A) Γ t1 && type (check B) Γ t2
+| check (TySum A B), inl t' => type (check A) Γ t'
+| check (TySum A B), inr t' => type (check B) Γ t'
+| check C, case' t1 t2 t3  =>
+  match type infer Γ t1 with
+  | Some (TySum A B) => type (check (TyFun A C)) Γ t2 && type (check (TyFun B C)) Γ t3
+  | _ => false
+  end
+| check T, case''       =>
+  match T with
+  | TyFun (TyFun A1 C1) (TyFun (TyFun B2 C2) (TyFun (TySum A3 B3) C3)) =>
+    decide (A1 = A3) && decide (B2 = B3) && decide (C1 = C2) && decide (C2 = C3)
+  | _ => false
+  end
+| check T, _              =>
+  match type infer Γ t with
+  | Some T' => decide (T = T')
+  | _ => false
+  end
+end.
+
+
+Function infer (Γ : Ctx) (t : Tm) {measure size t} : option Ty :=
+match t with
+| fvar x          => None
+| bvar n          => None
+| abs t'          => None
+| app t1 t2       =>
+  match infer Γ t1 with
+  | Some (TyFun A B) => if check Γ t2 A then Some B else None
+  | _ => None
+  end
+| annot t' A      => if check Γ t' A then Some A else None
+| unit            => Some TyUnit
+| elimUnit t1 t2  =>
+  if check Γ t1 TyUnit
+  then let x := fresh (fv t2) in infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x}})
+  else None
+| elimUnit' t1 t2 => None
+| elimUnit''      => None
+| abort t'        => None
+| pair t1 t2      =>
+  match infer Γ t1, infer Γ t2 with
+  | Some A, Some B => Some (TyProd A B)
+  | _, _ => None
+  end
+| outl t'         =>
+  match infer Γ t' with
+  | Some (TyProd A B) => Some A
+  | _ => None
+  end
+| outr t'         =>
+  match infer Γ t' with
+  | Some (TyProd A B) => Some B
+  | _ => None
+  end
+| inl t'          => None
+| inr t'          => None
+| case t1 t2 t3   =>
+  match infer Γ t1 with
+  | Some (TySum A B) =>
+    let x := fresh (fv t1) in
+    let y := fresh (fv t2) in
+      match infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}), infer ((y, B) :: Γ) (t3 {{ 0 ~> y }}) with
+      | Some C1, Some C2 => if decide (C1 = C2) then Some C1 else None
+      | _, _ => None
+      end
+  | _ => None
+  end
+| case' t1 t2 t3  => None
+| case''          => None
+| zero            => Some TyNat
+| succ t'         => if check Γ t' TyNat then Some TyNat else None
+| rec t1 t2 t3    =>
+  if check Γ t3 TyNat
+  then
+    match infer Γ t1 with
+    | Some A =>
+      let
+        x := fresh (fv t2)
+      in
+        if check ((x, A) :: Γ) (t2 {{ 0 ~> x }}) A
+        then Some A
+        else None
+    | _ => None
+    end
+  else None
+end
+
+with check (Γ : Ctx) (t : Tm) (T : Ty) {struct t} : bool :=
+match t, T with
+| abs t', TyFun A B  => let x := fresh (fv t') in check ((x, A) :: Γ) t' B
+| elimUnit' t1 t2, _ => andb (check Γ t1 TyUnit) (check Γ t2 (TyFun TyUnit T))
+| elimUnit'', _      =>
+  match T with
+  | TyFun (TyFun TyUnit A) (TyFun TyUnit B) => decide (A = B)
+  | _ => false
+  end
+| abort t', _        => check Γ t' TyEmpty
+| pair t1 t2, TyProd A B => check Γ t1 A && check Γ t2 B
+| inl t', TySum A B => check Γ t' A
+| inr t', TySum A B => check Γ t' B
+| case' t1 t2 t3, _  =>
+  match infer Γ t1 with
+  | Some (TySum A B) => check Γ t2 (TyFun A T) && check Γ t3 (TyFun B T)
+  | _ => false
+  end
+| case'', _       =>
+  match T with
+  | TyFun (TyFun A1 C1) (TyFun (TyFun B2 C2) (TyFun (TySum A3 B3) C3)) =>
+    decide (A1 = A3) && decide (B2 = B3) && decide (C1 = C2) && decide (C2 = C3)
+  | _ => false
+  end
+| _, _              =>
+  match infer Γ t with
+  | Some T' => decide (T = T')
+  | _ => false
+  end
+end.
