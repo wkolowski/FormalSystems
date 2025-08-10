@@ -20,8 +20,8 @@ Class isAtom (Atom : Type) : Type :=
 {
   Decidable_isAtom :: forall x y : Atom, Decidable (x = y);
   fresh : list Atom -> Atom;
-  fresh_spec : forall l : list Atom, ~ In (fresh l) l;
   Fresh (x : Atom) (l : list Atom) : Prop := ~ In x l;
+  fresh_spec : forall l : list Atom, Fresh (fresh l) l;
 }.
 
 Arguments fresh Atom !_ : simpl nomatch.
@@ -29,7 +29,6 @@ Arguments fresh Atom !_ : simpl nomatch.
 Notation "x # l" := (Fresh x l) (at level 68).
 
 (** ** Freshness tactics *)
-
 Lemma incl_app_l :
   forall {A : Type} (l1 l2 l3 : list A),
     incl l1 l2 -> incl l1 (l2 ++ l3).
@@ -72,6 +71,27 @@ Proof.
   now apply fresh_spec.
 Qed.
 
+Lemma Fresh_app :
+  forall (x : Atom) (l1 l2 : list Atom),
+    x # l1 ++ l2 <-> x # l1 /\ x # l2.
+Proof.
+  now unfold Fresh; intros; rewrite in_app_iff; firstorder.
+Qed.
+
+Lemma Fresh_nil :
+  forall (x : Atom),
+    x # [] <-> True.
+Proof.
+  now unfold Fresh; intros; cbn; firstorder.
+Qed.
+
+Lemma Fresh_cons :
+  forall (x y : Atom) (l : list Atom),
+    x # (y :: l) <-> x <> y /\ x # l.
+Proof.
+  now unfold Fresh; intros; cbn; firstorder.
+Qed.
+
 End sec_Fresh_lemmas.
 
 Ltac solve_fresh :=
@@ -81,6 +101,27 @@ repeat match goal with
 | |- incl _ _ => now apply incl_app_l
 | |- incl _ _ => apply incl_app_r
 | H : ?x # ?l1 |- ?x # ?l2 => apply (Fresh_incl x l2 l1); [clear H | easy]
+end.
+
+Ltac rewrite_fresh :=
+  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil).
+
+Ltac rewrite_fresh_in H :=
+  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil in H).
+
+Ltac solve_fresh' := try
+match goal with
+| |- ?x # ?l =>
+  rewrite_fresh;
+  match goal with
+  | H : x # ?l' |- _ =>
+    rewrite_fresh_in H; firstorder
+  end
+| |- fresh ?l1 # ?l2 =>
+  rewrite_fresh;
+  let H := fresh "H" in
+    assert (H := fresh_spec l1);
+      rewrite_fresh_in H; firstorder
 end.
 
 (** * Inductive Atoms *)
