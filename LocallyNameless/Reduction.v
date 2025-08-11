@@ -2,6 +2,7 @@ From FormalSystems Require Export LocallyNameless.STLC.
 
 (** * Old definition of reduction *)
 
+(*
 Inductive Step : Tm -> Tm -> Prop :=
 | Step_FunComp :
   forall (t1 t2 : Tm),
@@ -62,8 +63,11 @@ Inductive Step : Tm -> Tm -> Prop :=
 
 #[export] Hint Constructors Step : core.
 
+*)
+
 (** * Experiments with the definition of reduction *)
 
+(*
 Lemma Step_spec :
   forall t t' : Tm,
     STLC.Step t t' <-> Step t t'.
@@ -180,6 +184,7 @@ Proof.
   - destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
     now inversion Hv; subst; inversion Ht; subst; eauto.
 Qed.
+*)
 
 (** ** Definitions based on evaluation contexts *)
 
@@ -209,7 +214,7 @@ Qed.
 Module inductive.
 
 Inductive Step' : Tm -> Tm -> Prop :=
-| mkStep' :
+| Step_Contraction :
   forall (E : EvalCtx) (t t' : Tm),
     Contraction t t' -> Step' (plug E t) (plug E t')
 | Step'_Abortion :
@@ -217,6 +222,13 @@ Inductive Step' : Tm -> Tm -> Prop :=
     Abortion t t' -> Step' (plug E t) (plug E t').
 
 #[export] Hint Constructors Step' : core.
+
+Lemma Step'_det :
+  forall t t1 t2 : Tm,
+    Step' t t1 -> Step' t t2 -> t1 = t2.
+Proof.
+  destruct 1; inversion 1; subst.
+Abort.
 
 Lemma Step'_spec :
   forall t t' : Tm,

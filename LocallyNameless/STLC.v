@@ -988,161 +988,161 @@ Qed.
 
 (** * Computation *)
 
-(** ** Values *)
+(** ** CBV *)
 
-Inductive Value : Tm -> Prop :=
-| Value_abs  :
+(** *** Values *)
+
+Inductive CbvValue : Tm -> Prop :=
+| CbvValue_abs  :
   forall (t' : Tm) (l : list Atom)
     (Hlc' : forall x : Atom, x # l -> lc (t' {{ 0 ~> x }})),
-    Value (abs t')
-| Value_unit : Value unit
-| Value_elimUnit'' : Value elimUnit''
-| Value_abort :
-  forall t' : Tm,
-    lc t' ->
-    Value (abort t')
-| Value_pair :
+    CbvValue (abs t')
+| CbvValue_unit : CbvValue unit
+| CbvValue_elimUnit'' : CbvValue elimUnit''
+| CbvValue_abort :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    CbvValue (abort t')
+| CbvValue_pair :
   forall t1 t2 : Tm,
-    Value t1 ->
-    Value t2 ->
-    Value (pair t1 t2)
-| Value_inl :
+    CbvValue t1 ->
+    CbvValue t2 ->
+    CbvValue (pair t1 t2)
+| CbvValue_inl :
   forall v : Tm,
-    Value v ->
-    Value (inl v)
-| Value_inr :
+    CbvValue v ->
+    CbvValue (inl v)
+| CbvValue_inr :
   forall v : Tm,
-    Value v ->
-    Value (inr v)
-| Value_case'' : Value case''
-| Value_case''1 :
-  forall (t1 : Tm),
-    lc t1 ->
-    Value (app case'' t1)
-| Value_case''2 :
+    CbvValue v ->
+    CbvValue (inr v)
+| CbvValue_case'' : CbvValue case''
+| CbvValue_case''1 :
+  forall (t1 : Tm)
+    (Hlc1 : lc t1),
+    CbvValue (app case'' t1)
+| CbvValue_case''2 :
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
-    Value (app (app case'' t1) t2)
-| Value_zero : Value zero
-| Vale_succ :
+    CbvValue (app (app case'' t1) t2)
+| CbvValue_zero : CbvValue zero
+| CbvValue_succ :
   forall (t' : Tm)
-    (Hv' : Value t'),
-    Value (succ t').
+    (Hv' : CbvValue t'),
+    CbvValue (succ t').
 
-#[export] Hint Constructors Value : core.
+#[export] Hint Constructors CbvValue : core.
 
-Lemma lc_Value :
+Lemma lc_CbvValue :
   forall t : Tm,
-    Value t -> lc t.
+    CbvValue t -> lc t.
 Proof.
   now induction 1; eauto.
 Qed.
 
-#[export] Hint Resolve lc_Value : core.
+#[export] Hint Resolve lc_CbvValue : core.
 
-(** * Computation *)
+(** *** Contraction *)
 
-(** ** Contraction *)
-
-Inductive Contraction : Tm -> Tm -> Prop :=
-| Contraction_Fun :
+Inductive CbvContraction : Tm -> Tm -> Prop :=
+| CbvContraction_app_abs :
   forall (t1 t2 : Tm) (l : list Atom)
     (Hlc1 : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }}))
-    (Hv2 : Value t2),
-    Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
-| Contraction_Annot :
+    (Hv2 : CbvValue t2),
+    CbvContraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
+| CbvContraction_annot :
   forall (t : Tm) (A : Ty)
     (Hlc : lc t),
-    Contraction (annot t A) t
-| Contraction_Unit :
+    CbvContraction (annot t A) t
+| CbvContraction_elimUnit_nit :
   forall (t : Tm) (l : list Atom)
     (Hlc : forall x : Atom, x # l -> lc (t {{0 ~> x}})),
-    Contraction (elimUnit unit t) (t {[ 0 ~> unit ]})
-| Contraction_Unit' :
+    CbvContraction (elimUnit unit t) (t {[ 0 ~> unit ]})
+| CbvContraction_elimUnit'_unit :
   forall (t : Tm)
     (Hlc : lc t),
-    Contraction (elimUnit' unit t) (app t unit)
-| Contraction_Unit'' :
+    CbvContraction (elimUnit' unit t) (app t unit)
+| CbvContraction_app_elimUnit'' :
   forall (t : Tm)
     (Hlc : lc t),
-    Contraction (app elimUnit'' t) t
-| Contraction_OutlPair :
+    CbvContraction (app elimUnit'' t) t
+| CbvContraction_outl_pair :
   forall (v1 v2 : Tm)
-    (Hv1 : Value v1)
-    (Hv2 : Value v2),
-    Contraction (outl (pair v1 v2)) v1
-| Contraction_OutrPair :
+    (Hv1 : CbvValue v1)
+    (Hv2 : CbvValue v2),
+    CbvContraction (outl (pair v1 v2)) v1
+| CbvContraction_outr_pair :
   forall (v1 v2 : Tm)
-    (Hv1 : Value v1)
-    (Hv2 : Value v2),
-    Contraction (outr (pair v1 v2)) v2
-| Contraction_ElimProd :
+    (Hv1 : CbvValue v1)
+    (Hv2 : CbvValue v2),
+    CbvContraction (outr (pair v1 v2)) v2
+| CbvContraction_elimProd_pair :
   forall (v1 v2 t : Tm) (l : list Atom)
-    (Hv1 : Value v1)
-    (Hv2 : Value v2)
+    (Hv1 : CbvValue v1)
+    (Hv2 : CbvValue v2)
     (Hlc3 : forall x y : Atom, x # l -> y # x :: l -> lc (t {{ 0 ~> x }} {{ 1 ~> y }})),
-    Contraction (elimProd (pair v1 v2) t) (t {[ 0 ~> v1 ]} {[ 1 ~> v2 ]})
-| Contraction_CaseInl :
+    CbvContraction (elimProd (pair v1 v2) t) (t {[ 0 ~> v1 ]} {[ 1 ~> v2 ]})
+| CbvContraction_case_inl :
   forall (t1 t2 t3 : Tm) (l : list Atom)
-    (Hv1 : Value t1)
+    (Hv1 : CbvValue t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
-    Contraction (case (inl t1) t2 t3) (t2 {[ 0 ~> t1 ]})
-| Contraction_CaseInr :
+    CbvContraction (case (inl t1) t2 t3) (t2 {[ 0 ~> t1 ]})
+| CbvContraction_case_inr :
   forall (t1 t2 t3 : Tm) (l : list Atom)
-    (Hv1 : Value t1)
+    (Hv1 : CbvValue t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
-    Contraction (case (inr t1) t2 t3) (t3 {[ 0 ~> t1 ]})
-| Contraction_Case'Inl :
+    CbvContraction (case (inr t1) t2 t3) (t3 {[ 0 ~> t1 ]})
+| CbvContraction_case'_inl :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
-    (Hv3 : Value t3),
-    Contraction (case' t1 t2 (inl t3)) (app t1 t3)
-| Contraction_Case'Inr :
+    (Hv3 : CbvValue t3),
+    CbvContraction (case' t1 t2 (inl t3)) (app t1 t3)
+| CbvContraction_case'_inr :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
-    (Hv3 : Value t3),
-    Contraction (case' t1 t2 (inr t3)) (app t2 t3)
-| Contraction_CaseInl'' :
+    (Hv3 : CbvValue t3),
+    CbvContraction (case' t1 t2 (inr t3)) (app t2 t3)
+| CbvContraction_case''_inl :
   forall (t1 t2 v : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
-    (Hv : Value v),
-    Contraction (app (app (app case'' t1) t2) (inl v)) (app t1 v)
-| Contraction_CaseInr'' :
+    (Hv : CbvValue v),
+    CbvContraction (app (app (app case'' t1) t2) (inl v)) (app t1 v)
+| CbvContraction_case''_inr :
   forall (t1 t2 v : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
-    (Hv : Value v),
-    Contraction (app (app (app case'' t1) t2) (inr v)) (app t2 v)
-| Contraction_RecZero :
+    (Hv : CbvValue v),
+    CbvContraction (app (app (app case'' t1) t2) (inr v)) (app t2 v)
+| CbvContraction_rec_zero :
   forall (t1 t2 : Tm) (l : list Atom)
-    (Hv1 : Value t1)
+    (Hlc1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
-    Contraction (rec t1 t2 zero) t1
-| Contraction_RecSucc :
+    CbvContraction (rec t1 t2 zero) t1
+| CbvContraction_rec_succ :
   forall (t1 t2 t3 : Tm) (l : list Atom)
-    (Hv1 : Value t1)
+    (Hv1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
-    (Hv3 : Value t3),
-    Contraction (rec t1 t2 (succ t3)) (t2 {[ 0 ~> rec t1 t2 t3 ]}).
+    (Hv3 : CbvValue t3),
+    CbvContraction (rec t1 t2 (succ t3)) (t2 {[ 0 ~> rec t1 t2 t3 ]}).
 
-#[export] Hint Constructors Contraction : core.
+#[export] Hint Constructors CbvContraction : core.
 
-Lemma lc_Contraction_l :
+Lemma lc_CbvContraction_l :
   forall t t' : Tm,
-    Contraction t t' -> lc t.
+    CbvContraction t t' -> lc t.
 Proof.
   now inversion 1; subst; eauto 6.
 Qed.
 
-Lemma lc_Contraction_r :
+Lemma lc_CbvContraction_r :
   forall t t' : Tm,
-    Contraction t t' -> lc t'.
+    CbvContraction t t' -> lc t'.
 Proof.
   inversion 1; subst; try now eauto 6.
   pose (x := fresh (l ++ fv t0)).
@@ -1158,11 +1158,28 @@ Proof.
     now firstorder.
 Qed.
 
-#[export] Hint Resolve lc_Contraction_l lc_Contraction_r : core.
+#[export] Hint Resolve lc_CbvContraction_l lc_CbvContraction_r : core.
 
-Lemma preservation_Contraction :
+Lemma CbvContraction_det :
+  forall t t1 t2 : Tm,
+    CbvContraction t t1 -> CbvContraction t t2 -> t1 = t2.
+Proof.
+  intros t t1 t2 H1 H2; revert t2 H2.
+  induction H1; intros; inversion H2; eauto.
+Qed.
+
+Lemma CbvContraction_not_CbvValue :
+  forall t t' : Tm,
+    CbvContraction t t' -> CbvValue t -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+#[export] Hint Resolve CbvContraction_det CbvContraction_not_CbvValue : core.
+
+Lemma preservation_CbvContraction :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
-    Contraction t t' ->
+    CbvContraction t t' ->
     Typing Γ t A ->
     Typing Γ t' A.
 Proof.
@@ -1221,76 +1238,72 @@ Proof.
     now solve_fresh'.
 Qed.
 
+(*** *** Abortion *)
+
 Inductive Abortion : Tm -> Tm -> Prop :=
-| Abortion_Fun :
+| Abortion_app :
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     Abortion (app (abort t1) t2) (abort t1)
-| Abort_Annot :
+(* | Abort_annot :
   forall (t : Tm) (A : Ty)
     (Hlc' : lc t),
-    Abortion (annot (abort t) A) (abort t)
-| Abortion_Unit :
+    Abortion (annot (abort t) A) (abort t) *)
+| Abortion_elimUnit :
   forall (t1 t2 : Tm) (l : list Atom)
     (Hlc1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}})),
     Abortion (elimUnit (abort t1) t2) (abort t1)
-| Abortion_Unit' :
+| Abortion_elimUnit' :
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     Abortion (elimUnit' (abort t1) t2) (abort t1)
-| Abortion_OutlPair :
+| Abortion_outl :
   forall (t : Tm)
     (Hlc' : lc  t),
     Abortion (outl (abort t)) (abort t)
-| Abortion_OutrPair :
+| Abortion_outr :
   forall (t : Tm)
     (Hlc' : lc  t),
     Abortion (outr (abort t)) (abort t)
-| Abortion_ElimProd :
+| Abortion_elimProd :
   forall (t1 t2 : Tm) (l : list Atom)
     (Hlc1 : lc t1)
     (Hlc2 : forall x y : Atom, x # l -> y # x :: l -> lc (t2 {{ 0 ~> x }} {{ 1 ~> y }})),
     Abortion (elimProd (abort t1) t2) (abort t1)
-| Abortion_Inl :
+(* | Abortion_inl :
   forall (t : Tm)
     (Hlc : lc t),
     Abortion (inl (abort t)) (abort t)
-| Abortion_Inr :
+| Abortion_inr :
   forall (t : Tm)
     (Hlc : lc t),
-    Abortion (inr (abort t)) (abort t)
-| Abort_Case :
+    Abortion (inr (abort t)) (abort t) *)
+| Abort_case :
   forall (t1 t2 t3 : Tm) (l : list Atom)
     (Hlc1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{0 ~> x}})),
     Abortion (case (abort t1) t2 t3) (abort t1)
-| Abort_Case' :
+| Abort_case' :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
     (Hlc3 : lc t3),
     Abortion (case' t1 t2 (abort t3)) (abort t3)
-| Abort_Case'' :
+| Abort_case'' :
   forall (t1 t2 t3 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
     (Hlc3 : lc t3),
     Abortion (app (app (app case'' t1) t2) (abort t3)) (abort t3)
-| Abortion_Succ :
+(* | Abortion_succ :
   forall (t : Tm)
     (Hlc' : lc t),
-    Abortion (succ (abort t)) (abort t)
-| Abortion_RecZero :
-  forall (t1 t2 t3 : Tm) (l : list Atom)
-    (Hlc1 : lc t1)
-    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
-    (Hlc3 : lc t3),
-    Abortion (rec (abort t1) t2 t3) (abort t1)
-| Abortion_RecArg :
+    Abortion (succ (abort t)) (abort t) *)
+| Abortion_rec :
   forall (t1 t2 t3 : Tm) (l : list Atom)
     (Hlc1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
@@ -1315,6 +1328,29 @@ Qed.
 
 #[export] Hint Resolve lc_Abortion_l lc_Abortion_r : core.
 
+Lemma Abortion_det :
+  forall t t1 t2 : Tm,
+    Abortion t t1 -> Abortion t t2 -> t1 = t2.
+Proof.
+  now induction 1; inversion 1; subst; auto.
+Qed.
+
+Lemma Abortion_not_CbvValue :
+  forall t t' : Tm,
+    Abortion t t' -> CbvValue t -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+Lemma Abortion_not_CbvContraction :
+  forall t t1 t2 : Tm,
+    Abortion t t1 -> CbvContraction t t2 -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+#[export] Hint Resolve Abortion_det Abortion_not_CbvValue Abortion_not_CbvContraction: core.
+
 Lemma preservation_Abortion :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
     Abortion t t' ->
@@ -1327,133 +1363,189 @@ Proof.
     end.
 Qed.
 
-(** ** Reduction *)
+(** *** Reduction *)
 
-Inductive Step : Tm -> Tm -> Prop :=
-| Step_Contraction :
+Inductive CbvStep : Tm -> Tm -> Prop :=
+| CbvStep_CbvContraction :
   forall t t' : Tm,
-    Contraction t t' ->
-    Step t t'
-| Step_Abortion :
+    CbvContraction t t' ->
+    CbvStep t t'
+| CbvStep_Abortion :
   forall t t' : Tm,
     Abortion t t' ->
-    Step t t'
-| Step_FunCongrL :
+    CbvStep t t'
+| CbvStep_app_l :
   forall (t1 t1' t2 : Tm),
     lc t2 ->
-    Step t1 t1' ->
-    Step (app t1 t2) (app t1' t2)
-| Step_FunCongrR :
-  forall (t1 t2 t2' : Tm),
-    Value t1 ->
-    Step t2 t2' ->
-    Step (app t1 t2) (app t1 t2')
-| Step_ElimUnitCongr :
+    CbvStep t1 t1' ->
+    CbvStep (app t1 t2) (app t1' t2)
+| CbvStep_app_r :
+  forall (t1 t2 t2' : Tm) (l : list Atom)
+    (Hlc' : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }})),
+    CbvStep t2 t2' ->
+    CbvStep (app (abs t1) t2) (app (abs t1) t2')
+| CbvStep_elimUnit :
   forall (t1 t1' t2 : Tm) (l : list Atom)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
-    Step t1 t1' ->
-    Step (elimUnit t1 t2) (elimUnit t1' t2)
-| Step_ElimUnitCongr' :
+    CbvStep t1 t1' ->
+    CbvStep (elimUnit t1 t2) (elimUnit t1' t2)
+| CbvStep_elimUnit' :
   forall (t1 t1' t2 : Tm)
     (Hlc2 : lc t2),
-    Step t1 t1' ->
-    Step (elimUnit' t1 t2) (elimUnit' t1' t2)
-| Step_PairCongrL :
+    CbvStep t1 t1' ->
+    CbvStep (elimUnit' t1 t2) (elimUnit' t1' t2)
+| CbvStep_pair_l :
   forall (t1 t1' t2 : Tm),
     lc t2 ->
-    Step t1 t1' ->
-    Step (pair t1 t2) (pair t1' t2)
-| Step_PairCongrR :
+    CbvStep t1 t1' ->
+    CbvStep (pair t1 t2) (pair t1' t2)
+| CbvStep_pair_r :
   forall (t1 t2 t2' : Tm),
-    Value t1 ->
-    Step t2 t2' ->
-    Step (pair t1 t2) (pair t1 t2')
-| Step_OutlCongr :
+    CbvValue t1 ->
+    CbvStep t2 t2' ->
+    CbvStep (pair t1 t2) (pair t1 t2')
+| CbvStep_outl :
   forall (t t' : Tm),
-    Step t t' ->
-    Step (outl t) (outl t')
-| Step_OutrCongr :
+    CbvStep t t' ->
+    CbvStep (outl t) (outl t')
+| CbvStep_outr :
   forall (t t' : Tm),
-    Step t t' ->
-    Step (outr t) (outr t')
-| Step_ElimProdCongr :
+    CbvStep t t' ->
+    CbvStep (outr t) (outr t')
+| CbvStep_elimProd :
   forall (t1 t1' t2 : Tm) (l : list Atom)
-    (Hs1 : Step t1 t1')
+    (Hs1 : CbvStep t1 t1')
     (Hlc2 : forall x y : Atom, x # l -> y # x :: l -> lc (t2 {{ 0 ~> x }} {{ 1 ~> y }})),
-    Step (elimProd t1 t2) (elimProd t1' t2)
-| Step_InlCongr :
+    CbvStep (elimProd t1 t2) (elimProd t1' t2)
+| CbvStep_inl :
   forall t t' : Tm,
-    Step t t' ->
-    Step (inl t) (inl t')
-| Step_InrCongr :
+    CbvStep t t' ->
+    CbvStep (inl t) (inl t')
+| CbvStep_inr :
   forall t t' : Tm,
-    Step t t' ->
-    Step (inr t) (inr t')
-| Step_Case :
+    CbvStep t t' ->
+    CbvStep (inr t) (inr t')
+| CbvStep_case :
   forall (t1 t1' t2 t3 : Tm) (l : list Atom)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
-    Step t1 t1' ->
-    Step (case t1 t2 t3) (case t1' t2 t3)
-| Step_Case' :
+    CbvStep t1 t1' ->
+    CbvStep (case t1 t2 t3) (case t1' t2 t3)
+| CbvStep_case' :
   forall (t1 t2 t3 t3' : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
-    (Hs3 : Step t3 t3'),
-    Step (case' t1 t2 t3) (case' t1 t2 t3')
-| Step_Succ :
+    (Hs3 : CbvStep t3 t3'),
+    CbvStep (case' t1 t2 t3) (case' t1 t2 t3')
+| CbvStep_succ :
   forall (t t' : Tm),
-    Step t t' ->
-    Step (succ t) (succ t')
-| Step_RecZero :
+    CbvStep t t' ->
+    CbvStep (succ t) (succ t')
+(* | CbvStep_rec1 :
   forall (t1 t1' t2 t3 : Tm) (l : list Atom)
-    (Hs1 : Step t1 t1')
+    (Hs1 : CbvStep t1 t1')
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
     (Hlc3 : lc t3),
-    Step (rec t1 t2 t3) (rec t1' t2 t3)
-| Step_RecArg :
+    CbvStep (rec t1 t2 t3) (rec t1' t2 t3) *)
+| CbvStep_rec2 :
   forall (t1 t2 t3 t3' : Tm) (l : list Atom)
-    (Hv1 : Value t1)
+    (Hlc1 : lc t1)
     (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
-    (Hs3 : Step t3 t3'),
-    Step (rec t1 t2 t3) (rec t1 t2 t3').
+    (Hs3 : CbvStep t3 t3'),
+    CbvStep (rec t1 t2 t3) (rec t1 t2 t3').
 
-#[export] Hint Constructors Step : core.
+#[export] Hint Constructors CbvStep : core.
 
-Lemma lc_Step_l :
+Lemma lc_CbvStep_l :
   forall t t' : Tm,
-    Step t t' -> lc t.
+    CbvStep t t' -> lc t.
 Proof.
   now induction 1; eauto.
 Qed.
 
-Lemma lc_Step_r :
+Lemma lc_CbvStep_r :
   forall t t' : Tm,
-    Step t t' -> lc t'.
+    CbvStep t t' -> lc t'.
 Proof.
   now induction 1; eauto.
 Qed.
 
-#[export] Hint Resolve lc_Step_l lc_Step_r : core.
+Lemma CbvStep_not_CbvValue :
+  forall t t' : Tm,
+    CbvStep t t' -> CbvValue t -> False.
+Proof.
+  induction 1; intros Hv; [| | | now inversion Hv..].
+  - now eapply CbvContraction_not_CbvValue; eauto.
+  - now eapply Abortion_not_CbvValue; eauto.
+  - now inversion Hv; subst; eauto.
+Qed.
 
-(** ** Progress and preservation *)
+#[export] Hint Resolve lc_CbvStep_l lc_CbvStep_r CbvStep_not_CbvValue : core.
 
-Lemma preservation :
+Lemma CbvContraction_CbvStep_det :
+  forall t t1 t2 : Tm,
+    CbvContraction t t1 -> CbvStep t t2 -> t1 = t2.
+Proof.
+  inversion 2; subst; intros; only 3-17:
+      match goal with
+      | Hs : CbvStep ?t ?t' |- _ =>
+        now apply CbvStep_not_CbvValue in Hs; [| inversion H; subst; eauto]
+      end.
+  - now eapply CbvContraction_det; eauto.
+  - now eapply Abortion_not_CbvContraction in H; [| eauto].
+Qed.
+
+Lemma Abortion_CbvStep_det :
+  forall t t1 t2 : Tm,
+    Abortion t t1 -> CbvStep t t2 -> t1 = t2.
+Proof.
+  inversion 2; subst; intros; only 3-17:
+      match goal with
+      | Hs : CbvStep ?t ?t' |- _ =>
+        now apply CbvStep_not_CbvValue in Hs; [| inversion H; subst; eauto]
+      end.
+  - now eapply Abortion_not_CbvContraction in H; [| eauto].
+  - now eapply Abortion_det; eauto.
+Qed.
+
+#[export] Hint Resolve CbvContraction_CbvStep_det Abortion_CbvStep_det : core.
+
+Lemma CbvStep_det :
+  forall t t1 t2 : Tm,
+    CbvStep t t1 -> CbvStep t t2 -> t1 = t2.
+Proof.
+  intros t t1 t2 Hs1 Hs2; revert t2 Hs2.
+  induction Hs1; intros; inversion Hs2; subst;
+    try match goal with
+    | H : CbvContraction _ _ |- _ =>
+      now eapply CbvContraction_CbvStep_det in H; eauto
+    | H : Abortion _ _ |- _ =>
+      now eapply Abortion_CbvStep_det in H; eauto
+    end; try firstorder congruence.
+  - now inversion Hs1.
+  - now inversion H3.
+  - now apply CbvStep_not_CbvValue in Hs1.
+  - now apply CbvStep_not_CbvValue in H4.
+Qed.
+
+(** *** Progress and preservation *)
+
+Lemma preservation_cbv :
   forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
-    Step t1 t2 ->
+    CbvStep t1 t2 ->
     Typing Γ t1 A ->
     Typing Γ t2 A.
 Proof.
   intros Γ t1 t2 A Hstep; revert A.
   induction Hstep; intros A; [| | now inversion 1; subst; eauto..].
-  - now eapply preservation_Contraction.
+  - now eapply preservation_CbvContraction.
   - now eapply preservation_Abortion.
 Qed.
 
-Lemma progress :
+Lemma progress_cbv :
   forall (t : Tm) (A : Ty),
     Typing [] t A ->
-      Value t \/ exists t' : Tm, Step t t'.
+      CbvValue t \/ exists t' : Tm, CbvStep t t'.
 Proof.
   intros t A Ht.
   remember [] as Γ.
@@ -1463,11 +1555,15 @@ Proof.
   - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
     inversion Hv; subst; inversion Ht1; subst; try now eauto 6.
     + now destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; eauto.
-    + destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
-      inversion Ht0; inversion Ht4; subst.
-      inversion Ht2; subst; inversion Hv2; subst; eauto.
-      * inversion Ht2; subst; inversion Ht6.
-      * inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
+    + destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ].
+      * inversion Ht0; inversion Ht4; subst.
+        inversion Ht2; subst; inversion Hv2; subst; eauto.
+        -- inversion Ht2; subst; inversion Ht6.
+        -- inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
+      * inversion Ht0; inversion Ht4; subst.
+        inversion Ht2; subst; inversion Hv2; subst; eauto.
+        -- inversion Ht2; subst; inversion Ht6.
+        -- inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
   - now right; eauto.
   - now left.
   - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
@@ -1511,6 +1607,560 @@ Proof.
     inversion Hv3; subst; inversion Ht3; subst; [now eauto 7 | | | now eauto 7..].
     + now inversion Ht0.
     + now inversion Ht0.
+Qed.
+
+(** *** Confluence *)
+
+Require Import Coq.Relations.Relation_Operators.
+
+Print clos_refl_trans.
+
+Definition MultiStep : Tm -> Tm -> Prop :=
+  clos_refl_trans _ CbvStep.
+
+Inductive ParallelStep : Tm -> Tm -> Prop :=
+| ParallelStep_refl :
+  forall t : Tm,
+    ParallelStep t t
+| ParallelStep_CbvContraction :
+  forall t t' : Tm,
+    CbvContraction t t' ->
+    ParallelStep t t'
+| ParallelStep_Abortion :
+  forall t t' : Tm,
+    Abortion t t' ->
+    ParallelStep t t'
+| ParallelStep_app :
+  forall (t1 t1' t2 t2' : Tm),
+    ParallelStep t1 t1' ->
+    ParallelStep t2 t2' ->
+    ParallelStep (app t1 t2) (app t1' t2')
+| ParallelStep_elimUnit :
+  forall (t1 t1' t2 : Tm) (l : list Atom)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
+    ParallelStep t1 t1' ->
+    ParallelStep (elimUnit t1 t2) (elimUnit t1' t2)
+| ParallelStep_elimUnit' :
+  forall (t1 t1' t2 : Tm)
+    (Hlc2 : lc t2),
+    ParallelStep t1 t1' ->
+    ParallelStep (elimUnit' t1 t2) (elimUnit' t1' t2)
+| ParallelStep_pair :
+  forall (t1 t1' t2 t2' : Tm),
+    ParallelStep t1 t1' ->
+    ParallelStep t2 t2' ->
+    ParallelStep (pair t1 t2) (pair t1' t2')
+| ParallelStep_outl :
+  forall (t t' : Tm),
+    ParallelStep t t' ->
+    ParallelStep (outl t) (outl t')
+| ParallelStep_outr :
+  forall (t t' : Tm),
+    ParallelStep t t' ->
+    ParallelStep (outr t) (outr t')
+| ParallelStep_elimProd :
+  forall (t1 t1' t2 : Tm) (l : list Atom)
+    (Hs1 : ParallelStep t1 t1')
+    (Hlc2 : forall x y : Atom, x # l -> y # x :: l -> lc (t2 {{ 0 ~> x }} {{ 1 ~> y }})),
+    ParallelStep (elimProd t1 t2) (elimProd t1' t2)
+| ParallelStep_inl :
+  forall t t' : Tm,
+    ParallelStep t t' ->
+    ParallelStep (inl t) (inl t')
+| ParallelStep_inr :
+  forall t t' : Tm,
+    ParallelStep t t' ->
+    ParallelStep (inr t) (inr t')
+| ParallelStep_case :
+  forall (t1 t1' t2 t3 : Tm) (l : list Atom)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    ParallelStep t1 t1' ->
+    ParallelStep (case t1 t2 t3) (case t1' t2 t3)
+| ParallelStep_case' :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : ParallelStep t3 t3'),
+    ParallelStep (case' t1 t2 t3) (case' t1 t2 t3')
+| ParallelStep_succ :
+  forall (t t' : Tm),
+    ParallelStep t t' ->
+    ParallelStep (succ t) (succ t')
+| ParallelStep_rec :
+  forall (t1 t1' t2 t3 t3' : Tm) (l : list Atom)
+    (Hs1 : ParallelStep t1 t1')
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hs3 : ParallelStep t3 t3'),
+    ParallelStep (rec t1 t2 t3) (rec t1' t2 t3').
+
+#[export] Hint Constructors ParallelStep : core.
+
+Definition ParallelMultiStep : Tm -> Tm -> Prop :=
+  clos_refl_trans _ ParallelStep.
+
+Hint Unfold MultiStep ParallelMultiStep : core.
+Hint Constructors clos_refl_trans : core.
+
+Lemma ParallelStep_Step :
+  forall t1 t2 : Tm,
+    CbvStep t1 t2 -> ParallelStep t1 t2.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma MultiStep_ParallelStep :
+  forall t1 t2 : Tm,
+    ParallelStep t1 t2 -> MultiStep t1 t2.
+Proof.
+  induction 1; eauto.
+  - eauto 6.
+Admitted.
+
+Lemma MultiStep_ParallelMultiStep :
+  forall t1 t2 : Tm,
+    MultiStep t1 t2 <-> ParallelMultiStep t1 t2.
+Proof.
+  split.
+  - induction 1.
+    + now constructor; apply ParallelStep_Step.
+    + now constructor.
+    + now apply rt_trans with y.
+  - induction 1.
+    + now apply MultiStep_ParallelStep.
+    + now constructor.
+    + now apply rt_trans with y.
+Qed.
+
+Lemma confluent_ParallelStep_aux :
+  forall t t1 t2 : Tm,
+    ParallelStep t t1 -> ParallelStep t t2 ->
+      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
+Proof.
+  intros t t1 t2 H1 H2; revert t2 H2.
+  induction H1; intros.
+  - now exists t2; eauto.
+  - admit.
+  - admit.
+  - inversion H2; subst.
+    + now exists (app t1' t2'); eauto 6.
+    + admit.
+    + admit.
+    + admit.
+  - inversion H2; subst. eauto 7. eauto.
+Admitted.
+
+Lemma confluent_ParallelMultiStep :
+  forall t t1 t2 : Tm,
+    ParallelMultiStep t t1 -> ParallelMultiStep t t2 ->
+      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
+Proof.
+  intros t t1 t2 H1 H2; revert t2 H2.
+  induction H1; intros.
+  - apply confluent_ParallelStep_aux with y. eauto. eauto.
+  - now exists t2; split; [| constructor].
+  - destruct (IHclos_refl_trans1 _ H2) as [t3 [Hyt3 Ht2t3] ].
+    destruct (IHclos_refl_trans2 _ Hyt3) as [t4 [Hzt3 Ht3t4] ].
+    exists t4; split; [easy |].
+    now apply rt_trans with t3.
+Qed.
+
+Lemma confluent_Step_aux :
+  forall t t1 t2 : Tm,
+    CbvStep t t1 -> CbvStep t t2 ->
+      exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
+Proof.
+  intros t t1 t2 Hs1 Hs2.
+  apply ParallelStep_Step in Hs1, Hs2.
+  setoid_rewrite MultiStep_ParallelMultiStep.
+  now apply confluent_ParallelMultiStep with t.
+Qed.
+
+Lemma confluent_Step :
+  forall t t1 t2 : Tm,
+    MultiStep t t1 -> MultiStep t t2 ->
+      exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
+Proof.
+  setoid_rewrite MultiStep_ParallelMultiStep.
+  intros t t1 t2 Hs1 Hs2.
+  now apply confluent_ParallelMultiStep with t.
+Qed.
+
+(** ** CBN *)
+
+(** *** Values *)
+
+Inductive CbnValue : Tm -> Prop :=
+| CbnValue_abs  :
+  forall (t' : Tm) (l : list Atom)
+    (Hlc' : forall x : Atom, x # l -> lc (t' {{ 0 ~> x }})),
+    CbnValue (abs t')
+| CbnValue_unit : CbnValue unit
+| CbnValue_elimUnit'' : CbnValue elimUnit''
+| CbnValue_abort :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    CbnValue (abort t')
+| CbnValue_pair :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnValue (pair t1 t2)
+| CbnValue_inl :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    CbnValue (inl t')
+| CbnValue_inr :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    CbnValue (inr t')
+| CbnValue_case'' : CbnValue case''
+| CbnValue_case''1 :
+  forall (t1 : Tm)
+    (Hlc1 : lc t1),
+    CbnValue (app case'' t1)
+| CbnValue_case''2 :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnValue (app (app case'' t1) t2)
+| CbnValue_zero : CbnValue zero
+| CbnValue_succ :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    CbnValue (succ t').
+
+#[export] Hint Constructors CbnValue : core.
+
+Lemma lc_CbnValue :
+  forall t : Tm,
+    CbnValue t -> lc t.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+#[export] Hint Resolve lc_CbnValue : core.
+
+(** ** Contraction *)
+
+Inductive CbnContraction : Tm -> Tm -> Prop :=
+| CbnContraction_app_abs :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hlc1 : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }}))
+    (Hlc2 : lc t2),
+    CbnContraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
+| CbnContraction_annot :
+  forall (t : Tm) (A : Ty)
+    (Hlc : lc t),
+    CbnContraction (annot t A) t
+| CbnContraction_elimUnit :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{0 ~> x}})),
+    CbnContraction (elimUnit t1 t2) (t2 {[ 0 ~> unit ]})
+| CbnContraction_elimUnit' :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnContraction (elimUnit' t1 t2) (app t2 unit)
+| CbnContraction_app_elimUnit'' :
+  forall (t : Tm)
+    (Hlc : lc t),
+    CbnContraction (app elimUnit'' t) t
+| CbnContraction_outl_pair :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnContraction (outl (pair t1 t2)) t1
+| CbnContraction_outr_pair :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnContraction (outr (pair t1 t2)) t2
+| CbnContraction_elimProd_pair :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : forall x y : Atom, x # l -> y # x :: l -> lc (t3 {{ 0 ~> x }} {{ 1 ~> y }})),
+    CbnContraction (elimProd (pair t1 t2) t3) (t3 {[ 0 ~> t1 ]} {[ 1 ~> t2 ]})
+| CbnContraction_case_inl :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    CbnContraction (case (inl t1) t2 t3) (t2 {[ 0 ~> t1 ]})
+| CbnContraction_case_inr :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    CbnContraction (case (inr t1) t2 t3) (t3 {[ 0 ~> t1 ]})
+| CbnContraction_case'_inl :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    CbnContraction (case' t1 t2 (inl t3)) (app t1 t3)
+| CbnContraction_case'_inr :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    CbnContraction (case' t1 t2 (inr t3)) (app t2 t3)
+| CbnContraction_case''_inl :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    CbnContraction (app (app (app case'' t1) t2) (inl t3)) (app t1 t3)
+| CbnContraction_case''_inr :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    CbnContraction (app (app (app case'' t1) t2) (inr t3)) (app t2 t3)
+| CbnContraction_rec_zero :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }})),
+    CbnContraction (rec t1 t2 zero) t1
+| CbnContraction_rec_succ :
+  forall (t1 t2 t3 : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : lc t3),
+    CbnContraction (rec t1 t2 (succ t3)) (t2 {[ 0 ~> rec t1 t2 t3 ]}).
+
+#[export] Hint Constructors CbnContraction : core.
+
+Lemma lc_CbnContraction_l :
+  forall t t' : Tm,
+    CbnContraction t t' -> lc t.
+Proof.
+  now inversion 1; subst; econstructor; eauto.
+Qed.
+
+Lemma lc_CbnContraction_r :
+  forall t t' : Tm,
+    CbnContraction t t' -> lc t'.
+Proof.
+  inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
+  pose (x := fresh (l ++ fv t3)).
+  pose (y := fresh ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
+  rewrite (open'_spec _ _ y) by (subst y; solve_fresh').
+  apply lc_subst; [| now eauto].
+  rewrite (open'_spec _ _ x) by (subst x; solve_fresh').
+  rewrite subst_open; [| | now eauto].
+  - apply lc_subst; [| now eauto].
+    apply Hlc3; subst x y; [now solve_fresh' |].
+    now rewrite app_assoc; solve_fresh'.
+  - pose (fresh_spec ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
+    now firstorder.
+Qed.
+
+#[export] Hint Resolve lc_CbnContraction_l lc_CbnContraction_r : core.
+
+Lemma preservation_CbnContraction :
+  forall (Γ : Ctx) (t t' : Tm) (A : Ty),
+    CbnContraction t t' ->
+    Typing Γ t A ->
+    Typing Γ t' A.
+Proof.
+  induction 1; inversion 1; subst.
+  - inversion Ht1; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh'.
+    apply Typing_subst with A0; [| easy].
+    apply Ht'.
+    now solve_fresh'.
+  - easy.
+  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    apply Typing_subst with TyUnit; [| now eauto].
+    apply Ht2.
+    now solve_fresh'.
+  - now apply Typing_app with TyUnit; eauto.
+  - now inversion Ht1; subst.
+  - now inversion Ht'.
+  - now inversion Ht'.
+  - inversion Ht1; subst.
+    pose (x := fresh (l0 ++ l ++ fv t2 ++ fv t3 ++ map fst Γ)).
+    assert (Hx := fresh_spec (l0 ++ l ++ fv t2 ++ fv t3 ++ map fst Γ)).
+    pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
+    assert (Hy := fresh_spec ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
+    assert (Hxy : x <> y) by firstorder.
+    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh').
+    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh').
+    rewrite subst_open by eauto.
+    rewrite subst_subst by (now subst x y; solve_fresh').
+    apply Typing_subst with A0; [| easy].
+    apply Typing_subst with B.
+    + apply Ht2; [now subst x; solve_fresh' | now subst y; solve_fresh'].
+    + apply (weakening _ [(x, A0)]); [| easy].
+      constructor; [now eauto |].
+      now subst x; solve_fresh'.
+  - inversion Ht1; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    apply Typing_subst with A0; [| easy].
+    apply Ht2.
+    now solve_fresh'.
+  - inversion Ht1; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh'.
+    apply Typing_subst with B; [| easy].
+    apply Ht3.
+    now solve_fresh'.
+  - now inversion Ht3; eauto.
+  - now inversion Ht3; eauto.
+  - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
+      inversion H15; subst; eauto.
+  - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
+      inversion H15; subst; eauto.
+  - easy.
+  - inversion Ht3; subst.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    eapply Typing_subst with A; [| now eauto].
+    apply Ht2.
+    now solve_fresh'.
+Qed.
+
+(** ** Reduction *)
+
+Inductive CbnStep : Tm -> Tm -> Prop :=
+| CbnStep_CbnContraction :
+  forall t t' : Tm,
+    CbnContraction t t' ->
+    CbnStep t t'
+| CbnStep_Abortion :
+  forall t t' : Tm,
+    Abortion t t' ->
+    CbnStep t t'
+| CbnStep_app_l :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    CbnStep t1 t1' ->
+    CbnStep (app t1 t2) (app t1' t2)
+| CbnStep_app_r :
+  forall (t1 t2 t2' : Tm),
+    CbnValue t1 ->
+    CbnStep t2 t2' ->
+    CbnStep (app t1 t2) (app t1 t2')
+| CbnStep_outl :
+  forall (t t' : Tm),
+    CbnStep t t' ->
+    CbnStep (outl t) (outl t')
+| CbnStep_outr :
+  forall (t t' : Tm),
+    CbnStep t t' ->
+    CbnStep (outr t) (outr t')
+| CbnStep_elimProd :
+  forall (t1 t1' t2 : Tm) (l : list Atom)
+    (Hs1 : CbnStep t1 t1')
+    (Hlc2 : forall x y : Atom, x # l -> y # x :: l -> lc (t2 {{ 0 ~> x }} {{ 1 ~> y }})),
+    CbnStep (elimProd t1 t2) (elimProd t1' t2)
+| CbnStep_case :
+  forall (t1 t1' t2 t3 : Tm) (l : list Atom)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hlc3 : forall x : Atom, x # l -> lc (t3 {{ 0 ~> x }})),
+    CbnStep t1 t1' ->
+    CbnStep (case t1 t2 t3) (case t1' t2 t3)
+| CbnStep_case' :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : CbnStep t3 t3'),
+    CbnStep (case' t1 t2 t3) (case' t1 t2 t3')
+| CbnStep_rec :
+  forall (t1 t2 t3 t3' : Tm) (l : list Atom)
+    (Hlc1 : lc t1)
+    (Hlc2 : forall x : Atom, x # l -> lc (t2 {{ 0 ~> x }}))
+    (Hs3 : CbnStep t3 t3'),
+    CbnStep (rec t1 t2 t3) (rec t1 t2 t3').
+
+#[export] Hint Constructors CbnStep : core.
+
+Lemma lc_CbnStep_l :
+  forall t t' : Tm,
+    CbnStep t t' -> lc t.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma lc_CbnStep_r :
+  forall t t' : Tm,
+    CbnStep t t' -> lc t'.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+#[export] Hint Resolve lc_CbnStep_l lc_CbnStep_r : core.
+
+(** ** Progress and preservation *)
+
+Lemma preservation_cbn :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
+    CbnStep t1 t2 ->
+    Typing Γ t1 A ->
+    Typing Γ t2 A.
+Proof.
+  intros Γ t1 t2 A Hstep; revert A.
+  induction Hstep; intros A; [| | now inversion 1; subst; eauto..].
+  - now eapply preservation_CbnContraction.
+  - now eapply preservation_Abortion.
+Qed.
+
+Lemma progress_cbn :
+  forall (t : Tm) (A : Ty),
+    Typing [] t A ->
+      CbnValue t \/ exists t' : Tm, CbnStep t t'.
+Proof.
+  intros t A Ht.
+  remember [] as Γ.
+  induction Ht; subst.
+  - now inversion Hwf.
+  - now left; eauto.
+  - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
+    inversion Hv; subst; inversion Ht1; subst; try now eauto 6.
+    destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
+    inversion Ht0; inversion Ht4; subst.
+    inversion Ht2; subst; inversion Hv2; subst; eauto.
+    * inversion Ht2; subst; inversion Ht6.
+    * inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
+  - now right; eauto.
+  - now left.
+  - now right; eauto 7.
+  - now right; eauto 7.
+  - now left.
+  - now left; eauto.
+  - now destruct (IHHt1 eq_refl) as [| [] ], (IHHt2 eq_refl) as [| [] ]; eauto.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    inversion Hv; subst; inversion Ht; subst; [now eauto.. | |].
+    + now inversion Ht1.
+    + now inversion Ht1.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    inversion Hv; subst; inversion Ht; subst; [now eauto.. | |].
+    + now inversion Ht1.
+    + now inversion Ht1.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto 6].
+    inversion Hv; subst; inversion Ht; subst; [now eauto 6.. | |].
+    + now inversion Ht1.
+    + now inversion Ht1.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ].
+    + inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
+      * now inversion Ht1.
+      * now inversion Ht1.
+    + now eexists; eapply CbnStep_case; eauto.
+  - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
+    inversion Hv3; subst; inversion Ht3; subst; [now eauto 6.. | |].
+    + now inversion Ht0.
+    + now inversion Ht0.
+  - now left.
+  - now left.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt2 eq_refl) as [Hv1 | [t1' Hs1] ].
+    + inversion Hv1; subst; inversion Ht3; subst; [now eauto 7 | | | now eauto 7..].
+      * now inversion Ht0.
+      * now inversion Ht0.
+    + eexists; eapply CbnStep_rec; eauto.
 Qed.
 
 (** * Bidirectional typing *)
