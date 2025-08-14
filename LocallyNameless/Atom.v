@@ -24,7 +24,8 @@ Class isAtom (Atom : Type) : Type :=
   fresh_spec : forall l : list Atom, Fresh (fresh l) l;
 }.
 
-Arguments fresh Atom !_ : simpl nomatch.
+(* Arguments fresh Atom !_ : simpl nomatch. *)
+Arguments fresh _ _ : simpl never.
 
 Notation "x # l" := (Fresh x l) (at level 68).
 

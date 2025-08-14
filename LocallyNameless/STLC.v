@@ -448,7 +448,7 @@ match t with
 | rec t1 t2 t3    => rec (subst t1 x u) (subst t2 x u) (subst t3 x u)
 end.
 
-Notation "t [[ x := u ]]" := (subst t x u) (at level 68).
+Notation "t [[ x := u ]]" := (subst t x u) (at level 69, left associativity).
 
 Lemma subst_fv :
   forall (t : Tm) (x : Atom) (u : Tm),
@@ -498,7 +498,7 @@ match t with
 | rec t1 t2 t3    => rec (open' t1 i u) (open' t2 (S i) u) (open' t3 i u)
 end.
 
-Notation "t {[ i ~> u ]}" := (open' t i u) (at level 68).
+Notation "t {[ i ~> u ]}" := (open' t i u) (at level 69, left associativity).
 
 Lemma open'_atom :
   forall (t : Tm) (i : nat) (a : Atom),
@@ -2297,26 +2297,6 @@ Proof.
 Qed.
 
 #[export] Hint Resolve lc_FullStep_l lc_FullStep_r : core.
-Print FullContraction.
-Inductive FullStep' : Tm -> Tm -> Prop :=
-| FullStep'_FullContraction :
-  forall t t' : Tm,
-    FullContraction t t' ->
-    FullStep t t'
-| FullStep_abs :
-  forall (t t' : Tm) (l : list Atom)
-    (Hfs' : forall x : Atom, x # l -> FullStep (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})),
-    FullStep (abs t) (abs t')
-| FullStep_app_l :
-  forall (t1 t1' t2 : Tm),
-    lc t2 ->
-    FullStep t1 t1' ->
-    FullStep (app t1 t2) (app t1' t2)
-| FullStep_app_r :
-  forall (t1 t1 t2 t2' : Tm),
-    lc t1 ->
-    FullStep t2 t2' ->
-    FullStep (app t1 t2) (app t1 t2').
 
 Inductive MultiStep : Tm -> Tm -> Prop :=
 | MultiStep_refl :
@@ -2354,6 +2334,13 @@ Proof.
   now induction 1; eauto.
 Qed.
 
+Lemma MultiStep_FullStep :
+  forall t1 t2 : Tm,
+    FullStep t1 t2 -> MultiStep t1 t2.
+Proof.
+  now eauto.
+Qed.
+
 Lemma MultiStep_abs :
   forall t t' : Tm,
     (exists l : list Atom, forall x : Atom, x # l ->
@@ -2361,18 +2348,19 @@ Lemma MultiStep_abs :
         MultiStep (abs t) (abs t').
 Proof.
   intros t t' [l Hms].
-  constructor 1.
-  constructor 2 with (abs t').
-  - constructor 2 with l. eauto.
-  induction 1.
-  - now unshelve eauto; exact [].
-  - constructor 2 with (abs t2); [| easy].
-    constructor 2 with []; intros x _.
-    
-
-transitivity (abs t2); [| now easy].
-    constructor 2 with (abs t2).
-Qed.
+  pose (x := fresh (l ++ fv t ++ fv t')).
+  specialize (Hms x ltac:(subst x; solve_fresh')) as Hms'.
+  remember (t {{ 0 ~> x }}) as t0x.
+  remember (t' {{ 0 ~> x }}) as t'0x.
+  revert Heqt0x Heqt'0x .
+  induction Hms'; intros; subst.
+  - constructor 2 with (abs t'); cycle 1.
+    + apply MultiStep_refl.
+      constructor 2 with l; intros y Hy.
+      now eapply lc_MultiStep_r, Hms.
+    + constructor 2 with l; intros y Hy.
+      Check open_invariant.
+Admitted.
 
 Lemma MultiStep_app_l :
   forall t1 t1' t2 : Tm,
@@ -2406,6 +2394,7 @@ Proof.
 Qed.
 
 #[export] Hint Resolve
+  MultiStep_FullStep
   lc_MultiStep_l lc_MultiStep_r
   MultiStep_abs
   MultiStep_app_l MultiStep_app_r MultiStep_app
@@ -2416,8 +2405,8 @@ Inductive ParallelStep : Tm -> Tm -> Prop :=
   forall (x : Atom),
     ParallelStep x x
 | ParallelStep_abs :
-  forall (t1 t2 : Tm),
-    ParallelStep t1 t2 ->
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hps' : forall x : Atom, x # l -> ParallelStep (t1 {{ 0 ~> x }}) (t2 {{ 0 ~> x }})),
     ParallelStep (abs t1) (abs t2)
 | ParallelStep_app :
   forall (t1 t1' t2 t2' : Tm),
@@ -2425,9 +2414,9 @@ Inductive ParallelStep : Tm -> Tm -> Prop :=
     ParallelStep t2 t2' ->
     ParallelStep (app t1 t2) (app t1' t2')
 | ParallelStep_app_abs :
-  forall (t1 t1' t2 t2' : Tm),
-    ParallelStep t1 t1' ->
-    ParallelStep t2 t2' ->
+  forall (t1 t1' t2 t2' : Tm) (l : list Atom)
+    (Hps1 : forall x : Atom, x # l -> ParallelStep (t1 {{ 0 ~> x }}) (t1' {{ 0 ~> x }}))
+    (Hps2 : ParallelStep t2 t2'),
     ParallelStep (app (abs t1) t2) (t1' {[ 0 ~> t2' ]}).
 
 #[export] Hint Constructors ParallelStep : core.
@@ -2437,60 +2426,48 @@ Lemma ParallelStep_refl :
     lc t ->
     ParallelStep t t.
 Proof.
-  induction 1; eauto. constructor. eauto.
-Qed.
+  induction 1; eauto.
+Admitted.
 
 Lemma lc_ParallelStep_l :
   forall t t' : Tm,
     ParallelStep t t' -> lc t.
 Proof.
-  induction 1; unshelve eauto.
-  exact [].
+  now induction 1; eauto.
 Qed.
 
 Lemma lc_ParallelStep_r :
   forall t t' : Tm,
     ParallelStep t t' -> lc t'.
 Proof.
-  induction 1; only 1, 3: now auto.
-  - now constructor 2 with []; auto.
-  - apply lc_open'; [| easy].
-    now exists []; eauto.
+  now induction 1; eauto.
 Qed.
 
-#[export] Hint Resolve lc_ParallelStep_l lc_ParallelStep_r : core.
-
-Lemma ParallelStep_open' :
-  forall (t t' : Tm) (i : nat) (u u' : Tm),
-    ParallelStep t t' ->
-    ParallelStep u u' ->
-    ParallelStep (t {[ i ~> u ]}) (t' {[ i ~> u' ]}).
-Proof.
-Abort.
-
-(* #[export] Hint Resolve ParallelStep_open' : core. *)
+#[export] Hint Resolve ParallelStep_refl lc_ParallelStep_l lc_ParallelStep_r : core.
 
 Lemma ParallelStep_FullContraction :
   forall t1 t2 : Tm,
     FullContraction t1 t2 -> ParallelStep t1 t2.
 Proof.
-  inversion 1; subst.
-  constructor. eauto.
+  now inversion 1; subst; eauto.
 Qed.
 
 Lemma ParallelStep_FullStep :
   forall t1 t2 : Tm,
     FullStep t1 t2 -> ParallelStep t1 t2.
 Proof.
-  induction 1.
-  - inversion H.
+  induction 1; eauto.
+  now apply ParallelStep_FullContraction.
 Qed.
 
 Lemma MultiStep_ParallelStep :
   forall t1 t2 : Tm,
     ParallelStep t1 t2 -> MultiStep t1 t2.
 Proof.
-  now induction 1; eauto.
+  induction 1; eauto.
+  transitivity (app (abs t1') t2); [now eauto |].
+  transitivity (app (abs t1') t2'); [now eauto |].
+  now eauto 7.
 Qed.
 
 #[export] Hint Resolve ParallelStep_FullStep MultiStep_ParallelStep : core.
@@ -2498,96 +2475,191 @@ Qed.
 Fixpoint development (t : Tm) : Tm :=
 match t with
 | fvar x          => fvar x
+| bvar i          => bvar i
+(* | abs t'          => abs (development t' {{ 0 ~> fresh (fv t') }}) *)
 | abs t'          => abs (development t')
 | app (abs t1) t2 => development t1 {[ 0 ~> development t2 ]}
 | app t1 t2       => app (development t1) (development t2)
 | _               => unit
 end.
 
-Lemma development_spec :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
+Lemma development_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    lc t ->
+    development t {{ i ~> a }} = development (t {{ i ~> a }}).
 Proof.
-  induction 1; cbn.
-  - 
-  - admit.
-  - eauto.
-  - destruct t1; cbn; try now eauto.
-    inversion H; cbn in *; subst.
-    + apply  eauto.
+  intros.
+  rewrite (open_lc t i a) by easy.
+(*
+
+  intros t i a Hlc; revert i a.
+  induction Hlc; cbn; intros; auto.
+(*   - now decide_all. *)
+  - f_equal.
+    rewrite <- (open_lc t' 0 a). 2: eauto.
+
+ rewrite H.
+  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
+    + now decide_all.
+    + injection (IHt1 i a) as [= <-].
+      rewrite <- IHt2.
+      rewrite !(open'_spec _ _ a).
+      Search subst open.
+
+Admitted.
+*)
+Abort.
+Lemma lc_development :
+  forall (t : Tm),
+    lc t -> lc (development t).
+Proof.
+  induction 1; cbn; auto.
+  - constructor 2 with l; intros x Hx.
+Abort.
+
+Unset Guard Checking.
+Fixpoint development' (t : Tm) : Tm :=
+match t with
+| fvar x          => fvar x
+| bvar i          => bvar i
+(* | abs t'          => abs (development' t' {{ 0 ~> fresh (fv t') }}) *)
+| abs t'          => abs (development' t')
+| app (abs t1) t2 =>
+  let x := fresh (fv t1) in
+    development' (t1 {{ 0 ~> x}}) [[ x := development' t2 ]]
+| app t1 t2       => app (development' t1) (development' t2)
+| _               => unit
+end.
+Set Guard Checking.
+
+Lemma development'_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    development' t {{ i ~> a }} = development' (t {{ i ~> a }}).
+Proof.
+  induction t; cbn; intros; auto.
+  - now decide_all.
+  - now rewrite IHt.
+  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
+    + now decide_all.
+    +
+Abort.
+
+Lemma lc_development' :
+  forall (t : Tm),
+    lc t -> lc (development t).
+Proof.
+  induction 1; cbn; auto.
+  - constructor 2 with l; intros x Hx.
 Abort.
 
 
 
 
-Inductive ParallelStep : Tm -> Tm -> Prop :=
-| ParallelStep_refl :
-  forall (t : Tm)
-    (Hlc' : lc t),
-    ParallelStep t t
-| ParallelStep_FullContraction :
-  forall (t t' : Tm),
-    FullContraction t t' ->
-    ParallelStep t t'
-| ParallelStep_abs :
-  forall (t1 t2 : Tm),
-    ParallelStep t1 t2 ->
-    ParallelStep (abs t1) (abs t2)
-| ParallelStep_app :
-  forall (t1 t1' t2 t2' : Tm),
-    ParallelStep t1 t1' ->
-    ParallelStep t2 t2' ->
-    ParallelStep (app t1 t2) (app t1' t2').
-
-#[export] Hint Constructors ParallelStep : core.
-
-Lemma lc_ParallelStep_l :
-  forall t t' : Tm,
-    ParallelStep t t' -> lc t.
+Lemma development_spec :
+  forall t1 t2 : Tm,
+    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
 Proof.
-  induction 1; auto; [now eauto |].
-  now apply lc_abs with []; auto.
-Qed.
-
-Lemma lc_ParallelStep_r :
-  forall t t' : Tm,
-    ParallelStep t t' -> lc t'.
-Proof.
-  induction 1; auto; [now eauto |].
-  now apply lc_abs with []; auto.
-Qed.
-
-#[export] Hint Resolve lc_ParallelStep_l lc_ParallelStep_r : core.
-
-Lemma ParallelStep_open' :
-  forall (t t' : Tm) (i : nat) (u u' : Tm),
-    ParallelStep t t' ->
-    ParallelStep u u' ->
-    ParallelStep (t {[ i ~> u ]}) (t' {[ i ~> u' ]}).
-Proof.
-  intros t t' i u u' Ht Hu; revert i u u' Hu.
-  induction Ht; cbn; intros; [| | now eauto..].
-  - admit.
-  - admit.
+  intros t1 t2 Hps.
+  assert (lc t2) by eauto.
+  induction Hps; cbn.
+  - now eauto.
+  - apply ParallelStep_abs with l; intros x Hx.
+    now rewrite development_open; auto.
+  - destruct t1; cbn in *; try now auto.
+    inversion H; subst.
+    inversion IHParallelStep1; subst; eauto.
+  - 
 Admitted.
 
-#[export] Hint Resolve ParallelStep_open' : core.
+Unset Guard Checking.
+Fixpoint development' (t : Tm) : Tm :=
+match t with
+| fvar x          => fvar x
+| bvar i          => bvar i
+| abs t'          => abs (development' t')
+| app (abs t1) t2 =>
+  let x := fresh (fv t1) in
+    development' t1 {[ 0 ~> development' t2 ]}
+| app t1 t2       => app (development' t1) (development' t2)
+| _               => unit
+end.
+Set Guard Checking.
 
-Lemma ParallelStep_FullStep :
-  forall t1 t2 : Tm,
-    FullStep t1 t2 -> ParallelStep t1 t2.
+Lemma development'_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    development' t {{ i ~> a }} = development' (t {{ i ~> a }}).
 Proof.
-  now induction 1; eauto.
-Qed.
+  induction t; cbn; intros; auto.
+  - now decide_all.
+  - rewrite IHt.
+  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
+    + now decide_all.
+    + injection (IHt1 i a) as [= <-].
+      rewrite <- IHt2.
+Admitted.
 
-Lemma MultiStep_ParallelStep :
+Lemma development'_spec :
   forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> MultiStep t1 t2.
+    ParallelStep t1 t2 -> ParallelStep t2 (development' t1).
 Proof.
-  now induction 1; eauto.
-Qed.
+  induction 1; cbn.
+  - now eauto.
+  - apply ParallelStep_abs with l; intros x Hx.
+    now rewrite development_open; auto.
+  - destruct t1; cbn in *; try now auto.
+    inversion H; subst.
+    inversion IHParallelStep1; subst; eauto.
+  - 
+Admitted.
 
-#[export] Hint Resolve ParallelStep_FullStep MultiStep_ParallelStep : core.
+
+
+Fixpoint development' (i : nat) (t : Tm) : Tm :=
+match t with
+| fvar x          => fvar x
+| bvar j          => bvar j
+| abs t'          => abs (development' (S i) t')
+| app (abs t1) t2 => development' (S i) t1 {[ 0 ~> development t2 ]}
+| app t1 t2       => app (development t1) (development t2)
+| _               => unit
+end.
+
+Lemma development_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    development t {{ i ~> a }} = development (t {{ i ~> a }}).
+Proof.
+  induction t; cbn; intros; auto.
+  - now decide_all.
+  - now rewrite IHt.
+  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
+    + now decide_all.
+    + injection (IHt1 i a) as [= <-].
+      rewrite <- IHt2.
+Abort.
+
+Lemma development_spec :
+  forall t1 t2 : Tm,
+    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
+Proof.
+  induction 1; cbn.
+  - now eauto.
+  - apply ParallelStep_abs with l; intros x Hx.
+    now rewrite development_open; auto.
+  - destruct t1; cbn in *; try now auto.
+    inversion H; subst.
+    inversion IHParallelStep1; subst; eauto.
+  - 
+Admitted.
+
+
+Lemma confluent_ParallelStep :
+  forall t t1 t2 : Tm,
+    ParallelStep t t1 -> ParallelStep t t2 ->
+      ParallelStep t1 (development t) /\ ParallelStep t2 (development t).
+Proof.
+  intros t t1 t2 Hps1 Hps2.
+  now split; apply development_spec.
+Qed.
 
 Inductive ParallelMultiStep : Tm -> Tm -> Prop :=
 | ParallelMultiStep_refl :
@@ -2621,36 +2693,17 @@ Proof.
   now induction 1; eauto.
 Qed.
 
-Lemma ParallelMultiStep_open' :
-  forall (t : Tm) (i : nat) (u u' : Tm),
-    lc t ->
-    ParallelMultiStep u u' ->
-    ParallelMultiStep (t {[ i ~> u ]}) (t {[ i ~> u' ]}).
+Lemma ParallelMultiStep_ParallelStep :
+  forall t1 t2 : Tm,
+    ParallelStep t1 t2 -> ParallelMultiStep t1 t2.
 Proof.
-  induction 2; [now constructor; eauto | now eauto].
+  now eauto.
 Qed.
-
-Lemma ParallelMultiStep_open'' :
-  forall (t t' : Tm) (i : nat) (u u' : Tm),
-    ParallelMultiStep t t' ->
-    ParallelMultiStep u u' ->
-    ParallelMultiStep (t {[ i ~> u ]}) (t' {[ i ~> u' ]}).
-Proof.
-Admitted.
 
 #[export] Hint Resolve
   lc_ParallelMultiStep_l lc_ParallelMultiStep_r
-  ParallelMultiStep_open' ParallelMultiStep_open''
+  ParallelMultiStep_ParallelStep
     : core.
-
-Lemma ParallelMultiStep_abs :
-  forall t t' : Tm,
-    ParallelMultiStep t t' ->
-    ParallelMultiStep (abs t) (abs t').
-Proof.
-  induction 1; unshelve eauto.
-  exact [].
-Qed.
 
 Lemma ParallelMultiStep_app_l :
   forall t1 t1' t2 : Tm,
@@ -2683,7 +2736,6 @@ Proof.
 Qed.
 
 #[export] Hint Resolve
-  ParallelMultiStep_abs
   ParallelMultiStep_app_l ParallelMultiStep_app_r ParallelMultiStep_app
     : core.
 
@@ -2697,53 +2749,6 @@ Proof.
     now transitivity t2; eauto.
 Qed.
 
-Lemma confluent_FullContraction_ParallelStep :
-  forall t t1 t2 : Tm,
-    FullContraction t t1 -> ParallelStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  do 2 inversion 1; subst.
-  - now exists (t0 {[ 0 ~> t3 ]}); eauto 6.
-  - inversion H3; subst.
-    now exists (t0 {[ 0 ~> t3 ]}); eauto 6.
-  - inversion H5; subst.
-    + exists (t0 {[ 0 ~> t2' ]}); split; [now eauto |].
-      now apply rt_trans with (t0 {[ 0 ~> t2' ]}); eauto.
-    + now inversion H0.
-    + exists (t2 {[ 0 ~> t2' ]}); split; [now eauto 6 |].
-      apply rt_trans with (t2 {[ 0 ~> t2' ]}); [| now eauto].
-      unshelve eauto 7.
-      exact [].
-Qed.
-
-Lemma confluent_ParallelStep_aux :
-  forall t t1 t2 : Tm,
-    ParallelStep t t1 -> ParallelStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  intros t t1 t2 H1 H2; revert t2 H2.
-  induction H1; intros.
-  - now exists t2; eauto.
-  - now eapply confluent_FullContraction_ParallelStep; eauto.
-  - inversion H2; subst.
-    + now exists (abs t2); auto.
-    + now inversion H.
-    + now destruct (IHParallelStep _ H0) as (t3 & IH1 & IH2); eauto.
-  - inversion H2; subst.
-    + now exists (app t1' t2'); eauto 6.
-    + inversion H; subst.
-      inversion H1_; subst.
-      * exists (t3 {[ 0 ~> t2' ]}); split; [now eauto 6 |].
-        now apply ParallelMultiStep_open'; eauto.
-      * now inversion H0.
-      * exists (t0 {[ 0 ~> t2' ]}); split.
-        -- now do 2 constructor; apply FullContraction_app_abs with l; eauto.
-        -- now apply ParallelMultiStep_open''; auto.
-    + destruct (IHParallelStep1 _ H1) as [t3 [IH11 IH12] ].
-      destruct (IHParallelStep2 _ H4) as [t4 [IH21 IH22] ].
-      now exists (app t3 t4); auto.
-Qed.
-
 Lemma confluent_ParallelStep_ParallelMultiStep :
   forall t t1 t2 : Tm,
     ParallelStep t t1 -> ParallelMultiStep t t2 ->
@@ -2751,33 +2756,13 @@ Lemma confluent_ParallelStep_ParallelMultiStep :
 Proof.
   intros t t1 t2 H1 H2; revert t1 H1.
   induction H2; intros.
-  - now eapply confluent_ParallelStep_aux; eauto.
   - now exists t1; eauto.
-Restart.
-  intros t t1 t2 H1 H2; revert t2 H2.
-  induction H1; intros.
-  - now exists t2; eauto.
-  - admit.
-  - inversion H2; subst.
-    + inversion H; subst.
-      -
-    + now inversion H.
-    + now destruct (IHParallelStep _ H0) as (t3 & IH1 & IH2); eauto.
-  - inversion H2; subst.
-    + now exists (app t1' t2'); eauto 6.
-    + inversion H; subst.
-      inversion H1_; subst.
-      * exists (t3 {[ 0 ~> t2' ]}); split; [now eauto 6 |].
-        now apply ParallelMultiStep_open'; eauto.
-      * now inversion H0.
-      * exists (t0 {[ 0 ~> t2' ]}); split.
-        -- now do 2 constructor; apply FullContraction_app_abs with l; eauto.
-        -- now apply ParallelMultiStep_open''; auto.
-    + destruct (IHParallelStep1 _ H1) as [t3 [IH11 IH12] ].
-      destruct (IHParallelStep2 _ H4) as [t4 [IH21 IH22] ].
-      now exists (app t3 t4); auto.
-
-Admitted.
+  - edestruct (IHParallelMultiStep (development t1)) as [t4 [IH1 IH2] ].
+    + now apply development_spec.
+    + exists t4; split; [| easy].
+      transitivity (development t1); [| easy].
+      now apply ParallelMultiStep_ParallelStep, development_spec.
+Qed.
 
 Lemma confluent_ParallelMultiStep :
   forall t t1 t2 : Tm,
@@ -2786,23 +2771,11 @@ Lemma confluent_ParallelMultiStep :
 Proof.
   intros t t1 t2 H1 H2; revert t2 H2.
   induction H1; intros.
-  - apply confluent_ParallelStep_aux with x. eauto. eauto.
-  - now exists t2; split; [| constructor].
-  - destruct (IHclos_refl_trans1 _ H2) as [t3 [Hyt3 Ht2t3] ].
-    destruct (IHclos_refl_trans2 _ Hyt3) as [t4 [Hzt3 Ht3t4] ].
-    exists t4; split; [easy |].
-    now apply rt_trans with t3.
-Qed.
-
-Lemma confluent_Step_aux :
-  forall t t1 t2 : Tm,
-    CbvStep t t1 -> CbvStep t t2 ->
-      exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
-Proof.
-  intros t t1 t2 Hs1 Hs2.
-  apply ParallelStep_Step in Hs1, Hs2.
-  setoid_rewrite MultiStep_ParallelMultiStep.
-  now apply confluent_ParallelMultiStep with t.
+  - now exists t2; eauto.
+  - destruct (confluent_ParallelStep_ParallelMultiStep _ _ _ H H2) as [t4 [H24 H04] ].
+    edestruct (IHParallelMultiStep _ H24) as [t5 [H35 H45] ].
+    exists t5; split; [easy |].
+    now transitivity t4.
 Qed.
 
 Lemma confluent_Step :
