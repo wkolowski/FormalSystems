@@ -710,7 +710,7 @@ Proof.
   now solve_fresh'.
 Qed.
 
-#[export] Hint Resolve lc_open lc_open' : core.
+#[export] Hint Resolve lc_subst lc_open lc_open' : core.
 
 Lemma open'_lc :
   forall (t : Tm) (i : nat) (u : Tm),
@@ -736,6 +736,149 @@ Proof.
     now rewrite open'_lc.
   - now decide_all.
 Qed.
+
+Require Import Recdef.
+
+Fixpoint size (t : Tm) : nat :=
+match t with
+| fvar x          => 1
+| bvar n          => 1
+| abs t'          => 1 + size t'
+| app t1 t2       => 1 + size t1 + size t2
+| annot t' A      => 1 + size t'
+| unit            => 1
+| elimUnit t1 t2  => 1 + size t1 + size t2
+| elimUnit' t1 t2 => 1 + size t1 + size t2
+| elimUnit''      => 1
+| abort t'        => 1 + size t'
+| pair t1 t2      => 1 + size t1 + size t2
+| outl t'         => 1 + size t'
+| outr t'         => 1 + size t'
+| elimProd t1 t2  => 1 + size t1 + size t2
+| inl t'          => 1 + size t'
+| inr t'          => 1 + size t'
+| case t1 t2 t3   => 1 + size t1 + size t2 + size t3
+| case' t1 t2 t3  => 1 + size t1 + size t2 + size t3
+| case''          => 1
+| zero            => 1
+| succ t'         => 1 + size t'
+| rec t1 t2 t3    => 1 + size t1 + size t2 + size t3
+end.
+
+Lemma size_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    size (t {{ i ~> a }}) = size t.
+Proof.
+  induction t; cbn; intros; try now auto.
+  now decide_all.
+Qed.
+
+Unset Guard Checking.
+Function decide_lc' (a : Atom) (t : Tm) {struct t} : bool :=
+match t with
+| fvar x          => true
+| bvar n          => false
+| abs t'          => decide_lc' a (t' {{ 0 ~> a }})
+| app t1 t2       => decide_lc' a t1 && decide_lc' a t2
+| annot t' A      => decide_lc' a t'
+| unit            => true
+| elimUnit t1 t2  => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }})
+| elimUnit' t1 t2 => decide_lc' a t1 && decide_lc' a t2
+| elimUnit''      => true
+| abort t'        => decide_lc' a t'
+| pair t1 t2      => decide_lc' a t1 && decide_lc' a t2
+| outl t'         => decide_lc' a t'
+| outr t'         => decide_lc' a t'
+| elimProd t1 t2  => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }} {{ 1 ~> a }})
+| inl t'          => decide_lc' a t'
+| inr t'          => decide_lc' a t'
+| case t1 t2 t3   => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }}) && decide_lc' a (t3 {{ 0 ~> a }})
+| case' t1 t2 t3  => decide_lc' a t1 && decide_lc' a t2 && decide_lc' a t3
+| case''          => true
+| zero            => true
+| succ t'         => decide_lc' a t'
+| rec t1 t2 t3    => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }}) && decide_lc' a t3
+end.
+(*
+Proof.
+  all: now cbn; intros; rewrite ?size_open; lia.
+Defined.
+*)
+Set Guard Checking.
+
+Lemma lc_open_invariant :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
+Proof.
+  induction t; cbn; intros i x y Hlc;
+    (only 2: now decide_all); inversion Hlc; subst; try now eauto.
+  - apply lc_abs with l; intros z Hz.
+    Print LocallyClosed.
+    admit.
+  - apply lc_elimUnit with l; [now eauto |].
+    intros z Hz.
+    apply lc_open. apply IHt2 with x.
+    replace (t2 {{ S i ~> x }}) with (t2 {{ S i ~> x }} {{ 0 ~> z }}).
+Admitted.
+
+Lemma lc_open_invariant' :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) <-> lc (t {{ i ~> y }}).
+Proof.
+  now split; apply lc_open_invariant.
+Qed.
+
+#[export] Hint Resolve lc_open_invariant : core.
+
+Lemma decide_lc'_spec :
+  forall (a : Atom) (t : Tm),
+    reflect (lc t) (decide_lc' a t).
+Proof.
+  intros a t.
+  functional induction (decide_lc' a t);
+    try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
+      cbn; constructor; [auto | inversion 1..]).
+  - destruct IHb; constructor; [now eauto |].
+    inversion 1.
+    now specialize (Hlc' (fresh l) (fresh_spec l)); eauto.
+  - destruct IHb, IHb0; cbn; constructor; [now eauto | inversion 1..].
+    + now specialize (Hlc2 (fresh l0) (fresh_spec l0)); eauto.
+    + now specialize (Hlc2 (fresh l0) (fresh_spec l0)); eauto.
+    + now specialize (Hlc2 (fresh l) (fresh_spec l)); eauto.
+  - destruct IHb, IHb0; cbn; constructor; [| inversion 1..].
+    + apply lc_elimProd with []; [easy |].
+      intros x y _ Hy.
+      admit.
+    + specialize (Hlc2 (fresh l0) (fresh (fresh l0 :: l0)) ltac:(solve_fresh') ltac:(solve_fresh')).
+      eapply lc_open_invariant in Hlc2.
+      admit.
+    + admit.
+    + admit.
+  - destruct IHb; cbn; [| now constructor; inversion 1; eauto].
+    destruct IHb0; cbn; cycle 1.
+    + constructor; inversion 1.
+      now eapply n, lc_open_invariant, Hlc2, fresh_spec.
+    + destruct IHb1; cbn; [now constructor; eauto |].
+      constructor; inversion 1.
+      now eapply n, lc_open_invariant, Hlc3, fresh_spec.
+  - destruct IHb; cbn; [| now constructor; inversion 1; eauto].
+    destruct IHb0; cbn; cycle 1.
+    + constructor; inversion 1.
+      now eapply n, lc_open_invariant, Hlc2, fresh_spec.
+    + destruct IHb1; cbn; [now constructor; eauto |].
+      now constructor; inversion 1; eauto.
+Abort.
+
+#[export, refine] Instance Decidable_lc :
+  forall t : Tm, Decidable (lc t) :=
+{
+  Decidable_witness :=
+    decide_lc' (fresh (fv t)) t;
+}.
+Proof.
+  split.
+  - induction t; cbn; try easy.
+Defined.
 
 (** * Contexts *)
 
@@ -2260,6 +2403,24 @@ Proof.
   now induction 1; inversion 1; eauto.
 Qed.
 
+Lemma FullContraction_subst :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    FullContraction t t' ->
+    FullContraction (t [[ x := u ]]) (t' [[ x := u]]).
+Proof.
+  inversion 2; cbn.
+  rewrite open'_subst by easy.
+  constructor 1 with (x :: l); [| now apply lc_subst].
+  intros y Hy.
+  rewrite subst_open; [| now firstorder | now eauto].
+  apply lc_subst; [| easy].
+  apply Hlc1.
+  now solve_fresh'.
+Qed.
+
+#[export] Hint Resolve FullContraction_det FullContraction_subst : core.
+
 Inductive FullStep : Tm -> Tm -> Prop :=
 | FullStep_FullContraction :
   forall t t' : Tm,
@@ -2298,6 +2459,38 @@ Qed.
 
 #[export] Hint Resolve lc_FullStep_l lc_FullStep_r : core.
 
+Lemma FullStep_subst :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    FullStep t t' ->
+    FullStep (t [[ x := u ]]) (t' [[ x := u]]).
+Proof.
+  intros t t' u x Hlc Hfs; revert u x Hlc.
+  induction Hfs; cbn; intros.
+  - constructor.
+    now apply FullContraction_subst.
+  - constructor 2 with (x :: l); intros y Hy.
+    rewrite !subst_open by firstorder.
+    apply H; [| easy].
+    now solve_fresh'.
+  - now constructor 3; eauto.
+  - now constructor 4; eauto.
+Qed.
+
+Lemma FullStep_rename :
+  forall (t t' : Tm) (i : nat) (x y : Atom),
+    x # fv t ++ fv t' ->
+    FullStep (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
+      FullStep (t {{ i ~> y }}) (t' {{ i ~> y }}).
+Proof.
+  intros t t' i x y Hx Hfs.
+  rewrite <- 2!open'_atom.
+  rewrite 2!open'_spec with (x := x) by solve_fresh'.
+  now apply FullStep_subst.
+Qed.
+
+#[export] Hint Resolve FullStep_subst FullStep_rename : core.
+
 Inductive MultiStep : Tm -> Tm -> Prop :=
 | MultiStep_refl :
   forall (t : Tm),
@@ -2334,6 +2527,37 @@ Proof.
   now induction 1; eauto.
 Qed.
 
+#[export] Hint Resolve lc_MultiStep_l lc_MultiStep_r : core.
+
+Lemma MultiStep_subst :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    MultiStep t t' ->
+    MultiStep (t [[ x := u ]]) (t' [[ x := u]]).
+Proof.
+  intros t t' u x Hlc Hms; revert u x Hlc.
+  induction Hms; cbn; intros; [now eauto |].
+  constructor 2 with (t2 [[ x := u ]]).
+  - now apply FullStep_subst.
+  - now apply IHHms.
+Restart.
+  now induction 2; eauto.
+Qed.
+
+Lemma MultiStep_rename :
+  forall (t t' : Tm) (i : nat) (x y : Atom),
+    x # fv t ++ fv t' ->
+    MultiStep (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
+      MultiStep (t {{ i ~> y }}) (t' {{ i ~> y }}).
+Proof.
+  intros t t' i x y Hx Hfs.
+  rewrite <- 2!open'_atom.
+  rewrite 2!open'_spec with (x := x) by solve_fresh'.
+  now apply MultiStep_subst.
+Qed.
+
+#[export] Hint Resolve MultiStep_subst MultiStep_rename : core.
+
 Lemma MultiStep_FullStep :
   forall t1 t2 : Tm,
     FullStep t1 t2 -> MultiStep t1 t2.
@@ -2354,13 +2578,33 @@ Proof.
   remember (t' {{ 0 ~> x }}) as t'0x.
   revert Heqt0x Heqt'0x .
   induction Hms'; intros; subst.
-  - constructor 2 with (abs t'); cycle 1.
+  - replace (abs t') with (abs t).
+    + apply MultiStep_refl.
+      apply lc_abs with l; intros y Hy.
+      Search lc open 0. Search lc LocallyClosed. Print LocallyClosed.
+  - 
+  - replace 
+ constructor 2 with (abs t'); cycle 1.
     + apply MultiStep_refl.
       constructor 2 with l; intros y Hy.
       now eapply lc_MultiStep_r, Hms.
     + constructor 2 with l; intros y Hy.
-      Check open_invariant.
+      apply FullStep_rename with x.
+      rewrite Heqt'0x.
 Admitted.
+
+Lemma MultiStep_abs' :
+  forall t t' : Tm,
+    MultiStep t t' -> MultiStep (abs t) (abs t').
+Proof.
+  induction 1.
+  - apply MultiStep_refl.
+    now apply lc_abs with []; eauto.
+  - transitivity (abs t2); [| easy].
+    apply MultiStep_FullStep.
+    apply FullStep_abs with []; intros x _.
+    now rewrite 2!open_lc by eauto.
+Qed.
 
 Lemma MultiStep_app_l :
   forall t1 t1' t2 : Tm,
@@ -2395,8 +2639,7 @@ Qed.
 
 #[export] Hint Resolve
   MultiStep_FullStep
-  lc_MultiStep_l lc_MultiStep_r
-  MultiStep_abs
+  MultiStep_abs MultiStep_abs'
   MultiStep_app_l MultiStep_app_r MultiStep_app
     : core.
 
