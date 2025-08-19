@@ -95,22 +95,13 @@ Qed.
 
 End sec_Fresh_lemmas.
 
-Ltac solve_fresh :=
-repeat match goal with
-| |- fresh _ # _ => apply fresh_incl
-| |- incl ?l ?l => apply incl_refl
-| |- incl _ _ => now apply incl_app_l
-| |- incl _ _ => apply incl_app_r
-| H : ?x # ?l1 |- ?x # ?l2 => apply (Fresh_incl x l2 l1); [clear H | easy]
-end.
-
 Ltac rewrite_fresh :=
   repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil).
 
 Ltac rewrite_fresh_in H :=
   repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil in H).
 
-Ltac solve_fresh' := try
+Ltac solve_fresh := try
 match goal with
 | |- ?x # ?l =>
   rewrite_fresh;

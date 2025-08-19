@@ -190,18 +190,18 @@ end.
 Proof.
   - unfold supports, Fresh'.
     induction t; cbn; only 1: rename a into b; intros a Ha;
-      try (now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh').
+      try (now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh).
     + now firstorder decide_all.
     + now f_equal; rewrite close_invariant, IHt.
-    + rewrite IHt1 by solve_fresh'; f_equal.
-      now rewrite close_invariant, IHt2 by solve_fresh'.
-    + rewrite IHt1 by solve_fresh'; f_equal.
-      now rewrite close_invariant, IHt2 by solve_fresh'.
-    + rewrite IHt1 by solve_fresh'; f_equal.
-      * now rewrite close_invariant, IHt2 by solve_fresh'.
-      * now rewrite close_invariant, IHt3 by solve_fresh'.
-    + rewrite IHt1, IHt3 by solve_fresh'; f_equal.
-      now rewrite close_invariant, IHt2 by solve_fresh'.
+    + rewrite IHt1 by solve_fresh; f_equal.
+      now rewrite close_invariant, IHt2 by solve_fresh.
+    + rewrite IHt1 by solve_fresh; f_equal.
+      now rewrite close_invariant, IHt2 by solve_fresh.
+    + rewrite IHt1 by solve_fresh; f_equal.
+      * now rewrite close_invariant, IHt2 by solve_fresh.
+      * now rewrite close_invariant, IHt3 by solve_fresh.
+    + rewrite IHt1, IHt3 by solve_fresh; f_equal.
+      now rewrite close_invariant, IHt2 by solve_fresh.
   - intros t.
     setoid_rewrite LocallyClosed_forall.
     induction t; cbn;
@@ -221,6 +221,29 @@ Proof.
       exists (max i1 (max i2 i3)); intros j a Hle.
       now rewrite IH1, IH2, IH3; [| lia..].
 Defined.
+
+(** ** Characterization of equality *)
+
+Lemma open_close_fv :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv t ->
+    t {{ i ~> x }} {{ i <~ x }} = t.
+Proof.
+  induction t; cbn; intros i x Hx;
+    rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; try now solve_fresh.
+  - now decide_all; firstorder.
+  - now decide_all.
+Qed.
+
+Lemma abs_eq :
+  forall (t1 t2 : Tm) (x : Atom),
+    x # fv t1 ++ fv t2 ->
+    t1 {{ 0 ~> x }} = t2 {{ 0 ~> x }} ->
+      abs t1 = abs t2.
+Proof.
+  intros t1 t2 x Hx Heq.
+  now rewrite <- (open_close_fv t1 0 x), Heq, open_close_fv by solve_fresh.
+Qed.
 
 (** ** Characterization of local closure *)
 
@@ -455,7 +478,7 @@ Lemma subst_fv :
     x # fv t -> t [[ x := u ]] = t.
 Proof.
   now induction t; cbn; intros;
-    [firstorder decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh'..].
+    [firstorder decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by solve_fresh..].
 Qed.
 
 Lemma subst_subst :
@@ -467,7 +490,7 @@ Lemma subst_subst :
 Proof.
   induction t; cbn; intros;
     try now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3.
-  now decide_all; rewrite subst_fv by solve_fresh'.
+  now decide_all; rewrite subst_fv by solve_fresh.
 Qed.
 
 (** ** Opening with a term *)
@@ -513,7 +536,7 @@ Lemma open'_spec :
       t {[ i ~> u ]} = t {{ i ~> x }} [[ x := u ]].
 Proof.
   induction t; cbn; intros;
-    try now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x), 1?(IHt3 _ x) by solve_fresh'.
+    try now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x), 1?(IHt3 _ x) by solve_fresh.
   - now firstorder decide_all.
   - now decide_all.
 Qed.
@@ -522,7 +545,7 @@ Lemma open'_spec' :
   forall (t : Tm) (i : nat) (u : Tm),
     t {[ i ~> u ]} = t {{ i ~> fresh (fv t) }} [[ fresh (fv t) := u ]].
 Proof.
-  now intros; apply open'_spec; solve_fresh'.
+  now intros; apply open'_spec; solve_fresh.
 Qed.
 
 Lemma open'_open' :
@@ -704,10 +727,10 @@ Lemma lc_open' :
       lc (t {[ i ~> u ]}).
 Proof.
   intros t u i [l Hlct] Hlcu.
-  rewrite (open'_spec _ _ (fresh (l ++ fv t))) by solve_fresh'.
+  rewrite (open'_spec _ _ (fresh (l ++ fv t))) by solve_fresh.
   apply lc_subst; [| easy].
   apply Hlct.
-  now solve_fresh'.
+  now solve_fresh.
 Qed.
 
 #[export] Hint Resolve lc_subst lc_open lc_open' : core.
@@ -719,7 +742,7 @@ Proof.
   intros t i u Hlc.
   rewrite open'_spec'.
   rewrite (open_LocallyClosed t i); [.. | now lia].
-  - now rewrite subst_fv by solve_fresh'.
+  - now rewrite subst_fv by solve_fresh.
   - apply LocallyClosed_le with 0; [now lia |].
     now apply LocallyClosed_lc.
 Qed.
@@ -849,7 +872,7 @@ Proof.
     + apply lc_elimProd with []; [easy |].
       intros x y _ Hy.
       admit.
-    + specialize (Hlc2 (fresh l0) (fresh (fresh l0 :: l0)) ltac:(solve_fresh') ltac:(solve_fresh')).
+    + specialize (Hlc2 (fresh l0) (fresh (fresh l0 :: l0)) ltac:(solve_fresh) ltac:(solve_fresh)).
       eapply lc_open_invariant in Hlc2.
       admit.
     + admit.
@@ -878,7 +901,7 @@ Abort.
 Proof.
   split.
   - induction t; cbn; try easy.
-Defined.
+Abort.
 
 (** * Contexts *)
 
@@ -901,7 +924,7 @@ Proof.
   induction Γ2 as [| [y B] Γ2' IH]; cbn; inversion 1; [easy |].
   constructor.
   - now apply IH in Hwf.
-  - now solve_fresh'.
+  - now solve_fresh.
 Qed.
 
 #[export] Hint Resolve WfCtx_app_cons : core.
@@ -1056,7 +1079,7 @@ Lemma WfCtx_Typing :
 Proof.
   induction 1; try easy.
   apply (WfCtx_app_cons _ [] (fresh l) A), H.
-  now solve_fresh'.
+  now solve_fresh.
 Qed.
 
 #[export] Hint Resolve lc_Typing WfCtx_Typing : core.
@@ -1080,37 +1103,37 @@ Proof.
   - apply Typing_abs with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2).
     intros x Hx.
     rewrite app_comm_cons.
-    apply H; [now solve_fresh' | easy |].
-    now cbn; constructor; [| solve_fresh'].
+    apply H; [now solve_fresh | easy |].
+    now cbn; constructor; [| solve_fresh].
   - apply Typing_elimUnit with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt |].
     intros x Hx.
     rewrite app_comm_cons.
-    apply H; [now solve_fresh' | easy |].
-    now cbn; constructor; [| solve_fresh'].
+    apply H; [now solve_fresh | easy |].
+    now cbn; constructor; [| solve_fresh].
   - apply Typing_elimProd with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt |].
     intros x y Hx Hy.
     rewrite 2!app_comm_cons.
-    apply H; cbn; [now solve_fresh' | now solve_fresh' | easy |].
-    constructor; cbn; [| now solve_fresh'].
-    now constructor; [| solve_fresh'].
+    apply H; cbn; [now solve_fresh | now solve_fresh | easy |].
+    constructor; cbn; [| now solve_fresh].
+    now constructor; [| solve_fresh].
   - apply Typing_case with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt | |].
     + intros x Hx.
       rewrite app_comm_cons.
-      apply H; [now solve_fresh' | easy |].
-      now cbn; constructor; [| solve_fresh'].
+      apply H; [now solve_fresh | easy |].
+      now cbn; constructor; [| solve_fresh].
     + intros x Hx.
       rewrite app_comm_cons.
-      apply H0; [now solve_fresh' | easy |].
-      now cbn; constructor; [| solve_fresh'].
+      apply H0; [now solve_fresh | easy |].
+      now cbn; constructor; [| solve_fresh].
   - apply Typing_rec with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt1 | | now apply IHHt2].
     intros x Hx.
     rewrite app_comm_cons.
-    apply H; [now solve_fresh' | easy |].
-    now cbn; constructor; [| solve_fresh'].
+    apply H; [now solve_fresh | easy |].
+    now cbn; constructor; [| solve_fresh].
 Qed.
 
 Lemma weakening :
@@ -1157,7 +1180,7 @@ Proof.
     intros y z [Hxy Hyl]%Fresh_cons [Hzy Hzl]%Fresh_cons.
     rewrite subst_open by eauto.
     rewrite subst_open; [| now firstorder | now eauto].
-    now eapply (H y z Hyl ltac:(solve_fresh') ((z, B) :: (y, A) :: Δ)).
+    now eapply (H y z Hyl ltac:(solve_fresh) ((z, B) :: (y, A) :: Δ)).
   - apply Typing_case with A B (x :: l); [now eapply IHHt | |].
     + intros y [Hxy Hyl]%Fresh_cons.
       rewrite subst_open by eauto.
@@ -1377,13 +1400,13 @@ Proof.
   inversion 1; subst; try now eauto 6.
   pose (x := fresh (l ++ fv t0)).
   pose (y := fresh ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
-  rewrite (open'_spec _ _ y) by (subst y; solve_fresh').
+  rewrite (open'_spec _ _ y) by (subst y; solve_fresh).
   apply lc_subst; [| now eauto].
-  rewrite (open'_spec _ _ x) by (subst x; solve_fresh').
+  rewrite (open'_spec _ _ x) by (subst x; solve_fresh).
   rewrite subst_open; [| | now eauto].
   - apply lc_subst; [| now eauto].
-    apply Hlc3; subst x y; [now solve_fresh' |].
-    now rewrite app_assoc; solve_fresh'.
+    apply Hlc3; subst x y; [now solve_fresh |].
+    now rewrite app_assoc; solve_fresh.
   - pose (fresh_spec ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
     now firstorder.
 Qed.
@@ -1414,15 +1437,15 @@ Lemma preservation_CbvContraction :
 Proof.
   induction 1; inversion 1; subst.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh.
     apply Typing_subst with A0; [| easy].
     apply Ht'.
-    now solve_fresh'.
+    now solve_fresh.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by solve_fresh'.
+  - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by solve_fresh.
     apply Typing_subst with TyUnit; [| easy].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
   - now apply Typing_app with TyUnit.
   - now inversion Ht1; subst.
   - now inversion Ht'.
@@ -1433,26 +1456,26 @@ Proof.
     pose (y := fresh ([x] ++ l0 ++ l ++ fv v1 ++ fv (t {{ 0 ~> x }} [[ x := v1 ]]))).
     assert (Hy := fresh_spec ([x] ++ l0 ++ l ++ fv v1 ++ fv (t {{ 0 ~> x }} [[ x := v1 ]]))).
     assert (Hxy : x <> y) by firstorder.
-    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh').
-    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh').
+    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh).
+    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh).
     rewrite subst_open by eauto.
-    rewrite subst_subst by (now subst x y; solve_fresh').
+    rewrite subst_subst by (now subst x y; solve_fresh).
     apply Typing_subst with A0; [| easy].
     apply Typing_subst with B.
-    + apply Ht2; [now subst x; solve_fresh' | now subst y; solve_fresh'].
+    + apply Ht2; [now subst x; solve_fresh | now subst y; solve_fresh].
     + apply (weakening _ [(x, A0)]); [| easy].
       constructor; [now eauto |].
-      now subst x; solve_fresh'.
+      now subst x; solve_fresh.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     apply Typing_subst with A0; [| easy].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh.
     apply Typing_subst with B; [| easy].
     apply Ht3.
-    now solve_fresh'.
+    now solve_fresh.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -1461,10 +1484,10 @@ Proof.
       inversion H15; subst; eauto.
   - easy.
   - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     eapply Typing_subst with A; [| now eauto].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
 Qed.
 
 (*** *** Abortion *)
@@ -1981,13 +2004,13 @@ Proof.
   inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
   pose (x := fresh (l ++ fv t3)).
   pose (y := fresh ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
-  rewrite (open'_spec _ _ y) by (subst y; solve_fresh').
+  rewrite (open'_spec _ _ y) by (subst y; solve_fresh).
   apply lc_subst; [| now eauto].
-  rewrite (open'_spec _ _ x) by (subst x; solve_fresh').
+  rewrite (open'_spec _ _ x) by (subst x; solve_fresh).
   rewrite subst_open; [| | now eauto].
   - apply lc_subst; [| now eauto].
-    apply Hlc3; subst x y; [now solve_fresh' |].
-    now rewrite app_assoc; solve_fresh'.
+    apply Hlc3; subst x y; [now solve_fresh |].
+    now rewrite app_assoc; solve_fresh.
   - pose (fresh_spec ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
     now firstorder.
 Qed.
@@ -2018,15 +2041,15 @@ Lemma preservation_CbnContraction :
 Proof.
   induction 1; inversion 1; subst.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh.
     apply Typing_subst with A0; [| easy].
     apply Ht'.
-    now solve_fresh'.
+    now solve_fresh.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     apply Typing_subst with TyUnit; [| now eauto].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
   - now apply Typing_app with TyUnit; eauto.
   - now inversion Ht1; subst.
   - now inversion Ht'.
@@ -2037,26 +2060,26 @@ Proof.
     pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
     assert (Hy := fresh_spec ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
     assert (Hxy : x <> y) by firstorder.
-    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh').
-    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh').
+    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh).
+    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh).
     rewrite subst_open by eauto.
-    rewrite subst_subst by (now subst x y; solve_fresh').
+    rewrite subst_subst by (now subst x y; solve_fresh).
     apply Typing_subst with A0; [| easy].
     apply Typing_subst with B.
-    + apply Ht2; [now subst x; solve_fresh' | now subst y; solve_fresh'].
+    + apply Ht2; [now subst x; solve_fresh | now subst y; solve_fresh].
     + apply (weakening _ [(x, A0)]); [| easy].
       constructor; [now eauto |].
-      now subst x; solve_fresh'.
+      now subst x; solve_fresh.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     apply Typing_subst with A0; [| easy].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh.
     apply Typing_subst with B; [| easy].
     apply Ht3.
-    now solve_fresh'.
+    now solve_fresh.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -2065,10 +2088,10 @@ Proof.
       inversion H15; subst; eauto.
   - easy.
   - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
     eapply Typing_subst with A; [| now eauto].
     apply Ht2.
-    now solve_fresh'.
+    now solve_fresh.
 Qed.
 
 (*** *** Abortion *)
@@ -2367,670 +2390,6 @@ Proof.
     + eexists; eapply CbnStep_rec; eauto.
 Qed.
 
-(** ** Confluence *)
-
-(** *** Contraction *)
-
-Inductive FullContraction : Tm -> Tm -> Prop :=
-| FullContraction_app_abs :
-  forall (t1 t2 : Tm) (l : list Atom)
-    (Hlc1 : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }}))
-    (Hlc2 : lc t2),
-    FullContraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]}).
-
-#[export] Hint Constructors FullContraction : core.
-
-Lemma lc_FullContraction_l :
-  forall t t' : Tm,
-    FullContraction t t' -> lc t.
-Proof.
-  now inversion 1; subst; econstructor; eauto.
-Qed.
-
-Lemma lc_FullContraction_r :
-  forall t t' : Tm,
-    FullContraction t t' -> lc t'.
-Proof.
-  inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
-Qed.
-
-#[export] Hint Resolve lc_FullContraction_l lc_FullContraction_r : core.
-
-Lemma FullContraction_det :
-  forall t t1 t2 : Tm,
-    FullContraction t t1 -> FullContraction t t2 -> t1 = t2.
-Proof.
-  now induction 1; inversion 1; eauto.
-Qed.
-
-Lemma FullContraction_subst :
-  forall (t t' u : Tm) (x : Atom),
-    lc u ->
-    FullContraction t t' ->
-    FullContraction (t [[ x := u ]]) (t' [[ x := u]]).
-Proof.
-  inversion 2; cbn.
-  rewrite open'_subst by easy.
-  constructor 1 with (x :: l); [| now apply lc_subst].
-  intros y Hy.
-  rewrite subst_open; [| now firstorder | now eauto].
-  apply lc_subst; [| easy].
-  apply Hlc1.
-  now solve_fresh'.
-Qed.
-
-#[export] Hint Resolve FullContraction_det FullContraction_subst : core.
-
-Inductive FullStep : Tm -> Tm -> Prop :=
-| FullStep_FullContraction :
-  forall t t' : Tm,
-    FullContraction t t' ->
-    FullStep t t'
-| FullStep_abs :
-  forall (t t' : Tm) (l : list Atom)
-    (Hfs' : forall x : Atom, x # l -> FullStep (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})),
-    FullStep (abs t) (abs t')
-| FullStep_app_l :
-  forall (t1 t1' t2 : Tm),
-    lc t2 ->
-    FullStep t1 t1' ->
-    FullStep (app t1 t2) (app t1' t2)
-| FullStep_app_r :
-  forall (t1 t1 t2 t2' : Tm),
-    lc t1 ->
-    FullStep t2 t2' ->
-    FullStep (app t1 t2) (app t1 t2').
-
-#[export] Hint Constructors FullStep : core.
-
-Lemma lc_FullStep_l :
-  forall t t' : Tm,
-    FullStep t t' -> lc t.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma lc_FullStep_r :
-  forall t t' : Tm,
-    FullStep t t' -> lc t'.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-#[export] Hint Resolve lc_FullStep_l lc_FullStep_r : core.
-
-Lemma FullStep_subst :
-  forall (t t' u : Tm) (x : Atom),
-    lc u ->
-    FullStep t t' ->
-    FullStep (t [[ x := u ]]) (t' [[ x := u]]).
-Proof.
-  intros t t' u x Hlc Hfs; revert u x Hlc.
-  induction Hfs; cbn; intros.
-  - constructor.
-    now apply FullContraction_subst.
-  - constructor 2 with (x :: l); intros y Hy.
-    rewrite !subst_open by firstorder.
-    apply H; [| easy].
-    now solve_fresh'.
-  - now constructor 3; eauto.
-  - now constructor 4; eauto.
-Qed.
-
-Lemma FullStep_rename :
-  forall (t t' : Tm) (i : nat) (x y : Atom),
-    x # fv t ++ fv t' ->
-    FullStep (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
-      FullStep (t {{ i ~> y }}) (t' {{ i ~> y }}).
-Proof.
-  intros t t' i x y Hx Hfs.
-  rewrite <- 2!open'_atom.
-  rewrite 2!open'_spec with (x := x) by solve_fresh'.
-  now apply FullStep_subst.
-Qed.
-
-#[export] Hint Resolve FullStep_subst FullStep_rename : core.
-
-Inductive MultiStep : Tm -> Tm -> Prop :=
-| MultiStep_refl :
-  forall (t : Tm),
-    lc t ->
-    MultiStep t t
-| MultiStep_step_trans :
-  forall (t1 t2 t3 : Tm),
-    FullStep t1 t2 ->
-    MultiStep t2 t3 ->
-    MultiStep t1 t3.
-
-#[export] Hint Constructors MultiStep : core.
-
-Require Import Coq.Classes.RelationClasses.
-
-#[export] Instance Transitive_MultiStep : Transitive MultiStep.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Require Import Coq.Relations.Relation_Operators.
-
-Lemma lc_MultiStep_l :
-  forall t t' : Tm,
-    MultiStep t t' -> lc t.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma lc_MultiStep_r :
-  forall t t' : Tm,
-    MultiStep t t' -> lc t'.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-#[export] Hint Resolve lc_MultiStep_l lc_MultiStep_r : core.
-
-Lemma MultiStep_subst :
-  forall (t t' u : Tm) (x : Atom),
-    lc u ->
-    MultiStep t t' ->
-    MultiStep (t [[ x := u ]]) (t' [[ x := u]]).
-Proof.
-  intros t t' u x Hlc Hms; revert u x Hlc.
-  induction Hms; cbn; intros; [now eauto |].
-  constructor 2 with (t2 [[ x := u ]]).
-  - now apply FullStep_subst.
-  - now apply IHHms.
-Restart.
-  now induction 2; eauto.
-Qed.
-
-Lemma MultiStep_rename :
-  forall (t t' : Tm) (i : nat) (x y : Atom),
-    x # fv t ++ fv t' ->
-    MultiStep (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
-      MultiStep (t {{ i ~> y }}) (t' {{ i ~> y }}).
-Proof.
-  intros t t' i x y Hx Hfs.
-  rewrite <- 2!open'_atom.
-  rewrite 2!open'_spec with (x := x) by solve_fresh'.
-  now apply MultiStep_subst.
-Qed.
-
-#[export] Hint Resolve MultiStep_subst MultiStep_rename : core.
-
-Lemma MultiStep_FullStep :
-  forall t1 t2 : Tm,
-    FullStep t1 t2 -> MultiStep t1 t2.
-Proof.
-  now eauto.
-Qed.
-
-Lemma MultiStep_abs :
-  forall t t' : Tm,
-    (exists l : list Atom, forall x : Atom, x # l ->
-      MultiStep (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})) ->
-        MultiStep (abs t) (abs t').
-Proof.
-  intros t t' [l Hms].
-  pose (x := fresh (l ++ fv t ++ fv t')).
-  specialize (Hms x ltac:(subst x; solve_fresh')) as Hms'.
-  remember (t {{ 0 ~> x }}) as t0x.
-  remember (t' {{ 0 ~> x }}) as t'0x.
-  revert Heqt0x Heqt'0x .
-  induction Hms'; intros; subst.
-  - replace (abs t') with (abs t).
-    + apply MultiStep_refl.
-      apply lc_abs with l; intros y Hy.
-      Search lc open 0. Search lc LocallyClosed. Print LocallyClosed.
-  - 
-  - replace 
- constructor 2 with (abs t'); cycle 1.
-    + apply MultiStep_refl.
-      constructor 2 with l; intros y Hy.
-      now eapply lc_MultiStep_r, Hms.
-    + constructor 2 with l; intros y Hy.
-      apply FullStep_rename with x.
-      rewrite Heqt'0x.
-Admitted.
-
-Lemma MultiStep_abs' :
-  forall t t' : Tm,
-    MultiStep t t' -> MultiStep (abs t) (abs t').
-Proof.
-  induction 1.
-  - apply MultiStep_refl.
-    now apply lc_abs with []; eauto.
-  - transitivity (abs t2); [| easy].
-    apply MultiStep_FullStep.
-    apply FullStep_abs with []; intros x _.
-    now rewrite 2!open_lc by eauto.
-Qed.
-
-Lemma MultiStep_app_l :
-  forall t1 t1' t2 : Tm,
-    lc t2 ->
-    MultiStep t1 t1' ->
-    MultiStep (app t1 t2) (app t1' t2).
-Proof.
-  now induction 2; eauto.
-Qed.
-
-Lemma MultiStep_app_r :
-  forall t1 t2 t2' : Tm,
-    lc t1 ->
-    MultiStep t2 t2' ->
-    MultiStep (app t1 t2) (app t1 t2').
-Proof.
-  now induction 2; eauto.
-Qed.
-
-Lemma MultiStep_app :
-  forall t1 t1' t2 t2' : Tm,
-    MultiStep t1 t1' ->
-    MultiStep t2 t2' ->
-    MultiStep (app t1 t2) (app t1' t2').
-Proof.
-  induction 2.
-  - now apply MultiStep_app_l.
-  - transitivity (app t1 t2); [| easy].
-    apply MultiStep_app_r; [| now eauto].
-    now apply lc_MultiStep_l in H.
-Qed.
-
-#[export] Hint Resolve
-  MultiStep_FullStep
-  MultiStep_abs MultiStep_abs'
-  MultiStep_app_l MultiStep_app_r MultiStep_app
-    : core.
-
-Inductive ParallelStep : Tm -> Tm -> Prop :=
-| ParallelStep_fvar :
-  forall (x : Atom),
-    ParallelStep x x
-| ParallelStep_abs :
-  forall (t1 t2 : Tm) (l : list Atom)
-    (Hps' : forall x : Atom, x # l -> ParallelStep (t1 {{ 0 ~> x }}) (t2 {{ 0 ~> x }})),
-    ParallelStep (abs t1) (abs t2)
-| ParallelStep_app :
-  forall (t1 t1' t2 t2' : Tm),
-    ParallelStep t1 t1' ->
-    ParallelStep t2 t2' ->
-    ParallelStep (app t1 t2) (app t1' t2')
-| ParallelStep_app_abs :
-  forall (t1 t1' t2 t2' : Tm) (l : list Atom)
-    (Hps1 : forall x : Atom, x # l -> ParallelStep (t1 {{ 0 ~> x }}) (t1' {{ 0 ~> x }}))
-    (Hps2 : ParallelStep t2 t2'),
-    ParallelStep (app (abs t1) t2) (t1' {[ 0 ~> t2' ]}).
-
-#[export] Hint Constructors ParallelStep : core.
-
-Lemma ParallelStep_refl :
-  forall t : Tm,
-    lc t ->
-    ParallelStep t t.
-Proof.
-  induction 1; eauto.
-Admitted.
-
-Lemma lc_ParallelStep_l :
-  forall t t' : Tm,
-    ParallelStep t t' -> lc t.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma lc_ParallelStep_r :
-  forall t t' : Tm,
-    ParallelStep t t' -> lc t'.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-#[export] Hint Resolve ParallelStep_refl lc_ParallelStep_l lc_ParallelStep_r : core.
-
-Lemma ParallelStep_FullContraction :
-  forall t1 t2 : Tm,
-    FullContraction t1 t2 -> ParallelStep t1 t2.
-Proof.
-  now inversion 1; subst; eauto.
-Qed.
-
-Lemma ParallelStep_FullStep :
-  forall t1 t2 : Tm,
-    FullStep t1 t2 -> ParallelStep t1 t2.
-Proof.
-  induction 1; eauto.
-  now apply ParallelStep_FullContraction.
-Qed.
-
-Lemma MultiStep_ParallelStep :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> MultiStep t1 t2.
-Proof.
-  induction 1; eauto.
-  transitivity (app (abs t1') t2); [now eauto |].
-  transitivity (app (abs t1') t2'); [now eauto |].
-  now eauto 7.
-Qed.
-
-#[export] Hint Resolve ParallelStep_FullStep MultiStep_ParallelStep : core.
-
-Fixpoint development (t : Tm) : Tm :=
-match t with
-| fvar x          => fvar x
-| bvar i          => bvar i
-(* | abs t'          => abs (development t' {{ 0 ~> fresh (fv t') }}) *)
-| abs t'          => abs (development t')
-| app (abs t1) t2 => development t1 {[ 0 ~> development t2 ]}
-| app t1 t2       => app (development t1) (development t2)
-| _               => unit
-end.
-
-Lemma development_open :
-  forall (t : Tm) (i : nat) (a : Atom),
-    lc t ->
-    development t {{ i ~> a }} = development (t {{ i ~> a }}).
-Proof.
-  intros.
-  rewrite (open_lc t i a) by easy.
-(*
-
-  intros t i a Hlc; revert i a.
-  induction Hlc; cbn; intros; auto.
-(*   - now decide_all. *)
-  - f_equal.
-    rewrite <- (open_lc t' 0 a). 2: eauto.
-
- rewrite H.
-  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
-    + now decide_all.
-    + injection (IHt1 i a) as [= <-].
-      rewrite <- IHt2.
-      rewrite !(open'_spec _ _ a).
-      Search subst open.
-
-Admitted.
-*)
-Abort.
-Lemma lc_development :
-  forall (t : Tm),
-    lc t -> lc (development t).
-Proof.
-  induction 1; cbn; auto.
-  - constructor 2 with l; intros x Hx.
-Abort.
-
-Unset Guard Checking.
-Fixpoint development' (t : Tm) : Tm :=
-match t with
-| fvar x          => fvar x
-| bvar i          => bvar i
-(* | abs t'          => abs (development' t' {{ 0 ~> fresh (fv t') }}) *)
-| abs t'          => abs (development' t')
-| app (abs t1) t2 =>
-  let x := fresh (fv t1) in
-    development' (t1 {{ 0 ~> x}}) [[ x := development' t2 ]]
-| app t1 t2       => app (development' t1) (development' t2)
-| _               => unit
-end.
-Set Guard Checking.
-
-Lemma development'_open :
-  forall (t : Tm) (i : nat) (a : Atom),
-    development' t {{ i ~> a }} = development' (t {{ i ~> a }}).
-Proof.
-  induction t; cbn; intros; auto.
-  - now decide_all.
-  - now rewrite IHt.
-  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
-    + now decide_all.
-    +
-Abort.
-
-Lemma lc_development' :
-  forall (t : Tm),
-    lc t -> lc (development t).
-Proof.
-  induction 1; cbn; auto.
-  - constructor 2 with l; intros x Hx.
-Abort.
-
-
-
-
-Lemma development_spec :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
-Proof.
-  intros t1 t2 Hps.
-  assert (lc t2) by eauto.
-  induction Hps; cbn.
-  - now eauto.
-  - apply ParallelStep_abs with l; intros x Hx.
-    now rewrite development_open; auto.
-  - destruct t1; cbn in *; try now auto.
-    inversion H; subst.
-    inversion IHParallelStep1; subst; eauto.
-  - 
-Admitted.
-
-Unset Guard Checking.
-Fixpoint development' (t : Tm) : Tm :=
-match t with
-| fvar x          => fvar x
-| bvar i          => bvar i
-| abs t'          => abs (development' t')
-| app (abs t1) t2 =>
-  let x := fresh (fv t1) in
-    development' t1 {[ 0 ~> development' t2 ]}
-| app t1 t2       => app (development' t1) (development' t2)
-| _               => unit
-end.
-Set Guard Checking.
-
-Lemma development'_open :
-  forall (t : Tm) (i : nat) (a : Atom),
-    development' t {{ i ~> a }} = development' (t {{ i ~> a }}).
-Proof.
-  induction t; cbn; intros; auto.
-  - now decide_all.
-  - rewrite IHt.
-  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
-    + now decide_all.
-    + injection (IHt1 i a) as [= <-].
-      rewrite <- IHt2.
-Admitted.
-
-Lemma development'_spec :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelStep t2 (development' t1).
-Proof.
-  induction 1; cbn.
-  - now eauto.
-  - apply ParallelStep_abs with l; intros x Hx.
-    now rewrite development_open; auto.
-  - destruct t1; cbn in *; try now auto.
-    inversion H; subst.
-    inversion IHParallelStep1; subst; eauto.
-  - 
-Admitted.
-
-
-
-Fixpoint development' (i : nat) (t : Tm) : Tm :=
-match t with
-| fvar x          => fvar x
-| bvar j          => bvar j
-| abs t'          => abs (development' (S i) t')
-| app (abs t1) t2 => development' (S i) t1 {[ 0 ~> development t2 ]}
-| app t1 t2       => app (development t1) (development t2)
-| _               => unit
-end.
-
-Lemma development_open :
-  forall (t : Tm) (i : nat) (a : Atom),
-    development t {{ i ~> a }} = development (t {{ i ~> a }}).
-Proof.
-  induction t; cbn; intros; auto.
-  - now decide_all.
-  - now rewrite IHt.
-  - destruct t1; cbn in *; rewrite 1?IHt1, 1?IHt2; auto.
-    + now decide_all.
-    + injection (IHt1 i a) as [= <-].
-      rewrite <- IHt2.
-Abort.
-
-Lemma development_spec :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
-Proof.
-  induction 1; cbn.
-  - now eauto.
-  - apply ParallelStep_abs with l; intros x Hx.
-    now rewrite development_open; auto.
-  - destruct t1; cbn in *; try now auto.
-    inversion H; subst.
-    inversion IHParallelStep1; subst; eauto.
-  - 
-Admitted.
-
-
-Lemma confluent_ParallelStep :
-  forall t t1 t2 : Tm,
-    ParallelStep t t1 -> ParallelStep t t2 ->
-      ParallelStep t1 (development t) /\ ParallelStep t2 (development t).
-Proof.
-  intros t t1 t2 Hps1 Hps2.
-  now split; apply development_spec.
-Qed.
-
-Inductive ParallelMultiStep : Tm -> Tm -> Prop :=
-| ParallelMultiStep_refl :
-  forall (t : Tm),
-    lc t ->
-    ParallelMultiStep t t
-| ParallelMultiStep_step_trans :
-  forall (t1 t2 t3 : Tm),
-    ParallelStep t1 t2 ->
-    ParallelMultiStep t2 t3 ->
-    ParallelMultiStep t1 t3.
-
-#[export] Hint Constructors ParallelMultiStep : core.
-
-#[export] Instance Transitive_ParallelMultiStep : Transitive ParallelMultiStep.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma lc_ParallelMultiStep_l :
-  forall t t' : Tm,
-    ParallelMultiStep t t' -> lc t.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma lc_ParallelMultiStep_r :
-  forall t t' : Tm,
-    ParallelMultiStep t t' -> lc t'.
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma ParallelMultiStep_ParallelStep :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelMultiStep t1 t2.
-Proof.
-  now eauto.
-Qed.
-
-#[export] Hint Resolve
-  lc_ParallelMultiStep_l lc_ParallelMultiStep_r
-  ParallelMultiStep_ParallelStep
-    : core.
-
-Lemma ParallelMultiStep_app_l :
-  forall t1 t1' t2 : Tm,
-    ParallelMultiStep t1 t1' ->
-    lc t2 ->
-      ParallelMultiStep (app t1 t2) (app t1' t2).
-Proof.
-  now induction 1; eauto.
-Qed.
-
-Lemma ParallelMultiStep_app_r :
-  forall t1 t2 t2' : Tm,
-    lc t1 ->
-    ParallelMultiStep t2 t2' ->
-      ParallelMultiStep (app t1 t2) (app t1 t2').
-Proof.
-  now induction 2; eauto.
-Qed.
-
-Lemma ParallelMultiStep_app :
-  forall t1 t1' t2 t2' : Tm,
-    ParallelMultiStep t1 t1' ->
-    ParallelMultiStep t2 t2' ->
-      ParallelMultiStep (app t1 t2) (app t1' t2').
-Proof.
-  intros.
-  transitivity (app t1' t2).
-  - now apply ParallelMultiStep_app_l; eauto.
-  - now apply ParallelMultiStep_app_r; eauto.
-Qed.
-
-#[export] Hint Resolve
-  ParallelMultiStep_app_l ParallelMultiStep_app_r ParallelMultiStep_app
-    : core.
-
-Lemma MultiStep_ParallelMultiStep :
-  forall t1 t2 : Tm,
-    MultiStep t1 t2 <-> ParallelMultiStep t1 t2.
-Proof.
-  split.
-  - now induction 1; eauto.
-  - induction 1; [now eauto |].
-    now transitivity t2; eauto.
-Qed.
-
-Lemma confluent_ParallelStep_ParallelMultiStep :
-  forall t t1 t2 : Tm,
-    ParallelStep t t1 -> ParallelMultiStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  intros t t1 t2 H1 H2; revert t1 H1.
-  induction H2; intros.
-  - now exists t1; eauto.
-  - edestruct (IHParallelMultiStep (development t1)) as [t4 [IH1 IH2] ].
-    + now apply development_spec.
-    + exists t4; split; [| easy].
-      transitivity (development t1); [| easy].
-      now apply ParallelMultiStep_ParallelStep, development_spec.
-Qed.
-
-Lemma confluent_ParallelMultiStep :
-  forall t t1 t2 : Tm,
-    ParallelMultiStep t t1 -> ParallelMultiStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  intros t t1 t2 H1 H2; revert t2 H2.
-  induction H1; intros.
-  - now exists t2; eauto.
-  - destruct (confluent_ParallelStep_ParallelMultiStep _ _ _ H H2) as [t4 [H24 H04] ].
-    edestruct (IHParallelMultiStep _ H24) as [t5 [H35 H45] ].
-    exists t5; split; [easy |].
-    now transitivity t4.
-Qed.
-
-Lemma confluent_Step :
-  forall t t1 t2 : Tm,
-    MultiStep t t1 -> MultiStep t t2 ->
-      exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
-Proof.
-  setoid_rewrite MultiStep_ParallelMultiStep.
-  intros t t1 t2 Hs1 Hs2.
-  now apply confluent_ParallelMultiStep with t.
-Qed.
-
 (** * Bidirectional typing *)
 
 Inductive Infer : Ctx -> Tm -> Ty -> Prop :=
@@ -3160,48 +2519,48 @@ Proof.
     + apply Typing_elimUnit with (l ++ map fst Γ); [now auto |].
       intros x Hx.
       apply Typing_Infer.
-      * now constructor; [| solve_fresh'].
-      * now apply Hi2; solve_fresh'.
+      * now constructor; [| solve_fresh].
+      * now apply Hi2; solve_fresh.
     + now econstructor; eauto.
     + now econstructor; eauto.
     + apply Typing_elimProd with A B (l ++ map fst Γ); [now auto |].
       intros x y Hx Hy.
-      apply Typing_Infer; [| now apply Hi2; solve_fresh'].
+      apply Typing_Infer; [| now apply Hi2; solve_fresh].
       constructor; cbn.
-      * now constructor; [| solve_fresh'].
-      * now solve_fresh'.
+      * now constructor; [| solve_fresh].
+      * now solve_fresh.
     + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Infer.
-        -- now constructor; [| solve_fresh'].
-        -- now apply Hi2; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now apply Hi2; solve_fresh.
       * intros x Hx.
         apply Typing_Infer.
-        -- now constructor; [| solve_fresh'].
-        -- now subst; apply Hi3; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now subst; apply Hi3; solve_fresh.
     + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Infer.
-        -- now constructor; [| solve_fresh'].
-        -- now apply Hi2; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now apply Hi2; solve_fresh.
       * intros x Hx.
         apply Typing_Check.
-        -- now constructor; [| solve_fresh'].
-        -- now subst; apply Hc3; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now subst; apply Hc3; solve_fresh.
   - intros Γ t A Hwf; destruct 1; try now constructor; auto.
     + now apply Typing_Infer.
     + apply Typing_abs with (l ++ map fst Γ); intros x Hx.
-      apply Typing_Check, Hc; [| now solve_fresh'].
-      now constructor; [| solve_fresh'].
+      apply Typing_Check, Hc; [| now solve_fresh].
+      now constructor; [| solve_fresh].
     + apply Typing_case with A B  (l ++ map fst Γ); [now auto | |].
       * intros x Hx.
         apply Typing_Check.
-        -- now constructor; [| solve_fresh'].
-        -- now apply Hc2; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now apply Hc2; solve_fresh.
       * intros x Hx.
         apply Typing_Check.
-        -- now constructor; [| solve_fresh'].
-        -- now apply Hc3; solve_fresh'.
+        -- now constructor; [| solve_fresh].
+        -- now apply Hc3; solve_fresh.
     + now apply Typing_case' with A B; auto.
 Qed.
 
@@ -3217,9 +2576,9 @@ Proof.
   - now eapply Binds_inv; eauto.
   - now firstorder congruence.
   - apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh'.
-    + now constructor; [| solve_fresh'].
-    + now apply Hi1; solve_fresh'.
+    + now solve_fresh.
+    + now constructor; [| solve_fresh].
+    + now apply Hi1; solve_fresh.
   - now firstorder congruence.
   - now firstorder congruence.
   - now firstorder congruence.
@@ -3227,33 +2586,33 @@ Proof.
     pose (x := fresh (l0 ++ l ++ fv t1 ++ map fst Γ)).
     pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ map fst Γ)).
     apply (H x y).
-    + now subst x; solve_fresh'.
-    + now subst y; solve_fresh'.
+    + now subst x; solve_fresh.
+    + now subst y; solve_fresh.
     + constructor.
-      * now constructor; [| subst x; solve_fresh'].
-      * now subst y; solve_fresh'.
-    + apply Hi4; [now subst x; solve_fresh' |].
-      now subst y; solve_fresh'.
+      * now constructor; [| subst x; solve_fresh].
+      * now subst y; solve_fresh.
+    + apply Hi4; [now subst x; solve_fresh |].
+      now subst y; solve_fresh.
   - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
     apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh'.
-    + now constructor; [| solve_fresh'].
-    + now apply Hi5; solve_fresh'.
+    + now solve_fresh.
+    + now constructor; [| solve_fresh].
+    + now apply Hi5; solve_fresh.
   - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
     apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh'.
-    + now constructor; [| solve_fresh'].
-    + now apply Hi5; solve_fresh'.
+    + now solve_fresh.
+    + now constructor; [| solve_fresh].
+    + now apply Hi5; solve_fresh.
   - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
     apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh'.
-    + now constructor; [| solve_fresh'].
-    + now apply Hi4; solve_fresh'.
+    + now solve_fresh.
+    + now constructor; [| solve_fresh].
+    + now apply Hi4; solve_fresh.
   - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
     apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh'.
-    + now constructor; [| solve_fresh'].
-    + now apply Hi4; solve_fresh'.
+    + now solve_fresh.
+    + now constructor; [| solve_fresh].
+    + now apply Hi4; solve_fresh.
 Qed.
 
 Inductive Mode : Type :=
