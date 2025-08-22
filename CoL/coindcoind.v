@@ -61,19 +61,19 @@ Inductive Position (g : Structure) : Type :=
 
 Arguments In {g} _.
 
-From Typonomikon Require F2.
+From Typonomikon Require F3.
 
-CoFixpoint len {g : Structure} (r : Run g) : F2.conat :=
+CoFixpoint len {g : Structure} (r : Run g) : F3.conat :=
 {|
-    F2.out :=
+    F3.out :=
       match Out r with
-          | Nil => F2.Z
-          | Cons _ t => F2.S (len t)
+          | Nil => F3.Z
+          | Cons _ t => F3.S (len t)
       end;
 |}.
 
 Definition isFinite {g : Structure} (r : Run g) : Prop :=
-  F2.Finite (len r).
+  F3.Finite (len r).
 
 Definition PeriFinite (g : Structure) : Prop :=
   forall r : Run g, isFinite r.

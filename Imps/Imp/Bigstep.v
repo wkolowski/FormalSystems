@@ -213,7 +213,7 @@ Proof.
     exists 1. cbn. do 2 f_equal. apply AEval_aeval. assumption.
     destruct IHCEval1 as [n1 IH1], IHCEval2 as [n2 IH2].
       exists (S (n1 + n2)). (* Should be S (max n1 n2) *)
-      cbn. rewrite (ceval_plus n1 n2 _ _ _ IH1), plus_comm.
+      cbn. rewrite (ceval_plus n1 n2 _ _ _ IH1), Nat.add_comm.
         apply ceval_plus. assumption.
     destruct IHCEval as [n IH]. exists (S n). cbn.
       apply BEval_beval in H. rewrite H. assumption.
@@ -223,6 +223,6 @@ Proof.
     destruct IHCEval1 as [n1 IH1], IHCEval2 as [n2 IH2].
       exists (S (n1 + n2)). cbn. (* Should be S (max n1 n2) *)
       apply BEval_beval in H. rewrite H.
-      rewrite (ceval_plus _ _ _ _ _ IH1), plus_comm.
+      rewrite (ceval_plus _ _ _ _ _ IH1), Nat.add_comm.
       apply ceval_plus. assumption.
 Qed.

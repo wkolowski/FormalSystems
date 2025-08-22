@@ -62,5 +62,5 @@ Lemma ceval_plus' :
     ceval n c s1 = Some s2 ->
       forall k : nat, ceval (k + n) c s1 = Some s2.
 Proof.
-  intros. rewrite plus_comm. apply ceval_plus. assumption.
+  intros. rewrite Nat.add_comm. apply ceval_plus. assumption.
 Qed.

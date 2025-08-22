@@ -472,7 +472,7 @@ Proof.
           reflexivity.
         inv Heq.
     cbn in Heq. apply BEval_bevals in H. rewrite <- Heq, H. destruct (beval s b').
-      1-2: rewrite Heq; change (S fuel) with (1 + fuel); rewrite plus_comm;
+      1-2: rewrite Heq; change (S fuel) with (1 + fuel); rewrite Nat.add_comm;
            apply ceval_plus; assumption.
     cbn in Heq. destruct (beval s b).
       destruct fuel; cbn in Heq.
@@ -550,10 +550,10 @@ Proof.
         inv IH.
         destruct (ceval fuel c1' s') eqn: Heq.
           2: inv IH.
-          exists (S fuel + 1). cbn. rewrite plus_comm.
+          exists (S fuel + 1). cbn. rewrite Nat.add_comm.
             pose (CEval_cevals H4 (fuel) s Heq). unfold fst, snd in e.
             unfold plus. rewrite e. change (S fuel) with (1 + fuel).
-            rewrite plus_comm. rewrite IH, (ceval_plus _ 1 _ _ _ IH).
+            rewrite Nat.add_comm. rewrite IH, (ceval_plus _ 1 _ _ _ IH).
             reflexivity.
       exists (S fuel). cbn. destruct fuel. cbn in *.
         assumption. rewrite ceval_equation. assumption.
