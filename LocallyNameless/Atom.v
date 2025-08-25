@@ -93,13 +93,20 @@ Proof.
   now unfold Fresh; intros; cbn; firstorder.
 Qed.
 
+Lemma Fresh_singl :
+  forall (x y : Atom),
+    x # [y] <-> x <> y.
+Proof.
+  now firstorder.
+Qed.
+
 End sec_Fresh_lemmas.
 
 Ltac rewrite_fresh :=
-  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil).
+  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil).
 
 Ltac rewrite_fresh_in H :=
-  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_cons, ?Fresh_nil in H).
+  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil in H).
 
 Ltac solve_fresh := try
 match goal with
@@ -115,6 +122,96 @@ match goal with
     assert (H := fresh_spec l1);
       rewrite_fresh_in H; firstorder
 end.
+
+(*
+Ltac prepare_atom' x :=
+  repeat match goal with
+  | H : x # _ |- _ => rewrite_fresh_in H
+  | H : _ # ?l |- _ =>
+    match l with
+    | context [x] => rewrite_fresh_in H
+    end
+  end.
+
+Ltac prepare_atom x :=
+  repeat match goal with
+  | y := fresh ?l : Atom |- _ =>
+    match l with
+    | context [x] =>
+      match goal with
+      | H : y # l |- _ => fail 1
+      | _ =>
+        progress (let Hy := fresh "H" y in
+          assert (Hy : y # _) by apply (fresh_spec l))
+      end
+    end
+  end.
+*)
+
+Ltac prepare_fresh_vars :=
+  repeat match goal with
+  | y := fresh ?l : ?Atom |- _ =>
+    match goal with
+    | H : y # l |- _ => fail 1
+    | _ =>
+      progress (let Hy := fresh "H" y in
+        assert (Hy : y # _) by apply (fresh_spec l))
+    end
+  end.
+
+Ltac prepare_fresh_hyps :=
+  repeat match goal with
+  | H : _ # _ |- _ => rewrite_fresh_in H
+  end.
+
+Ltac prepare_fresh_goal :=
+try match goal with
+| |- fresh ?l # _ =>
+  let H := fresh "H" in
+    assert (H := fresh_spec l);
+    rewrite_fresh
+| |- _ # _ => rewrite_fresh
+| |- ~ @eq ?Atom (fresh ?l1) (fresh ?l2) =>
+  let Hl1 := fresh "H" l1 in
+  let Hl2 := fresh "H" l2 in
+    assert (Hl1 := fresh_spec l1);
+    assert (Hl2 := fresh_spec l2)
+| |- ~ @eq ?Atom (fresh ?l1) _ =>
+  let Hl1 := fresh "H" l1 in
+    assert (Hl1 := fresh_spec l1)
+| |- ~ @eq ?Atom _ (fresh ?l2) =>
+  let Hl2 := fresh "H" l2 in
+    assert (Hl2 := fresh_spec l2)
+end.
+
+#[export] Hint Extern 1 (?x # _) =>
+match goal with
+| H : x # _ |- _ => clear -H; rewrite_fresh_in H; rewrite_fresh; firstorder
+(* | x := fresh _ |- _ => *)
+| _ =>
+  let H := fresh "H" in
+    assert (H : x # _) by apply fresh_spec; clear -H;
+    rewrite_fresh_in H; rewrite_fresh; firstorder
+end : core.
+
+#[export] Hint Extern 1 (fresh ?l # _) =>
+  let H := fresh "H" in
+    assert (H := fresh_spec l); clear -H;
+    rewrite_fresh_in H; rewrite_fresh; firstorder : core.
+
+(*
+Ltac solve_fresh' :=
+match goal with
+| |- 
+end.
+*)
+
+Ltac solve_fresh' :=
+  try easy;
+  prepare_fresh_goal;
+  prepare_fresh_vars;
+  prepare_fresh_hyps;
+  firstorder.
 
 (** * Inductive Atoms *)
 
