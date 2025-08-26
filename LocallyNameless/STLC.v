@@ -80,6 +80,13 @@ Proof.
   now destruct (eq_dec_Tm t u).
 Defined.
 
+#[export] Hint Extern 1 (~ @eq Atom ?x ?y) =>
+  try generalize dependent x;
+  try generalize dependent y;
+  clear; intros;
+  solve_var x; solve_var y;
+  firstorder congruence : core.
+
 (** ** Opening and closing *)
 
 #[export] Instance Open_Tm : Open nat Atom Tm :=
@@ -141,8 +148,8 @@ Defined.
 #[export, refine] Instance OC_Tm :
   OC nat Atom Tm Open_Tm Close_Tm := {}.
 Proof.
-  all: induction t; cbn; intros;
-    decide_all; rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; congruence.
+  all: now induction t; cbn; intros;
+    rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto.
 Qed.
 
 Lemma open_open :
@@ -151,7 +158,7 @@ Lemma open_open :
     t {{ i ~> a }} {{ j ~> b }} = t {{ i ~> a }} ->
       t {{ j ~> b }} = t.
 Proof.
-  now induction t; cbn; intros i j u1 u2 Hij [=]; f_equal; [decide_all | eauto..].
+  now induction t; cbn; intros i j u1 u2 Hij [=]; f_equal; eauto.
 Qed.
 
 (** ** Locally nameless *)
@@ -190,36 +197,20 @@ end.
 Proof.
   - unfold supports, Fresh'.
     induction t; cbn; only 1: rename a into b; intros a Ha;
-      try (now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto).
-    + now firstorder decide_all.
-    + now f_equal; rewrite close_invariant, IHt.
-    + rewrite IHt1 by auto; f_equal.
-      now rewrite close_invariant, IHt2 by auto.
-    + rewrite IHt1 by auto; f_equal.
-      now rewrite close_invariant, IHt2 by auto.
-    + rewrite IHt1 by auto; f_equal.
-      * now rewrite close_invariant, IHt2 by auto.
-      * now rewrite close_invariant, IHt3 by auto.
-    + rewrite IHt1, IHt3 by auto; f_equal.
-      now rewrite close_invariant, IHt2 by auto.
+      [| now f_equal; rewrite 1?(close_invariant _ _ 0), 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
+    now firstorder decide_all.
   - intros t.
     setoid_rewrite LocallyClosed_forall.
     induction t; cbn;
       try (now exists 0);
-      try (now destruct IHt as [i IH]; exists i; intros j a Hij; rewrite IH; [| lia]);
+      try (now destruct IHt as [i IH];
+        exists i; intros j a Hij; rewrite IH; [| lia]);
       try (now destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2];
-        exists (max i1 i2); intros j a Hle; rewrite IH1, IH2; [| lia..]).
-    + exists (S n); intros j a Hij.
-      now decide_all; lia.
-    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
-      exists (max i1 (max i2 i3)); intros j a Hle.
-      now rewrite IH1, IH2, IH3; [| lia..].
-    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
-      exists (max i1 (max i2 i3)); intros j a Hle.
-      now rewrite IH1, IH2, IH3; [| lia..].
-    + destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3].
-      exists (max i1 (max i2 i3)); intros j a Hle.
-      now rewrite IH1, IH2, IH3; [| lia..].
+        exists (max i1 i2); intros j a Hle; rewrite IH1, IH2; [| lia..]);
+      try (now destruct IHt1 as [i1 IH1], IHt2 as [i2 IH2], IHt3 as [i3 IH3];
+        exists (max i1 (max i2 i3)); intros j a Hle; rewrite IH1, IH2, IH3; [| lia..]).
+    exists (S n); intros j a Hij.
+    now decide_all; lia.
 Defined.
 
 (** ** Characterization of equality *)
@@ -230,9 +221,8 @@ Lemma open_close_fv :
     t {{ i ~> x }} {{ i <~ x }} = t.
 Proof.
   induction t; cbn; intros i x Hx;
-    rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; try now auto.
-  - now decide_all; firstorder.
-  - now decide_all.
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto..].
+  now firstorder decide_all.
 Qed.
 
 Lemma abs_eq :
@@ -338,13 +328,9 @@ Lemma LocallyClosed'_spec :
 Proof.
   setoid_rewrite LocallyClosed_forall.
   split.
-  - induction 1; intros j a Hij; cbn; try (now f_equal; eauto).
-    + now decide_all; lia.
-    + now rewrite IHLocallyClosed'; [| lia].
-    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2; [| lia..].
-    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2; [| lia..].
-    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
-    + now rewrite IHLocallyClosed'1, IHLocallyClosed'2, IHLocallyClosed'3; [| lia..].
+  - intros Hlc; induction Hlc; intros j a Hij; cbn;
+      [easy | | now rewrite 1?IHHlc, 1?IHHlc1, 1?IHHlc2, 1?IHHlc3; try lia..].
+    now decide_all; lia.
   - revert i.
     induction t; cbn; intros i Hlc; constructor; try easy;
     try match goal with
@@ -403,13 +389,12 @@ end.
 }.
 Proof.
   split.
-  - revert i; induction t; cbn; intros i H;
-      repeat match goal with
+  - revert i; induction t; cbn; intros i H; [easy | |
+      now repeat match goal with
       | H : _ && _ = true |- _ => apply andb_prop in H as []
-      end;
-      try now auto.
+      end; auto..].
     now constructor; decide (n < i); lia.
-  - induction 1; cbn; rewrite ?andb_true_iff; try now auto.
+  - induction 1; cbn; rewrite ?andb_true_iff; [easy | | now auto..].
     now decide (n < i); auto.
 Defined.
 
@@ -420,27 +405,10 @@ Lemma Fresh'_spec :
     Fresh' x t <-> x # fv t.
 Proof.
   split; [| now rapply supports_fv].
-  unfold Fresh, Fresh'.
-  induction t; cbn; intros [=]; rewrite ?in_app_iff;
-    try now firstorder congruence.
-  - now firstorder decide_all.
-  - apply IHt.
-    now rewrite (close_invariant _ 0 1).
-  - intros []; [now apply IHt1 |].
-    apply IHt2; [| easy].
-    now rewrite (close_invariant _ 0 1).
-  - intros []; [now apply IHt1 |].
-    apply IHt2; [| easy].
-    now rewrite (close_invariant _ 0 2).
-  - intros []; [now apply IHt1 |].
-    destruct H.
-    + apply IHt2; [| easy].
-      now rewrite (close_invariant _ 0 1).
-    + apply IHt3; [| easy].
-      now rewrite (close_invariant _ 0 1).
-  - intros [| []]; [now apply IHt1 | | now apply IHt3].
-    apply IHt2; [| easy].
-    now rewrite (close_invariant _ 0 1).
+  unfold Fresh'.
+  induction t; cbn; intros [=]; rewrite_fresh;
+    rewrite ?(close_invariant _ _ 0) in *; [| now auto..].
+  now decide_all.
 Qed.
 
 (** ** Substitution *)
@@ -477,8 +445,9 @@ Lemma subst_fv :
   forall (t : Tm) (x : Atom) (u : Tm),
     x # fv t -> t [[ x := u ]] = t.
 Proof.
-  now induction t; cbn; intros;
-    [firstorder decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
+  induction t; cbn; intros;
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
+  now firstorder decide_all.
 Qed.
 
 Lemma subst_subst :
@@ -489,7 +458,7 @@ Lemma subst_subst :
     t [[ y := u2 ]] [[ x := u1 ]].
 Proof.
   induction t; cbn; intros;
-    try now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3.
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
   now decide_all; rewrite subst_fv by auto.
 Qed.
 
@@ -536,9 +505,8 @@ Lemma open'_spec :
       t {[ i ~> u ]} = t {{ i ~> x }} [[ x := u ]].
 Proof.
   induction t; cbn; intros;
-    try now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x), 1?(IHt3 _ x) by auto.
-  - now firstorder decide_all.
-  - now decide_all.
+    [| now auto | now rewrite <- 1?IHt, 1?(IHt1 _ x), 1?(IHt2 _ x), 1?(IHt3 _ x) by auto..].
+  now firstorder decide_all.
 Qed.
 
 Lemma open'_spec' :
@@ -554,7 +522,7 @@ Lemma open'_open' :
     t {[ i ~> u1 ]} {[ j ~> u2 ]} = t {[ i ~> u1 ]} ->
       t {[ j ~> u2 ]} = t.
 Proof.
-  now induction t; cbn; intros i j u1 u2 Hij [=]; f_equal; [decide_all | eauto..].
+  now induction t; cbn; intros i j u1 u2 Hij [=]; f_equal; eauto.
 Qed.
 
 (** ** Local closure *)
@@ -650,18 +618,11 @@ Lemma LocallyClosed_lc :
     lc t -> LocallyClosed 0 t.
 Proof.
   setoid_rewrite LocallyClosed_forall.
-  induction 1; cbn; intros j a Hle; try now f_equal; unshelve eauto.
-  - now f_equal; eapply open_open, (H _ (fresh_spec l)); lia.
-  - f_equal; [now eauto |].
-    now eapply open_open, (H0 _ (fresh_spec l)); lia.
-  - f_equal; [now eauto |].
-    now eapply open_open, open_open,
-      (H0 _ _ (fresh_spec l) (fresh_spec ([fresh l] ++ l))); lia.
-  - f_equal; [now eauto | |].
-    + now eapply open_open, (H0 _ (fresh_spec l)); lia.
-    + now eapply open_open, (H1 _ (fresh_spec l)); lia.
-  - f_equal; [now eauto | | now eauto].
-    now eapply open_open, (H0 _ (fresh_spec l)); lia.
+  intros t Hlc; induction Hlc; cbn; intros j a Hle;
+    rewrite 1?IHHlc, 1?IHHlc1, 1?IHHlc2, 1?IHHlc3; f_equal;
+    try now auto;
+    try now eapply (open_open _ 0 (S j)); auto.
+  now eapply open_open, open_open, H; auto.
 Qed.
 
 Lemma open_lc :
@@ -687,7 +648,7 @@ Lemma open_subst :
     t [[ x := b ]] {{ i ~> if decide (a = x) then b else a }}.
 Proof.
   now induction t; cbn; intros;
-    [decide_all | decide_all | rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
+    rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto.
 Qed.
 
 Lemma subst_open :
@@ -695,10 +656,9 @@ Lemma subst_open :
     a <> b -> lc u ->
     t [[ a := u ]] {{ i ~> b }} = t {{ i ~> b }} [[ a := u ]].
 Proof.
-  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
-  - decide_all.
-    now rewrite open_lc.
-  - now decide_all.
+  induction t; cbn; intros; [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
+  decide_all.
+  now rewrite open_lc.
 Qed.
 
 Lemma lc_subst :
@@ -706,18 +666,17 @@ Lemma lc_subst :
     lc t -> lc u -> lc (t [[ x := u ]]).
 Proof.
   intros t x u Ht Hu; revert x u Hu.
-  induction Ht; cbn; intros; try now eauto.
-  - now decide_all.
+  induction Ht; cbn; intros; try now auto.
   - apply lc_abs with (x :: l).
-    now intros y Hy; rewrite subst_open; firstorder.
+    now intros y Hy; rewrite subst_open; auto.
   - apply lc_elimUnit with (x :: l); [now apply IHHt |].
-    now intros y Hy; rewrite subst_open; firstorder.
-  - now apply lc_elimProd with (x :: l); [now apply IHHt |];
-     intros y z Hy Hz; rewrite !subst_open; firstorder.
-  - now apply lc_case with (x :: l); [now apply IHHt | |];
-      intros y Hy; rewrite subst_open; firstorder.
+    now intros y Hy; rewrite subst_open; auto.
+  - apply lc_elimProd with (x :: l); [now apply IHHt |];
+     intros y z Hy Hz; rewrite !subst_open; auto.
+  - apply lc_case with (x :: l); [now apply IHHt | |];
+      intros y Hy; rewrite subst_open; auto.
   - now apply lc_rec with (x :: l); [now apply IHHt1 | | now apply IHHt2];
-      intros y Hy; rewrite subst_open; firstorder.
+      intros y Hy; rewrite subst_open; auto.
 Qed.
 
 Lemma lc_open' :
@@ -728,8 +687,7 @@ Lemma lc_open' :
 Proof.
   intros t u i [l Hlct] Hlcu.
   rewrite (open'_spec _ _ (fresh (l ++ fv t))) by auto.
-  apply lc_subst; [| easy].
-  now apply Hlct; auto.
+  now apply lc_subst; auto.
 Qed.
 
 #[export] Hint Resolve lc_subst lc_open lc_open' : core.
@@ -739,8 +697,7 @@ Lemma open'_lc :
     lc t -> t {[ i ~> u ]} = t.
 Proof.
   intros t i u Hlc.
-  rewrite open'_spec'.
-  rewrite (open_LocallyClosed t i); [.. | now lia].
+  rewrite open'_spec', (open_LocallyClosed t i); [.. | now lia].
   - now rewrite subst_fv by auto.
   - apply LocallyClosed_le with 0; [now lia |].
     now apply LocallyClosed_lc.
@@ -753,10 +710,9 @@ Lemma open'_subst :
       =
     t [[ x := u2 ]] {[ i ~> u1 [[ x := u2 ]] ]}.
 Proof.
-  induction t; cbn; intros; [| | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
-  - decide_all.
-    now rewrite open'_lc.
-  - now decide_all.
+  induction t; cbn; intros; [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
+  decide_all.
+  now rewrite open'_lc.
 Qed.
 
 Require Import Recdef.
@@ -791,8 +747,7 @@ Lemma size_open :
   forall (t : Tm) (i : nat) (a : Atom),
     size (t {{ i ~> a }}) = size t.
 Proof.
-  induction t; cbn; intros; try now auto.
-  now decide_all.
+  now induction t; cbn; intros; auto.
 Qed.
 
 Unset Guard Checking.
@@ -833,12 +788,13 @@ Lemma lc_open_invariant :
     lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
 Proof.
   induction t; cbn; intros i x y Hlc;
-    (only 2: now decide_all); inversion Hlc; subst; try now eauto.
+    inversion Hlc; subst; try now eauto.
   - apply lc_abs with l; intros z Hz.
     admit.
   - apply lc_elimUnit with l; [now eauto |].
     intros z Hz.
-    apply lc_open. apply IHt2 with x.
+    apply lc_open.
+    apply IHt2 with x.
     replace (t2 {{ S i ~> x }}) with (t2 {{ S i ~> x }} {{ 0 ~> z }}).
 Admitted.
 
@@ -946,6 +902,16 @@ Proof.
   - now apply IHWfCtx.
 Qed.
 
+Lemma Binds_inv' :
+  forall (Γ1 Γ2 : Ctx) (x : Atom) (A B : Ty),
+    Binds (Γ2 ++ (x, A) :: Γ1) x B -> WfCtx (Γ2 ++ (x, A) :: Γ1) -> A = B.
+Proof.
+  intros.
+  eapply Binds_inv; [now eauto | | now eauto].
+  red; rewrite in_app_iff; cbn.
+  now firstorder.
+Qed.
+
 Lemma Binds_app_cons_inv :
   forall (Γ Δ : Ctx) (x y : Atom) (A B : Ty),
     Binds (Δ ++ (x, A) :: Γ) y B ->
@@ -953,11 +919,10 @@ Lemma Binds_app_cons_inv :
         \/
       Binds (Δ ++ Γ) y B.
 Proof.
-  induction Δ; cbn.
-  - now firstorder congruence.
-  - intros x y A B [ [= ->] | ]; [now firstorder |].
-    apply IHΔ in H.
-    now firstorder.
+  induction Δ; cbn; [now firstorder congruence |].
+  intros x y A B [ [= ->] | ]; [now auto |].
+  apply IHΔ in H.
+  now firstorder.
 Qed.
 
 (** * Typing *)
@@ -1091,45 +1056,26 @@ Proof.
   intros * Ht.
   remember (Γ1 ++ Γ2) as G.
   revert Γ1 Γ2 Δ HeqG.
-  induction Ht; intros; subst; try now unshelve eauto.
+  induction Ht; intros; subst; try now eauto.
   - constructor; [easy |].
     unfold Binds in *.
     rewrite !in_app_iff; rewrite in_app_iff in HB.
     now firstorder.
   - apply Typing_abs with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2).
-    intros x Hx.
-    rewrite app_comm_cons.
-    apply H; [now auto | easy |].
-    now cbn; constructor; [| auto].
+    now intros; rewrite !app_comm_cons; apply H; cbn; auto.
   - apply Typing_elimUnit with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt |].
-    intros x Hx.
-    rewrite app_comm_cons.
-    apply H; [now auto | easy |].
-    now cbn; constructor; [| auto].
+    now intros; rewrite !app_comm_cons; apply H; cbn; auto.
   - apply Typing_elimProd with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt |].
-    intros x y Hx Hy.
-    rewrite 2!app_comm_cons.
-    apply H; cbn; [now auto | now auto | easy |].
-    constructor; cbn; [| now auto].
-    now constructor; [| auto].
+    now intros; rewrite !app_comm_cons; apply H; cbn; auto.
   - apply Typing_case with A B (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt | |].
-    + intros x Hx.
-      rewrite app_comm_cons.
-      apply H; [now auto | easy |].
-      now cbn; constructor; [| auto].
-    + intros x Hx.
-      rewrite app_comm_cons.
-      apply H0; [now auto | easy |].
-      now cbn; constructor; [| auto].
+    + now intros; rewrite !app_comm_cons; apply H; cbn; auto.
+    + now intros; rewrite !app_comm_cons; apply H0; cbn; auto.
   - apply Typing_rec with (l ++ map fst Γ1 ++ map fst Δ ++ map fst Γ2);
       [now apply IHHt1 | | now apply IHHt2].
-    intros x Hx.
-    rewrite app_comm_cons.
-    apply H; [now auto | easy |].
-    now cbn; constructor; [| auto].
+    now intros; rewrite !app_comm_cons; apply H; cbn; auto.
 Qed.
 
 Lemma weakening :
@@ -1141,7 +1087,14 @@ Proof.
   now intros; apply weakening_aux with (Γ1 := []); cbn.
 Qed.
 
-#[export] Hint Resolve weakening_aux weakening : core.
+Lemma weakening_cons :
+  forall (Γ : Ctx) (t : Tm) (x : Atom) (A B : Ty),
+    WfCtx ((x, A) :: Γ) ->
+    Typing Γ t B ->
+    Typing ((x, A) :: Γ) t B.
+Proof.
+  now intros; apply weakening with (Δ := [(x, A)]).
+Qed.
 
 (** ** Substitution *)
 
@@ -1154,40 +1107,29 @@ Proof.
   intros * Ht Hu.
   remember (Δ ++ (x, A) :: Γ) as G.
   revert Δ x A Γ HeqG Hu.
-  induction Ht; cbn; intros; subst; try now unshelve eauto.
+  induction Ht; cbn; intros; subst; try now eauto.
   - apply WfCtx_app_cons in Hwf as Hwf'.
-    decide (x0 = x); subst.
-    + replace A with A0; [now apply weakening |].
-      symmetry.
-      eapply (Binds_inv _ _ _ _ Hwf HB).
-      red; rewrite in_app_iff; cbn.
-      now firstorder.
-    + apply Binds_app_cons_inv in HB as [ [-> ->] |]; [easy |].
-      now constructor.
+    decide_all.
+    + apply Binds_inv' in HB as ->; [| easy].
+      now apply weakening.
+    + now apply Binds_app_cons_inv in HB as [ [-> ->] |]; auto.
   - apply Typing_abs with (x :: l).
-    intros y [Hxy Hyl]%Fresh_cons.
-    rewrite subst_open by eauto.
-    now eapply (H y Hyl ((y, A) :: Δ)).
+    intros y Hy; rewrite subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H; cbn; auto.
   - apply Typing_elimUnit with (x :: l); [now eapply IHHt |].
-    intros y [Hxy Hyl]%Fresh_cons.
-    rewrite subst_open; [| now firstorder | now eauto].
-    now eapply (H y Hyl ((y, TyUnit) :: Δ)).
+    intros y Hy; rewrite subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H; cbn; auto.
   - apply Typing_elimProd with A B (x :: l); [now eapply IHHt |].
-    intros y z [Hxy Hyl]%Fresh_cons [Hzy Hzl]%Fresh_cons.
-    rewrite subst_open by eauto.
-    rewrite subst_open; [| now firstorder | now eauto].
-    now eapply (H y z Hyl ltac:(solve_fresh') ((z, B) :: (y, A) :: Δ)).
+    intros y z Hy Hz; rewrite 2!subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H; cbn; auto.
   - apply Typing_case with A B (x :: l); [now eapply IHHt | |].
-    + intros y [Hxy Hyl]%Fresh_cons.
-      rewrite subst_open by eauto.
-      now eapply (H y Hyl ((y, A) :: Δ)).
-    + intros y [Hxy Hyl]%Fresh_cons.
-      rewrite subst_open by eauto.
-      now eapply (H0 y Hyl ((y, B) :: Δ)).
+    + intros y Hy; rewrite subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H; cbn; auto.
+    + intros y Hy; rewrite subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H0; cbn; auto.
   - apply Typing_rec with (x :: l); [now eapply IHHt1 | | now eapply IHHt2].
-    intros y [Hxy Hyl]%Fresh_cons.
-    rewrite subst_open by eauto.
-    now eapply (H y Hyl ((y, A) :: Δ)).
+    intros y Hy; rewrite subst_open by eauto.
+    now rewrite !app_comm_cons; eapply H; cbn; auto.
 Qed.
 
 Lemma Typing_subst :
@@ -1304,7 +1246,7 @@ Inductive CbvContraction : Tm -> Tm -> Prop :=
   forall (t : Tm) (A : Ty)
     (Hlc : lc t),
     CbvContraction (annot t A) t
-| CbvContraction_elimUnit_nit :
+| CbvContraction_elimUnit_unit :
   forall (t : Tm) (l : list Atom)
     (Hlc : forall x : Atom, x # l -> lc (t {{0 ~> x}})),
     CbvContraction (elimUnit unit t) (t {[ 0 ~> unit ]})
@@ -1393,16 +1335,13 @@ Lemma lc_CbvContraction_r :
   forall t t' : Tm,
     CbvContraction t t' -> lc t'.
 Proof.
-  inversion 1; subst; try now eauto 6.
+  inversion 1; subst; try now eauto.
   pose (x := fresh (l ++ fv t0)).
   pose (y := fresh ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
   rewrite (open'_spec _ _ y) by auto.
-  apply lc_subst; [| now eauto].
+  apply lc_subst; [| now auto].
   rewrite (open'_spec _ _ x) by auto.
-  rewrite subst_open; [| now solve_fresh' | now eauto].
-  apply lc_subst; [| now eauto].
-  apply Hlc3; subst x y; [now solve_fresh' |].
-  now rewrite app_assoc; solve_fresh'.
+  now rewrite subst_open; auto.
 Qed.
 
 #[export] Hint Resolve lc_CbvContraction_l lc_CbvContraction_r : core.
@@ -1411,7 +1350,7 @@ Lemma CbvContraction_det :
   forall t t1 t2 : Tm,
     CbvContraction t t1 -> CbvContraction t t2 -> t1 = t2.
 Proof.
-  now induction 1;inversion 1; eauto.
+  now induction 1; inversion 1; auto.
 Qed.
 
 Lemma CbvContraction_not_CbvValue :
@@ -1431,45 +1370,28 @@ Lemma preservation_CbvContraction :
 Proof.
   induction 1; inversion 1; subst.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh'.
-    apply Typing_subst with A0; [| easy].
-    apply Ht'.
-    now solve_fresh'.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by auto.
+    now apply Typing_subst with A0; auto.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by solve_fresh'.
-    apply Typing_subst with TyUnit; [| easy].
-    apply Ht2.
-    now solve_fresh'.
+  - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by auto.
+    now apply Typing_subst with TyUnit; auto.
   - now apply Typing_app with TyUnit.
   - now inversion Ht1; subst.
   - now inversion Ht'.
   - now inversion Ht'.
   - inversion Ht1; subst.
     pose (x := fresh (l0 ++ l ++ fv v2 ++ fv t ++ map fst Γ)).
-    assert (Hx := fresh_spec (l0 ++ l ++ fv v2 ++ fv t ++ map fst Γ)).
     pose (y := fresh ([x] ++ l0 ++ l ++ fv v1 ++ fv (t {{ 0 ~> x }} [[ x := v1 ]]))).
-    assert (Hy := fresh_spec ([x] ++ l0 ++ l ++ fv v1 ++ fv (t {{ 0 ~> x }} [[ x := v1 ]]))).
-    assert (Hxy : x <> y) by firstorder.
-    rewrite (open'_spec _ 0 x) by solve_fresh'.
-    rewrite (open'_spec _ 1 y) by solve_fresh'.
-    rewrite subst_open by eauto.
-    Time rewrite subst_subst by (now subst x y; solve_fresh).
+    rewrite (open'_spec _ 0 x), (open'_spec _ 1 y), subst_open, subst_subst by auto.
     apply Typing_subst with A0; [| easy].
-    apply Typing_subst with B.
-    + apply Ht2; [now solve_fresh' | now solve_fresh'].
-    + apply (weakening _ [(x, A0)]); [| easy].
-      constructor; [now eauto |].
-      now solve_fresh'.
+    apply Typing_subst with B; [now auto |].
+    now apply weakening_cons; eauto.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
-    apply Typing_subst with A0; [| easy].
-    apply Ht2.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
+    now apply Typing_subst with A0; auto.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh.
-    apply Typing_subst with B; [| easy].
-    apply Ht3.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by auto.
+    now apply Typing_subst with B; auto.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -1478,10 +1400,8 @@ Proof.
       inversion H15; subst; eauto.
   - easy.
   - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
-    eapply Typing_subst with A; [| now eauto].
-    apply Ht2.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
+    now eapply Typing_subst with A; eauto.
 Qed.
 
 (*** *** Abortion *)
@@ -1553,7 +1473,7 @@ Lemma lc_CbvAbortion_r :
   forall t t' : Tm,
     CbvAbortion t t' -> lc t'.
 Proof.
-  now inversion 1; subst; eauto.
+  now inversion 1; subst; auto.
 Qed.
 
 #[export] Hint Resolve lc_CbvAbortion_l lc_CbvAbortion_r : core.
@@ -1786,7 +1706,7 @@ Proof.
   - now inversion Hwf.
   - now left; eauto.
   - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
-    inversion Hv; subst; inversion Ht1; subst; try now eauto 6.
+    inversion Hv; subst; inversion Ht1; subst; [| now eauto 6.. |].
     + now destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; eauto.
     + destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
       inversion Ht0; inversion Ht4; subst.
@@ -1796,11 +1716,11 @@ Proof.
   - now right; eauto.
   - now left.
   - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
-    inversion Hv; subst; inversion Ht; subst; eauto 6.
+    inversion Hv; subst; inversion Ht; subst; [now eauto 6.. | |].
     + now inversion Ht1.
     + now inversion Ht1.
   - right; destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
-    inversion Hv; subst; inversion Ht1; subst; eauto.
+    inversion Hv; subst; inversion Ht1; subst; [now eauto.. | |].
     + now inversion Ht1.
     + now inversion Ht0.
   - now left.
@@ -1820,10 +1740,12 @@ Proof.
     + now inversion Ht1.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
-  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto 7].
-    inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
-    + now inversion Ht1.
-    + now inversion Ht1.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ].
+    + inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
+      * now inversion Ht1.
+      * now inversion Ht1.
+    + exists (case t'' t2 t3).
+      now apply CbvStep_case with l; eauto.
   - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
     inversion Hv3; subst; inversion Ht3; subst; [now eauto 6.. | |].
     + now inversion Ht0.
@@ -1998,15 +1920,10 @@ Proof.
   inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
   pose (x := fresh (l ++ fv t3)).
   pose (y := fresh ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
-  rewrite (open'_spec _ _ y) by (subst y; solve_fresh).
+  rewrite (open'_spec _ _ y) by auto.
   apply lc_subst; [| now eauto].
-  rewrite (open'_spec _ _ x) by (subst x; solve_fresh).
-  rewrite subst_open; [| | now eauto].
-  - apply lc_subst; [| now eauto].
-    apply Hlc3; subst x y; [now solve_fresh |].
-    now rewrite app_assoc; solve_fresh.
-  - pose (fresh_spec ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
-    now firstorder.
+  rewrite (open'_spec _ _ x) by auto.
+  now rewrite subst_open; auto.
 Qed.
 
 #[export] Hint Resolve lc_CbnContraction_l lc_CbnContraction_r : core.
@@ -2015,7 +1932,7 @@ Lemma CbnContraction_det :
   forall t t1 t2 : Tm,
     CbnContraction t t1 -> CbnContraction t t2 -> t1 = t2.
 Proof.
-  now induction 1; inversion 1; eauto.
+  now induction 1; inversion 1; auto.
 Qed.
 
 Lemma CbnContraction_not_CbnValue :
@@ -2035,45 +1952,28 @@ Lemma preservation_CbnContraction :
 Proof.
   induction 1; inversion 1; subst.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by solve_fresh.
-    apply Typing_subst with A0; [| easy].
-    apply Ht'.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by auto.
+    now apply Typing_subst with A0; auto.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
-    apply Typing_subst with TyUnit; [| now eauto].
-    apply Ht2.
-    now solve_fresh.
+  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
+    now apply Typing_subst with TyUnit; eauto.
   - now apply Typing_app with TyUnit; eauto.
   - now inversion Ht1; subst.
   - now inversion Ht'.
   - now inversion Ht'.
   - inversion Ht1; subst.
     pose (x := fresh (l0 ++ l ++ fv t2 ++ fv t3 ++ map fst Γ)).
-    assert (Hx := fresh_spec (l0 ++ l ++ fv t2 ++ fv t3 ++ map fst Γ)).
     pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
-    assert (Hy := fresh_spec ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
-    assert (Hxy : x <> y) by firstorder.
-    rewrite (open'_spec _ 0 x) by (subst x; solve_fresh).
-    rewrite (open'_spec _ 1 y) by (subst y; solve_fresh).
-    rewrite subst_open by eauto.
-    rewrite subst_subst by (now subst x y; solve_fresh).
+    rewrite (open'_spec _ 0 x), (open'_spec _ 1 y), subst_open, subst_subst by auto.
     apply Typing_subst with A0; [| easy].
-    apply Typing_subst with B.
-    + apply Ht2; [now subst x; solve_fresh | now subst y; solve_fresh].
-    + apply (weakening _ [(x, A0)]); [| easy].
-      constructor; [now eauto |].
-      now subst x; solve_fresh.
+    apply Typing_subst with B; [now auto |].
+    now apply weakening_cons; eauto.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
-    apply Typing_subst with A0; [| easy].
-    apply Ht2.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
+    now apply Typing_subst with A0; auto.
   - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by solve_fresh.
-    apply Typing_subst with B; [| easy].
-    apply Ht3.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by auto.
+    now apply Typing_subst with B; auto.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -2082,10 +1982,8 @@ Proof.
       inversion H15; subst; eauto.
   - easy.
   - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by solve_fresh.
-    eapply Typing_subst with A; [| now eauto].
-    apply Ht2.
-    now solve_fresh.
+    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
+    now eapply Typing_subst with A; eauto.
 Qed.
 
 (*** *** Abortion *)
@@ -2147,7 +2045,7 @@ Lemma lc_CbnAbortion_r :
   forall t t' : Tm,
     CbnAbortion t t' -> lc t'.
 Proof.
-  now inversion 1; subst; eauto.
+  now inversion 1; subst; auto.
 Qed.
 
 #[export] Hint Resolve lc_CbnAbortion_l lc_CbnAbortion_r : core.
@@ -2262,7 +2160,7 @@ Lemma CbnStep_not_CbnValue :
   forall t t' : Tm,
     CbnStep t t' -> CbnValue t -> False.
 Proof.
-  induction 1; intros Hv; [| | inversion Hv; subst; auto..].
+  induction 1; intros Hv; [| | now inversion Hv; subst; auto..].
   - now eapply CbnContraction_not_CbnValue; eauto.
   - now eapply CbnAbortion_not_CbnValue; eauto.
 Qed.
@@ -2338,12 +2236,12 @@ Proof.
   - now inversion Hwf.
   - now left; eauto.
   - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
-    inversion Hv; subst; inversion Ht1; subst; try now eauto 6.
+    inversion Hv; subst; inversion Ht1; subst; [now eauto 6.. |].
     destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
     inversion Ht0; inversion Ht4; subst.
-    inversion Ht2; subst; inversion Hv2; subst; eauto.
-    * inversion Ht2; subst; inversion Ht6.
-    * inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
+    inversion Ht2; subst; inversion Hv2; subst; [| | now eauto..].
+    + now inversion Ht2; subst; inversion Ht6.
+    + now inversion Ht2; subst; inversion Ht6; subst; inversion Ht10.
   - now right; eauto.
   - now left.
   - now right; eauto 7.
@@ -2366,7 +2264,8 @@ Proof.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
   - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
   - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ].
-    + inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
+    + inversion Hv; subst; inversion Ht; subst;
+        [now eexists; do 2 econstructor; intros; try eapply lc_Typing; eauto.. | |].
       * now inversion Ht1.
       * now inversion Ht1.
     + now eexists; eapply CbnStep_case; eauto.
@@ -2381,7 +2280,7 @@ Proof.
     + inversion Hv1; subst; inversion Ht3; subst; [now eauto 7 | | | now eauto 7..].
       * now inversion Ht0.
       * now inversion Ht0.
-    + eexists; eapply CbnStep_rec; eauto.
+    + now eexists; eapply CbnStep_rec; eauto.
 Qed.
 
 (** * Bidirectional typing *)
@@ -2510,51 +2409,16 @@ with Typing_Check :
 Proof.
   - intros ? t A Hwf; destruct 1; try now constructor; auto.
     + now apply Typing_app with A; auto.
-    + apply Typing_elimUnit with (l ++ map fst Γ); [now auto |].
-      intros x Hx.
-      apply Typing_Infer.
-      * now constructor; [| solve_fresh].
-      * now apply Hi2; solve_fresh.
-    + now econstructor; eauto.
-    + now econstructor; eauto.
-    + apply Typing_elimProd with A B (l ++ map fst Γ); [now auto |].
-      intros x y Hx Hy.
-      apply Typing_Infer; [| now apply Hi2; solve_fresh].
-      constructor; cbn.
-      * now constructor; [| solve_fresh].
-      * now solve_fresh.
-    + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
-      * intros x Hx.
-        apply Typing_Infer.
-        -- now constructor; [| solve_fresh].
-        -- now apply Hi2; solve_fresh.
-      * intros x Hx.
-        apply Typing_Infer.
-        -- now constructor; [| solve_fresh].
-        -- now subst; apply Hi3; solve_fresh.
-    + apply Typing_case with A B (l ++ map fst Γ); [now auto | |].
-      * intros x Hx.
-        apply Typing_Infer.
-        -- now constructor; [| solve_fresh].
-        -- now apply Hi2; solve_fresh.
-      * intros x Hx.
-        apply Typing_Check.
-        -- now constructor; [| solve_fresh].
-        -- now subst; apply Hc3; solve_fresh.
+    + now apply Typing_elimUnit with (l ++ map fst Γ); auto.
+    + now apply Typing_outl with B; auto.
+    + now apply Typing_outr with A; auto.
+    + now apply Typing_elimProd with A B (l ++ map fst Γ); auto.
+    + now apply Typing_case with A B (l ++ map fst Γ); subst; auto.
+    + now apply Typing_case with A B (l ++ map fst Γ); auto.
   - intros Γ t A Hwf; destruct 1; try now constructor; auto.
     + now apply Typing_Infer.
-    + apply Typing_abs with (l ++ map fst Γ); intros x Hx.
-      apply Typing_Check, Hc; [| now solve_fresh].
-      now constructor; [| solve_fresh].
-    + apply Typing_case with A B  (l ++ map fst Γ); [now auto | |].
-      * intros x Hx.
-        apply Typing_Check.
-        -- now constructor; [| solve_fresh].
-        -- now apply Hc2; solve_fresh.
-      * intros x Hx.
-        apply Typing_Check.
-        -- now constructor; [| solve_fresh].
-        -- now apply Hc3; solve_fresh.
+    + now apply Typing_abs with (l ++ map fst Γ); auto.
+    + now apply Typing_case with A B (l ++ map fst Γ); auto.
     + now apply Typing_case' with A B; auto.
 Qed.
 
@@ -2569,44 +2433,22 @@ Proof.
   induction Hi1; inversion 1; subst; try easy.
   - now eapply Binds_inv; eauto.
   - now firstorder congruence.
-  - apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh.
-    + now constructor; [| solve_fresh].
-    + now apply Hi1; solve_fresh.
+  - now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
   - now firstorder congruence.
   - now firstorder congruence.
   - now firstorder congruence.
-  - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
-    pose (x := fresh (l0 ++ l ++ fv t1 ++ map fst Γ)).
-    pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ map fst Γ)).
-    apply (H x y).
-    + now subst x; solve_fresh.
-    + now subst y; solve_fresh.
-    + constructor.
-      * now constructor; [| subst x; solve_fresh].
-      * now subst y; solve_fresh.
-    + apply Hi4; [now subst x; solve_fresh |].
-      now subst y; solve_fresh.
-  - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
-    apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh.
-    + now constructor; [| solve_fresh].
-    + now apply Hi5; solve_fresh.
-  - injection (IHHi1 Hwf _ Hi4) as [= <- <-].
-    apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh.
-    + now constructor; [| solve_fresh].
-    + now apply Hi5; solve_fresh.
-  - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
-    apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh.
-    + now constructor; [| solve_fresh].
-    + now apply Hi4; solve_fresh.
-  - injection (IHHi1 Hwf _ Hi3) as [= <- <-].
-    apply (H (fresh (l ++ l0 ++ map fst Γ))).
-    + now solve_fresh.
-    + now constructor; [| solve_fresh].
-    + now apply Hi4; solve_fresh.
+  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
+    pose (x := fresh (l ++ l0 ++ fv t1 ++ map fst Γ)).
+    pose (y := fresh ([x] ++ l ++ l0 ++ fv t1 ++ map fst Γ)).
+    now apply (H x y); auto.
+  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
+    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
+  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
+    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
+  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
+    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
+  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
+    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
 Qed.
 
 Inductive Mode : Type :=

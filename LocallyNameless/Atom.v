@@ -14,6 +14,11 @@ repeat match goal with
 | H : context [decide (?x = ?y)] |- _ => decide (x = y); subst; try easy; cbn in H
 end.
 
+#[export] Hint Extern 1 =>
+  match goal with
+  | |- context [decide _] => decide_all
+  end : core.
+
 (** * Class of Atom-like types *)
 
 Class isAtom (Atom : Type) : Type :=
@@ -103,115 +108,53 @@ Qed.
 End sec_Fresh_lemmas.
 
 Ltac rewrite_fresh :=
-  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil).
+  repeat (rewrite ?map_app, ?map_cons, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil).
 
 Ltac rewrite_fresh_in H :=
-  repeat (rewrite ?map_app, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil in H).
+  repeat (rewrite ?map_app, ?map_cons, ?Fresh_app, ?Fresh_singl, ?Fresh_cons, ?Fresh_nil in H).
 
-Ltac solve_fresh := try
-match goal with
-| |- ?x # ?l =>
-  rewrite_fresh;
-  match goal with
-  | H : x # ?l' |- _ =>
-    rewrite_fresh_in H; firstorder
-  end
-| |- fresh ?l1 # ?l2 =>
-  rewrite_fresh;
-  let H := fresh "H" in
-    assert (H := fresh_spec l1);
-      rewrite_fresh_in H; firstorder
-end.
-
-(*
-Ltac prepare_atom' x :=
-  repeat match goal with
-  | H : x # _ |- _ => rewrite_fresh_in H
-  | H : _ # ?l |- _ =>
-    match l with
-    | context [x] => rewrite_fresh_in H
-    end
-  end.
-
-Ltac prepare_atom x :=
-  repeat match goal with
-  | y := fresh ?l : Atom |- _ =>
-    match l with
-    | context [x] =>
-      match goal with
-      | H : y # l |- _ => fail 1
-      | _ =>
-        progress (let Hy := fresh "H" y in
-          assert (Hy : y # _) by apply (fresh_spec l))
-      end
-    end
-  end.
-*)
-
-Ltac prepare_fresh_vars :=
-  repeat match goal with
-  | y := fresh ?l : ?Atom |- _ =>
-    match goal with
-    | H : y # l |- _ => fail 1
-    | _ =>
-      progress (let Hy := fresh "H" y in
-        assert (Hy : y # _) by apply (fresh_spec l))
-    end
-  end.
-
-Ltac prepare_fresh_hyps :=
-  repeat match goal with
-  | H : _ # _ |- _ => rewrite_fresh_in H
-  end.
-
-Ltac prepare_fresh_goal :=
+Ltac solve_var x :=
 try match goal with
-| |- fresh ?l # _ =>
+| H : x # _ |- _ =>
+  rewrite_fresh_in H; rewrite_fresh
+| _ =>
   let H := fresh "H" in
-    assert (H := fresh_spec l);
-    rewrite_fresh
-| |- _ # _ => rewrite_fresh
-| |- ~ @eq ?Atom (fresh ?l1) (fresh ?l2) =>
-  let Hl1 := fresh "H" l1 in
-  let Hl2 := fresh "H" l2 in
-    assert (Hl1 := fresh_spec l1);
-    assert (Hl2 := fresh_spec l2)
-| |- ~ @eq ?Atom (fresh ?l1) _ =>
-  let Hl1 := fresh "H" l1 in
-    assert (Hl1 := fresh_spec l1)
-| |- ~ @eq ?Atom _ (fresh ?l2) =>
-  let Hl2 := fresh "H" l2 in
-    assert (Hl2 := fresh_spec l2)
+    assert (H : x # _) by apply fresh_spec;
+    rewrite_fresh_in H; rewrite_fresh
 end.
 
 #[export] Hint Extern 1 (?x # _) =>
-match goal with
-| H : x # _ |- _ => clear -H; rewrite_fresh_in H; rewrite_fresh; firstorder
-(* | x := fresh _ |- _ => *)
-| _ =>
-  let H := fresh "H" in
-    assert (H : x # _) by apply fresh_spec; clear -H;
-    rewrite_fresh_in H; rewrite_fresh; firstorder
-end : core.
+  tryif is_evar x
+  then apply fresh_spec
+  else solve_var x; tauto
+    : core.
 
-#[export] Hint Extern 1 (fresh ?l # _) =>
-  let H := fresh "H" in
-    assert (H := fresh_spec l); clear -H;
-    rewrite_fresh_in H; rewrite_fresh; firstorder : core.
+(** * Natural numbers as atoms *)
 
-(*
-Ltac solve_fresh' :=
-match goal with
-| |- 
+Fixpoint fresh_nat (l : list nat) : nat :=
+match l with
+| [] => 0
+| h :: t => 1 + max h (fresh_nat t)
 end.
-*)
 
-Ltac solve_fresh' :=
-  try easy;
-  prepare_fresh_goal;
-  prepare_fresh_vars;
-  prepare_fresh_hyps;
-  firstorder.
+Lemma fresh_nat_aux :
+  forall (l : list nat) (n : nat),
+    In n l -> n < fresh_nat l.
+Proof.
+  induction l as [| h t]; cbn; intros; [easy |].
+  destruct H as [-> | H]; [now lia |].
+  now specialize (IHt _ H); lia.
+Qed.
+
+#[export, refine] Instance isAtom_nat : isAtom nat :=
+{
+  fresh := fresh_nat;
+}.
+Proof.
+  intros l Hin.
+  apply fresh_nat_aux in Hin.
+  now lia.
+Defined.
 
 (** * Inductive Atoms *)
 
@@ -262,32 +205,5 @@ Qed.
 Proof.
   intros l Hin.
   apply In_size in Hin. cbn in Hin.
-  now lia.
-Defined.
-
-(** * Natural numbers as atoms *)
-
-Fixpoint fresh_nat (l : list nat) : nat :=
-match l with
-| [] => 0
-| h :: t => 1 + max h (fresh_nat t)
-end.
-
-Lemma fresh_nat_aux :
-  forall (l : list nat) (n : nat),
-    In n l -> n < fresh_nat l.
-Proof.
-  induction l as [| h t]; cbn; intros; [easy |].
-  destruct H as [-> | H]; [now lia |].
-  now specialize (IHt _ H); lia.
-Qed.
-
-#[export, refine] Instance isAtom_nat : isAtom nat :=
-{
-  fresh := fresh_nat;
-}.
-Proof.
-  intros l Hin.
-  apply fresh_nat_aux in Hin.
   now lia.
 Defined.
