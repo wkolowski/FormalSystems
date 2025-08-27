@@ -690,7 +690,30 @@ Proof.
   now apply lc_subst; auto.
 Qed.
 
-#[export] Hint Resolve lc_subst lc_open lc_open' : core.
+Lemma lc_open'2 :
+  forall (t u1 u2 : Tm) (i j : nat),
+    (exists l : list Atom,
+      forall (x y : Atom), x # l -> y # x :: l -> lc (t {{ i ~> x }} {{ j ~> y }})) ->
+    lc u1 -> lc u2 ->
+      lc (t {[ i ~> u1 ]} {[ j ~> u2 ]}).
+Proof.
+  intros t u1 u2 i j [l Hlct] Hlc1 Hlc2.
+  pose (x := fresh (l ++ fv t)).
+  pose (y := fresh ([x] ++ l ++ fv (t {[ i ~> u1 ]}))).
+  rewrite (open'_spec _ _ y) by auto.
+  apply lc_subst; [| now auto].
+  rewrite (open'_spec _ _ x) by auto.
+  rewrite subst_open by auto.
+  now apply lc_subst; auto.
+Qed.
+
+#[export] Hint Resolve lc_subst lc_open : core.
+
+#[export] Hint Extern 1 (lc (?t {[ _ ~> _ ]})) =>
+  match t with
+  | ?t' {[ _ ~> _ ]} => apply lc_open'2
+  | _ => apply lc_open'
+  end : core.
 
 Lemma open'_lc :
   forall (t : Tm) (i : nat) (u : Tm),
@@ -1141,7 +1164,35 @@ Proof.
   now intros; eapply Typing_subst_aux with (Δ := []) (A := A).
 Qed.
 
-#[export] Hint Resolve Typing_subst_aux Typing_subst : core.
+Lemma Typing_open' :
+  forall (Γ : Ctx) (t u : Tm) (A B : Ty),
+    (exists l : list Atom, forall x : Atom, x # l -> Typing ((x, A) :: Γ) (t {{ 0 ~> x }}) B) ->
+    Typing Γ u A ->
+    Typing Γ (t {[ 0 ~> u ]}) B.
+Proof.
+  intros Γ t u A B [l Ht] Hu.
+  rewrite open'_spec with (x := fresh (l ++ fv t)) by auto.
+  now apply Typing_subst with A; auto.
+Qed.
+
+Lemma Typing_open'2 :
+  forall (Γ : Ctx) (t u1 u2 : Tm) (A B C : Ty),
+    (exists l : list Atom, forall (x y : Atom), x # l -> y # x :: l ->
+      Typing ((y, B) :: (x, A) :: Γ) (t {{ 0 ~> x }} {{ 1 ~> y }}) C) ->
+    Typing Γ u1 A ->
+    Typing Γ u2 B ->
+    Typing Γ (t {[ 0 ~> u1 ]} {[ 1 ~> u2 ]}) C.
+Proof.
+  intros Γ t u1 u2 A B C [l Ht] Hu1 Hu2.
+  pose (x := fresh (l ++ fv u2 ++ fv t ++ map fst Γ)).
+  pose (y := fresh ([x] ++ l ++ fv u1 ++ fv (t {{ 0 ~> x }} [[ x := u1 ]]))).
+  rewrite (open'_spec _ 0 x), (open'_spec _ 1 y), subst_open, subst_subst by eauto.
+  apply Typing_subst with A; [| easy].
+  apply Typing_subst with B; [now auto |].
+  now apply weakening_cons; eauto.
+Qed.
+
+#[export] Hint Resolve Typing_open' Typing_open'2 : core.
 
 (** * Computation *)
 
@@ -1335,13 +1386,7 @@ Lemma lc_CbvContraction_r :
   forall t t' : Tm,
     CbvContraction t t' -> lc t'.
 Proof.
-  inversion 1; subst; try now eauto.
-  pose (x := fresh (l ++ fv t0)).
-  pose (y := fresh ([x] ++ l ++ fv (t0 {[ 0 ~> v1 ]}))).
-  rewrite (open'_spec _ _ y) by auto.
-  apply lc_subst; [| now auto].
-  rewrite (open'_spec _ _ x) by auto.
-  now rewrite subst_open; auto.
+  now inversion 1; subst; eauto.
 Qed.
 
 #[export] Hint Resolve lc_CbvContraction_l lc_CbvContraction_r : core.
@@ -1369,29 +1414,16 @@ Lemma preservation_CbvContraction :
     Typing Γ t' A.
 Proof.
   induction 1; inversion 1; subst.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by auto.
-    now apply Typing_subst with A0; auto.
+  - now inversion Ht1; subst; eauto.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t)) by auto.
-    now apply Typing_subst with TyUnit; auto.
-  - now apply Typing_app with TyUnit.
+  - now eauto.
+  - now eauto.
   - now inversion Ht1; subst.
   - now inversion Ht'.
   - now inversion Ht'.
-  - inversion Ht1; subst.
-    pose (x := fresh (l0 ++ l ++ fv v2 ++ fv t ++ map fst Γ)).
-    pose (y := fresh ([x] ++ l0 ++ l ++ fv v1 ++ fv (t {{ 0 ~> x }} [[ x := v1 ]]))).
-    rewrite (open'_spec _ 0 x), (open'_spec _ 1 y), subst_open, subst_subst by auto.
-    apply Typing_subst with A0; [| easy].
-    apply Typing_subst with B; [now auto |].
-    now apply weakening_cons; eauto.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
-    now apply Typing_subst with A0; auto.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by auto.
-    now apply Typing_subst with B; auto.
+  - now inversion Ht1; subst; eauto.
+  - now inversion Ht1; subst; eauto.
+  - now inversion Ht1; subst; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -1399,9 +1431,7 @@ Proof.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
       inversion H15; subst; eauto.
   - easy.
-  - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
-    now eapply Typing_subst with A; eauto.
+  - now inversion Ht3; subst; eauto.
 Qed.
 
 (*** *** Abortion *)
@@ -1744,8 +1774,7 @@ Proof.
     + inversion Hv; subst; inversion Ht; subst; [now eexists; do 2 econstructor; eauto.. | |].
       * now inversion Ht1.
       * now inversion Ht1.
-    + exists (case t'' t2 t3).
-      now apply CbvStep_case with l; eauto.
+    + now eexists; econstructor; eauto.
   - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
     inversion Hv3; subst; inversion Ht3; subst; [now eauto 6.. | |].
     + now inversion Ht0.
@@ -1917,13 +1946,7 @@ Lemma lc_CbnContraction_r :
   forall t t' : Tm,
     CbnContraction t t' -> lc t'.
 Proof.
-  inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
-  pose (x := fresh (l ++ fv t3)).
-  pose (y := fresh ([x] ++ l ++ fv (t3 {[ 0 ~> t1 ]}))).
-  rewrite (open'_spec _ _ y) by auto.
-  apply lc_subst; [| now eauto].
-  rewrite (open'_spec _ _ x) by auto.
-  now rewrite subst_open; auto.
+  now inversion 1; eauto.
 Qed.
 
 #[export] Hint Resolve lc_CbnContraction_l lc_CbnContraction_r : core.
@@ -1951,29 +1974,16 @@ Lemma preservation_CbnContraction :
     Typing Γ t' A.
 Proof.
   induction 1; inversion 1; subst.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t1)) by auto.
-    now apply Typing_subst with A0; auto.
+  - now inversion Ht1; subst; eauto.
   - easy.
-  - rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
-    now apply Typing_subst with TyUnit; eauto.
-  - now apply Typing_app with TyUnit; eauto.
+  - now eauto.
+  - now eauto.
   - now inversion Ht1; subst.
   - now inversion Ht'.
   - now inversion Ht'.
-  - inversion Ht1; subst.
-    pose (x := fresh (l0 ++ l ++ fv t2 ++ fv t3 ++ map fst Γ)).
-    pose (y := fresh ([x] ++ l0 ++ l ++ fv t1 ++ fv (t3 {{ 0 ~> x }} [[ x := t1 ]]))).
-    rewrite (open'_spec _ 0 x), (open'_spec _ 1 y), subst_open, subst_subst by auto.
-    apply Typing_subst with A0; [| easy].
-    apply Typing_subst with B; [now auto |].
-    now apply weakening_cons; eauto.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
-    now apply Typing_subst with A0; auto.
-  - inversion Ht1; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t3)) by auto.
-    now apply Typing_subst with B; auto.
+  - now inversion Ht1; subst; eauto.
+  - now inversion Ht1; subst; eauto.
+  - now inversion Ht1; subst; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht3; eauto.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
@@ -1981,9 +1991,7 @@ Proof.
   - now inversion Ht1; inversion Ht2; inversion Ht0; inversion Ht4; subst;
       inversion H15; subst; eauto.
   - easy.
-  - inversion Ht3; subst.
-    rewrite open'_spec with (x := fresh (l0 ++ fv t2)) by auto.
-    now eapply Typing_subst with A; eauto.
+  - now inversion Ht3; subst; eauto.
 Qed.
 
 (*** *** Abortion *)
@@ -2268,7 +2276,7 @@ Proof.
         [now eexists; do 2 econstructor; intros; try eapply lc_Typing; eauto.. | |].
       * now inversion Ht1.
       * now inversion Ht1.
-    + now eexists; eapply CbnStep_case; eauto.
+    + now eexists; econstructor; eauto.
   - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
     inversion Hv3; subst; inversion Ht3; subst; [now eauto 6.. | |].
     + now inversion Ht0.
@@ -2280,384 +2288,5 @@ Proof.
     + inversion Hv1; subst; inversion Ht3; subst; [now eauto 7 | | | now eauto 7..].
       * now inversion Ht0.
       * now inversion Ht0.
-    + now eexists; eapply CbnStep_rec; eauto.
+    + now eexists; econstructor ; eauto.
 Qed.
-
-(** * Bidirectional typing *)
-
-Inductive Infer : Ctx -> Tm -> Ty -> Prop :=
-| Infer_fvar :
-  forall (Γ : Ctx) (x : Atom) (A : Ty)
-    (HB : Binds Γ x A),
-    Infer Γ x A
-| Infer_app  :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A B : Ty)
-    (Hi1 : Infer Γ t1 (TyFun A B))
-    (Hc2 : Check Γ t2 A),
-    Infer Γ (app t1 t2) B
-| Infer_annot :
-  forall (Γ : Ctx) (t : Tm) (A : Ty)
-    (Hc' : Check Γ t A),
-    Infer Γ (annot t A) A
-| Infer_unit :
-  forall (Γ : Ctx),
-    Infer Γ unit TyUnit
-| Infer_elimUnit :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty) (l : list Atom)
-    (Hc1 : Check Γ t1 TyUnit)
-    (Hi2 : forall x : Atom, x # l -> Infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x }}) A),
-    Infer Γ (elimUnit t1 t2) A
-| Infer_pair :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A B : Ty)
-    (Hi1 : Infer Γ t1 A)
-    (Hi2 : Infer Γ t2 B),
-    Infer Γ (pair t1 t2) (TyProd A B)
-| Infer_outl :
-  forall (Γ : Ctx) (t : Tm) (A B : Ty)
-    (Hi : Infer Γ t (TyProd A B)),
-    Infer Γ (outl t) A
-| Infer_outr :
-  forall (Γ : Ctx) (t : Tm) (A B : Ty)
-    (Hi : Infer Γ t (TyProd A B)),
-    Infer Γ (outr t) B
-| Infer_elimProd :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A B C : Ty) (l : list Atom)
-    (Hi1 : Infer Γ t1 (TyProd A B))
-    (Hi2 : forall x y : Atom, x # l -> y # x :: l ->
-      Infer ((y, B) :: (x, A) :: Γ) (t2 {{ 0 ~> x }} {{ 1 ~> y }}) C),
-    Infer Γ (elimProd t1 t2) C
-| Infer_case :
-  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C1 C2 : Ty) (l : list Atom)
-    (Hi1 : Infer Γ t1 (TySum A B))
-    (Hi2 : forall x : Atom, x # l -> Infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C1)
-    (Hi3 : forall x : Atom, x # l -> Infer ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C2)
-    (Heq : C1 = C2),
-    Infer Γ (case t1 t2 t3) C1
-| Infer_case_asym :
-  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty) (l : list Atom)
-    (Hi1 : Infer Γ t1 (TySum A B))
-    (Hi2 : forall x : Atom, x # l -> Infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
-    (Hc3 : forall x : Atom, x # l -> Check ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C),
-    Infer Γ (case t1 t2 t3) C
-| Infer_zero :
-  forall (Γ : Ctx),
-    Infer Γ zero TyNat
-| Infer_succ :
-  forall (Γ : Ctx) (t : Tm)
-    (Hc' : Check Γ t TyNat),
-    Infer Γ (succ t) TyNat
-
-with Check : Ctx -> Tm -> Ty -> Prop :=
-| Check_Infer :
-  forall (Γ : Ctx) (t : Tm) (A : Ty)
-    (Hi : Infer Γ t A),
-    Check Γ t A
-| Check_abs :
-  forall (Γ : Ctx) (t : Tm) (A B : Ty) (l : list Atom)
-    (Hc : forall x : Atom, x # l -> Check ((x, A) :: Γ) (t {{0 ~> x}}) B),
-    Check Γ (abs t) (TyFun A B)
-| Check_elimUnit' :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty)
-    (Hc1 : Check Γ t1 TyUnit)
-    (Hc2 : Check Γ t2 (TyFun TyUnit A)),
-    Check Γ (elimUnit' t1 t2) A
-| Check_elimUnit'' :
-  forall (Γ : Ctx) (A : Ty),
-    Check Γ elimUnit'' (TyFun (TyFun TyUnit A) (TyFun TyUnit A))
-| Check_abort :
-  forall (Γ : Ctx) (t' : Tm) (A : Ty)
-    (Hc : Check Γ t' TyEmpty),
-    Check Γ (abort t') A
-| Check_pair :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A B : Ty)
-    (Hc1 : Check Γ t1 A)
-    (Hc2 : Check Γ t2 B),
-    Check Γ (pair t1 t2) (TyProd A B)
-| Check_inl :
-  forall (Γ : Ctx) (t' : Tm) (A B : Ty)
-    (Hc : Check Γ t' A),
-    Check Γ (inl t') (TySum A B)
-| Check_inr :
-  forall (Γ : Ctx) (t' : Tm) (A B : Ty)
-    (Hc : Check Γ t' B),
-    Check Γ (inr t') (TySum A B)
-| Check_case :
-  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty) (l : list Atom)
-    (Hi1 : Infer Γ t1 (TySum A B))
-    (Hc2 : forall x : Atom, x # l -> Check ((x, A) :: Γ) (t2 {{ 0 ~> x }}) C)
-    (Hc3 : forall x : Atom, x # l -> Check ((x, B) :: Γ) (t3 {{ 0 ~> x }}) C),
-    Check Γ (case t1 t2 t3) C
-| Check_case' :
-  forall (Γ : Ctx) (t1 t2 t3 : Tm) (A B C : Ty)
-    (Hi3 : Infer Γ t3 (TySum A B))
-    (Hc1 : Check Γ t1 (TyFun A C))
-    (Hc2 : Check Γ t2 (TyFun B C)),
-    Check Γ (case' t1 t2 t3) C
-| Check_case'' :
-  forall (Γ : Ctx) (A B C : Ty),
-    Check Γ case'' (TyFun (TyFun A C) (TyFun (TyFun B C) (TyFun (TySum A B) C))).
-
-#[export] Hint Constructors Infer Check : core.
-
-Lemma Typing_Infer :
-  forall (Γ : Ctx) (t : Tm) (A : Ty),
-    WfCtx Γ -> Infer Γ t A -> Typing Γ t A
-
-with Typing_Check :
-  forall (Γ : Ctx) (t : Tm) (A : Ty),
-    WfCtx Γ -> Check Γ t A -> Typing Γ t A.
-Proof.
-  - intros ? t A Hwf; destruct 1; try now constructor; auto.
-    + now apply Typing_app with A; auto.
-    + now apply Typing_elimUnit with (l ++ map fst Γ); auto.
-    + now apply Typing_outl with B; auto.
-    + now apply Typing_outr with A; auto.
-    + now apply Typing_elimProd with A B (l ++ map fst Γ); auto.
-    + now apply Typing_case with A B (l ++ map fst Γ); subst; auto.
-    + now apply Typing_case with A B (l ++ map fst Γ); auto.
-  - intros Γ t A Hwf; destruct 1; try now constructor; auto.
-    + now apply Typing_Infer.
-    + now apply Typing_abs with (l ++ map fst Γ); auto.
-    + now apply Typing_case with A B (l ++ map fst Γ); auto.
-    + now apply Typing_case' with A B; auto.
-Qed.
-
-Lemma Infer_det :
-  forall (Γ : Ctx) (t : Tm) (A1 A2 : Ty),
-    WfCtx Γ ->
-    Infer Γ t A1 ->
-    Infer Γ t A2 ->
-    A1 = A2.
-Proof.
-  intros * Hwf Hi1 Hi2; revert A2 Hi2.
-  induction Hi1; inversion 1; subst; try easy.
-  - now eapply Binds_inv; eauto.
-  - now firstorder congruence.
-  - now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
-  - now firstorder congruence.
-  - now firstorder congruence.
-  - now firstorder congruence.
-  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
-    pose (x := fresh (l ++ l0 ++ fv t1 ++ map fst Γ)).
-    pose (y := fresh ([x] ++ l ++ l0 ++ fv t1 ++ map fst Γ)).
-    now apply (H x y); auto.
-  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
-    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
-  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
-    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
-  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
-    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
-  - injection (IHHi1 Hwf _ ltac:(eauto)) as [= <- <-].
-    now apply (H (fresh (l ++ l0 ++ map fst Γ))); auto.
-Qed.
-
-Inductive Mode : Type :=
-| infer
-| check (T : Ty).
-
-Require Import Recdef Bool.
-
-Definition typeRet (m : Mode) : Type :=
-match m with
-| infer => option Ty
-| check _ => bool
-end.
-
-(*
-
-Function type (m : Mode) (Γ : Ctx) (t : Tm) {measure size t} : typeRet m :=
-match m, t with
-| infer, fvar x          => None
-| infer, bvar n          => None
-| infer, abs t'          => None
-| infer, app t1 t2       =>
-  match type infer Γ t1 with
-  | Some (TyFun A B) => if type (check A) Γ t2 then Some B else None
-  | _ => None
-  end
-| infer, annot t' A      => if type (check A) Γ t' then Some A else None
-| infer, unit            => Some TyUnit
-| infer, elimUnit t1 t2  =>
-  if type (check TyUnit) Γ t1
-  then let x := fresh (fv t2) in type infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x }})
-  else None
-| infer, elimUnit' t1 t2 => None
-| infer, elimUnit''      => None
-| infer, abort t'        => None
-| infer, pair t1 t2      =>
-  match type infer Γ t1, type infer Γ t2 with
-  | Some A, Some B => Some (TyProd A B)
-  | _, _ => None
-  end
-| infer, outl t'         =>
-  match type infer Γ t' with
-  | Some (TyProd A B) => Some A
-  | _ => None
-  end
-| infer, outr t'         =>
-  match type infer Γ t' with
-  | Some (TyProd A B) => Some B
-  | _ => None
-  end
-| infer, inl t'          => None
-| infer, inr t'          => None
-| infer, case t1 t2 t3   =>
-  match type infer Γ t1 with
-  | Some (TySum A B) =>
-    let x := fresh (fv t1) in
-    let y := fresh (fv t2) in
-      match
-        type infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}),
-        type infer ((y, B) :: Γ) (t3 {{ 0 ~> y }})
-      with
-      | Some C1, Some C2 => if decide (C1 = C2) then Some C1 else None
-      | _, _ => None
-      end
-  | _ => None
-  end
-| infer, case' t1 t2 t3  => None
-| infer, case''          => None
-| infer, zero            => Some TyNat
-| infer, succ t'         => if type (check TyNat) Γ t' then Some TyNat else None
-| infer, rec t1 t2 t3    =>
-  if type (check TyNat) Γ t3
-  then
-    match type infer Γ t1 with
-    | Some A =>
-      let
-        x := fresh (fv t2)
-      in
-        if type (check A) ((x, A) :: Γ) (t2 {{ 0 ~> x }})
-        then Some A
-        else None
-    | _ => None
-    end
-  else None
-| check (TyFun A B), abs t' => let x := fresh (fv t') in type (check B) ((x, A) :: Γ) t'
-| check A, elimUnit' t1 t2  => type (check TyUnit) Γ t1 && type (check (TyFun TyUnit A)) Γ t2
-| check T, elimUnit'' =>
-  match T with
-  | TyFun (TyFun TyUnit A) (TyFun TyUnit B) => decide (A = B)
-  | _ => false
-  end
-| check _, abort t'        => type (check TyEmpty) Γ t'
-| check (TyProd A B), pair t1 t2 => type (check A) Γ t1 && type (check B) Γ t2
-| check (TySum A B), inl t' => type (check A) Γ t'
-| check (TySum A B), inr t' => type (check B) Γ t'
-| check C, case' t1 t2 t3  =>
-  match type infer Γ t1 with
-  | Some (TySum A B) => type (check (TyFun A C)) Γ t2 && type (check (TyFun B C)) Γ t3
-  | _ => false
-  end
-| check T, case''       =>
-  match T with
-  | TyFun (TyFun A1 C1) (TyFun (TyFun B2 C2) (TyFun (TySum A3 B3) C3)) =>
-    decide (A1 = A3) && decide (B2 = B3) && decide (C1 = C2) && decide (C2 = C3)
-  | _ => false
-  end
-| check T, _              =>
-  match type infer Γ t with
-  | Some T' => decide (T = T')
-  | _ => false
-  end
-end.
-
-
-Function infer (Γ : Ctx) (t : Tm) {measure size t} : option Ty :=
-match t with
-| fvar x          => None
-| bvar n          => None
-| abs t'          => None
-| app t1 t2       =>
-  match infer Γ t1 with
-  | Some (TyFun A B) => if check Γ t2 A then Some B else None
-  | _ => None
-  end
-| annot t' A      => if check Γ t' A then Some A else None
-| unit            => Some TyUnit
-| elimUnit t1 t2  =>
-  if check Γ t1 TyUnit
-  then let x := fresh (fv t2) in infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x}})
-  else None
-| elimUnit' t1 t2 => None
-| elimUnit''      => None
-| abort t'        => None
-| pair t1 t2      =>
-  match infer Γ t1, infer Γ t2 with
-  | Some A, Some B => Some (TyProd A B)
-  | _, _ => None
-  end
-| outl t'         =>
-  match infer Γ t' with
-  | Some (TyProd A B) => Some A
-  | _ => None
-  end
-| outr t'         =>
-  match infer Γ t' with
-  | Some (TyProd A B) => Some B
-  | _ => None
-  end
-| inl t'          => None
-| inr t'          => None
-| case t1 t2 t3   =>
-  match infer Γ t1 with
-  | Some (TySum A B) =>
-    let x := fresh (fv t1) in
-    let y := fresh (fv t2) in
-      match infer ((x, A) :: Γ) (t2 {{ 0 ~> x }}), infer ((y, B) :: Γ) (t3 {{ 0 ~> y }}) with
-      | Some C1, Some C2 => if decide (C1 = C2) then Some C1 else None
-      | _, _ => None
-      end
-  | _ => None
-  end
-| case' t1 t2 t3  => None
-| case''          => None
-| zero            => Some TyNat
-| succ t'         => if check Γ t' TyNat then Some TyNat else None
-| rec t1 t2 t3    =>
-  if check Γ t3 TyNat
-  then
-    match infer Γ t1 with
-    | Some A =>
-      let
-        x := fresh (fv t2)
-      in
-        if check ((x, A) :: Γ) (t2 {{ 0 ~> x }}) A
-        then Some A
-        else None
-    | _ => None
-    end
-  else None
-end
-
-with check (Γ : Ctx) (t : Tm) (T : Ty) {struct t} : bool :=
-match t, T with
-| abs t', TyFun A B  => let x := fresh (fv t') in check ((x, A) :: Γ) t' B
-| elimUnit' t1 t2, _ => andb (check Γ t1 TyUnit) (check Γ t2 (TyFun TyUnit T))
-| elimUnit'', _      =>
-  match T with
-  | TyFun (TyFun TyUnit A) (TyFun TyUnit B) => decide (A = B)
-  | _ => false
-  end
-| abort t', _        => check Γ t' TyEmpty
-| pair t1 t2, TyProd A B => check Γ t1 A && check Γ t2 B
-| inl t', TySum A B => check Γ t' A
-| inr t', TySum A B => check Γ t' B
-| case' t1 t2 t3, _  =>
-  match infer Γ t1 with
-  | Some (TySum A B) => check Γ t2 (TyFun A T) && check Γ t3 (TyFun B T)
-  | _ => false
-  end
-| case'', _       =>
-  match T with
-  | TyFun (TyFun A1 C1) (TyFun (TyFun B2 C2) (TyFun (TySum A3 B3) C3)) =>
-    decide (A1 = A3) && decide (B2 = B3) && decide (C1 = C2) && decide (C2 = C3)
-  | _ => false
-  end
-| _, _              =>
-  match infer Γ t with
-  | Some T' => decide (T = T')
-  | _ => false
-  end
-end.
-*)

@@ -24,7 +24,7 @@ Lemma lc_FullContraction_r :
   forall t t' : Tm,
     FullContraction t t' -> lc t'.
 Proof.
-  now inversion 1; subst; try (now auto); try (now apply lc_open'; eauto).
+  now inversion 1; subst; eauto.
 Qed.
 
 #[export] Hint Resolve lc_FullContraction_l lc_FullContraction_r : core.
@@ -33,7 +33,7 @@ Lemma FullContraction_det :
   forall t t1 t2 : Tm,
     FullContraction t t1 -> FullContraction t t2 -> t1 = t2.
 Proof.
-  now induction 1; inversion 1; eauto.
+  now induction 1; inversion 1; auto.
 Qed.
 
 Lemma FullContraction_subst :
