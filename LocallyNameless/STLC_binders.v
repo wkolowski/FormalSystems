@@ -977,16 +977,9 @@ Proof.
   now apply (WfCtx_app_cons _ [] (fresh l) A), H; auto.
 Qed.
 
-#[export] Hint Resolve lc_Typing : core.
+#[export] Hint Immediate WfCtx_Typing : core.
 
-(*
-#[export] Hint Extern 1 (WfCtx (?Δ ++ ?Γ)) =>
-  match goal with
-  | H : WfCtx (Δ ++ _ :: Γ) |- _ => now apply WfCtx_app_cons in H
-  end : core.
-*)
-
-#[export] Hint Resolve WfCtx_app_cons WfCtx_Typing : core.
+#[export] Hint Resolve lc_Typing WfCtx_app_cons : core.
 
 (** ** Weakening *)
 

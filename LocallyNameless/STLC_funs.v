@@ -935,16 +935,9 @@ Proof.
   now apply (WfCtx_app_cons _ [] (fresh l) A), H; auto.
 Qed.
 
-#[export] Hint Resolve lc_Typing : core.
+#[export] Hint Immediate lc_Typing WfCtx_Typing : core.
 
-(*
-#[export] Hint Extern 1 (WfCtx (?Δ ++ ?Γ)) =>
-  match goal with
-  | H : WfCtx (Δ ++ _ :: Γ) |- _ => now apply WfCtx_app_cons in H
-  end : core.
-*)
-
-#[export] Hint Resolve WfCtx_app_cons WfCtx_Typing : core.
+#[export] Hint Resolve WfCtx_app_cons : core.
 
 (** ** Weakening *)
 
@@ -1481,7 +1474,7 @@ Proof.
   intros t A Ht.
   remember [] as Γ.
   induction Ht; subst; try now auto.
-  - now left; eauto.
+  - now left; eauto using lc_Typing.
   - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
     inversion Hv; subst; inversion Ht1; subst; try now auto.
     + now destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; eauto.
@@ -1878,7 +1871,7 @@ Proof.
   intros t A Ht.
   remember [] as Γ.
   induction Ht; subst; try now auto.
-  - now left; eauto.
+  - now left; eauto using lc_Typing.
   - destruct (IHHt1 eq_refl) as [ Hv | [t1' Hs1] ]; [| now eauto].
     now inversion Hv; subst; inversion Ht1; subst; eauto 6.
   - now right; eauto.

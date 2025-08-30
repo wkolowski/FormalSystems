@@ -437,9 +437,8 @@ Lemma LocallyClosed_lc :
 Proof.
   setoid_rewrite LocallyClosed_forall.
   intros t Hlc; induction Hlc; cbn; intros j a Hle;
-    rewrite 1?IHHlc, 1?IHHlc1, 1?IHHlc2, 1?IHHlc3; f_equal;
-    try now auto;
-    try now eapply (open_open _ 0 (S j)); auto.
+    rewrite 1?IHHlc, 1?IHHlc1, 1?IHHlc2, 1?IHHlc3; f_equal; [| now lia..].
+  now eapply (open_open _ 0 (S j)); auto.
 Qed.
 
 Lemma open_lc :
@@ -473,7 +472,8 @@ Lemma subst_open :
     a <> b -> lc u ->
     t [[ a := u ]] {{ i ~> b }} = t {{ i ~> b }} [[ a := u ]].
 Proof.
-  induction t; cbn; intros; [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
+  induction t; cbn; intros;
+    [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
   decide_all.
   now rewrite open_lc.
 Qed.
@@ -484,8 +484,8 @@ Lemma lc_subst :
 Proof.
   intros t x u Ht Hu; revert x u Hu.
   induction Ht; cbn; intros; try now auto.
-  - apply lc_abs with (x :: l).
-    now intros y Hy; rewrite subst_open; auto.
+  apply lc_abs with (x :: l).
+  now intros y Hy; rewrite subst_open; auto.
 Qed.
 
 Lemma lc_open' :
@@ -542,7 +542,8 @@ Lemma open'_subst :
       =
     t [[ x := u2 ]] {[ i ~> u1 [[ x := u2 ]] ]}.
 Proof.
-  induction t; cbn; intros; [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
+  induction t; cbn; intros;
+    [| now auto | now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3..].
   decide_all.
   now rewrite open'_lc.
 Qed.
@@ -610,9 +611,9 @@ Proof.
   functional induction (decide_lc' a t);
     try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
       cbn; constructor; [auto | inversion 1..]).
-  - destruct IHb; constructor.
-    + now unshelve eauto; exact [].
-    + now inversion 1; subst; eauto.
+  destruct IHb; constructor.
+  - now unshelve eauto; exact [].
+  - now inversion 1; subst; eauto.
 Qed.
 
 #[export, refine] Instance Decidable_lc :
@@ -794,16 +795,9 @@ Proof.
   now apply (WfCtx_app_cons _ [] (fresh l) A), H; auto.
 Qed.
 
-#[export] Hint Resolve lc_Typing : core.
+#[export] Hint Immediate lc_Typing WfCtx_Typing : core.
 
-(*
-#[export] Hint Extern 1 (WfCtx (?Δ ++ ?Γ)) =>
-  match goal with
-  | H : WfCtx (Δ ++ _ :: Γ) |- _ => now apply WfCtx_app_cons in H
-  end : core.
-*)
-
-#[export] Hint Resolve WfCtx_app_cons WfCtx_Typing : core.
+#[export] Hint Resolve WfCtx_app_cons : core.
 
 (** ** Weakening *)
 
@@ -854,7 +848,7 @@ Proof.
   intros * Ht Hu.
   remember (Δ ++ (x, A) :: Γ) as G.
   revert Δ x A Γ HeqG Hu.
-  induction Ht; cbn; intros; subst; try now unshelve eauto.
+  induction Ht; cbn; intros; subst; try now eauto.
   - apply WfCtx_app_cons in Hwf as Hwf'.
     decide_all.
     + apply Binds_inv' in HB as ->; [| easy].
@@ -1136,8 +1130,6 @@ Proof.
   now do 2 inversion 1.
 Qed.
 
-#[export] Hint Resolve CbvContraction_det CbvContraction_not_CbvValue : core.
-
 Lemma preservation_CbvContraction :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
     CbvContraction t t' ->
@@ -1234,9 +1226,6 @@ Proof.
   now do 2 inversion 1.
 Qed.
 
-#[export] Hint Resolve
-  CbvAbortion_det CbvAbortion_not_CbvValue CbvAbortion_not_CbvContraction : core.
-
 Lemma preservation_CbvAbortion :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
     CbvAbortion t t' ->
@@ -1297,7 +1286,7 @@ Proof.
   - now eapply CbvAbortion_not_CbvValue; eauto.
 Qed.
 
-#[export] Hint Immediate lc_CbvStep_l lc_CbvStep_r CbvStep_not_CbvValue : core.
+#[export] Hint Immediate lc_CbvStep_l lc_CbvStep_r : core.
 
 Lemma CbvContraction_CbvStep_det :
   forall t t1 t2 : Tm,
@@ -1324,8 +1313,6 @@ Proof.
   - now eapply CbvAbortion_not_CbvContraction in H; [| eauto].
   - now eapply CbvAbortion_det; eauto.
 Qed.
-
-#[export] Hint Resolve CbvContraction_CbvStep_det CbvAbortion_CbvStep_det : core.
 
 Lemma CbvStep_det :
   forall t t1 t2 : Tm,
@@ -1364,10 +1351,10 @@ Lemma progress_cbv :
 Proof.
   intros t A Ht.
   remember [] as Γ.
-  induction Ht; subst; try now eauto 6.
+  induction Ht; subst; try now eauto 6 using lc_Typing.
   destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ]; [| now eauto].
   destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
-  Time inversion Hv1; subst;
+  now inversion Hv1; subst;
     repeat (auto; match goal with
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
@@ -1569,8 +1556,6 @@ Proof.
   now do 2 inversion 1.
 Qed.
 
-#[export] Hint Resolve CbnContraction_det CbnContraction_not_CbnValue : core.
-
 Lemma preservation_CbnContraction :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
     CbnContraction t t' ->
@@ -1667,9 +1652,6 @@ Proof.
   now do 2 inversion 1.
 Qed.
 
-#[export] Hint Resolve
-  CbnAbortion_det CbnAbortion_not_CbnValue CbnAbortion_not_CbnContraction : core.
-
 Lemma preservation_CbnAbortion :
   forall (Γ : Ctx) (t t' : Tm) (A : Ty),
     CbnAbortion t t' ->
@@ -1725,7 +1707,7 @@ Proof.
   - now eapply CbnAbortion_not_CbnValue; eauto.
 Qed.
 
-#[export] Hint Resolve lc_CbnStep_l lc_CbnStep_r CbnStep_not_CbnValue : core.
+#[export] Hint Immediate lc_CbnStep_l lc_CbnStep_r : core.
 
 Lemma CbnContraction_CbnStep_det :
   forall t t1 t2 : Tm,
@@ -1752,8 +1734,6 @@ Proof.
   - now eapply CbnAbortion_not_CbnContraction in H; [| eauto].
   - now eapply CbnAbortion_det; eauto.
 Qed.
-
-#[export] Hint Resolve CbnContraction_CbnStep_det CbnAbortion_CbnStep_det : core.
 
 Lemma CbnStep_det :
   forall t t1 t2 : Tm,
@@ -1791,9 +1771,9 @@ Lemma progress_cbn :
 Proof.
   intros t A Ht.
   remember [] as Γ.
-  induction Ht; subst; try now eauto 6.
+  induction Ht; subst; try now eauto 6 using lc_Typing.
   destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ]; [| now eauto].
-  Time inversion Hv1; subst;
+  inversion Hv1; subst;
     repeat (auto; match goal with
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
