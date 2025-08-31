@@ -11,7 +11,8 @@ Inductive Ty : Type :=
 | TyProd  : Ty -> Ty -> Ty
 | TySum   : Ty -> Ty -> Ty
 | TyNat   : Ty
-| TyBool  : Ty.
+| TyBool  : Ty
+| TyList  : Ty -> Ty.
 
 Fixpoint eq_dec_Ty (A B : Ty) : {A = B} + {A <> B}.
 Proof.
@@ -86,7 +87,10 @@ Inductive Const : Type :=
 | rec
 | tt
 | ff
-| elimBool.
+| elimBool
+| cnil
+| ccons
+| elimList.
 
 Inductive Tm : Type :=
 | fvar       : Atom -> Tm
@@ -776,7 +780,19 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
 | Typing_elimBool :
   forall (Γ : Ctx) (A : Ty)
     (Hwf : WfCtx Γ),
-    Typing Γ elimBool (TyFun A (TyFun A (TyFun TyBool A))).
+    Typing Γ elimBool (TyFun A (TyFun A (TyFun TyBool A)))
+| Typing_cnil :
+  forall (Γ : Ctx) (A : Ty)
+    (Hwf : WfCtx Γ),
+    Typing Γ cnil (TyList A)
+| Typing_ccons :
+  forall (Γ : Ctx) (A : Ty)
+    (Hwf : WfCtx Γ),
+    Typing Γ ccons (TyFun A (TyFun (TyList A) (TyList A)))
+| Typing_elimList :
+  forall (Γ : Ctx) (A B : Ty)
+    (Hwf : WfCtx Γ),
+    Typing Γ elimList (TyFun B (TyFun (TyFun A (TyFun B B)) (TyFun (TyList A) B))).
 
 #[export] Hint Constructors Typing : core.
 
@@ -972,7 +988,25 @@ Inductive CbvValue : Tm -> Prop :=
   forall (t1 t2 : Tm)
     (Hv1 : CbvValue t1)
     (Hv2 : CbvValue t2),
-    CbvValue (app (app elimBool t1) t2).
+    CbvValue (app (app elimBool t1) t2)
+| CbvValue_ccons1 :
+  forall (t1 : Tm)
+    (Hv1 : CbvValue t1),
+    CbvValue (app ccons t1)
+| CbvValue_ccons2 :
+  forall (t1 t2 : Tm)
+    (Hv1 : CbvValue t1)
+    (Hv2 : CbvValue t2),
+    CbvValue (app (app ccons t1) t2)
+| CbvValue_elimList1 :
+  forall (t1 : Tm)
+    (Hv1 : CbvValue t1),
+    CbvValue (app elimList t1)
+| CbvValue_elimList2 :
+  forall (t1 t2 : Tm)
+    (Hv1 : CbvValue t1)
+    (Hv2 : CbvValue t2),
+    CbvValue (app (app elimList t1) t2).
 
 #[export] Hint Constructors CbvValue : core.
 
@@ -1006,6 +1040,10 @@ match t with
 | app (app rec t1) t2      => cbvValue t1 && cbvValue t2
 | app elimBool t1          => cbvValue t1
 | app (app elimBool t1) t2 => cbvValue t1 && cbvValue t2
+| app ccons t1             => cbvValue t1
+| app (app ccons t1) t2    => cbvValue t1 && cbvValue t2
+| app elimList t1          => cbvValue t1
+| app (app elimList t1) t2 => cbvValue t1 && cbvValue t2
 | app _ _                  => false
 end.
 
@@ -1096,7 +1134,21 @@ Inductive CbvContraction : Tm -> Tm -> Prop :=
     (Hv1 : CbvValue t1)
     (Hv2 : CbvValue t2),
     CbvContraction
-      (app (app (app elimBool t1) t2) ff) t2.
+      (app (app (app elimBool t1) t2) ff) t2
+| CbvContraction_elimList_cnil :
+  forall (t1 t2 : Tm)
+    (Hv1 : CbvValue t1)
+    (Hv2 : CbvValue t2),
+    CbvContraction (app (app (app elimList t1) t2) cnil) t1
+| CbvContraction_elimList_ccons :
+  forall (t1 t2 t3 t4 : Tm)
+    (Hv1 : CbvValue t1)
+    (Hv2 : CbvValue t2)
+    (Hv3 : CbvValue t3)
+    (Hv4 : CbvValue t4),
+    CbvContraction
+      (app (app (app elimList t1) t2) (app (app ccons t3) t4))
+      (app (app t2 t3) (app (app (app elimList t1) t2) t4)).
 
 #[export] Hint Constructors CbvContraction : core.
 
@@ -1104,14 +1156,14 @@ Lemma lc_CbvContraction_l :
   forall t t' : Tm,
     CbvContraction t t' -> lc t.
 Proof.
-  now inversion 1; eauto.
+  now inversion 1; eauto 6.
 Qed.
 
 Lemma lc_CbvContraction_r :
   forall t t' : Tm,
     CbvContraction t t' -> lc t'.
 Proof.
-  now inversion 1; eauto.
+  now inversion 1; eauto 6.
 Qed.
 
 #[export] Hint Immediate lc_CbvContraction_l lc_CbvContraction_r : core.
@@ -1139,7 +1191,7 @@ Proof.
   now inversion 1; subst; intros;
     repeat match goal with
     | H : Typing _ ?t _ |- _ => tryif is_var t then fail else (inversion H; subst; clear H)
-    end; eauto 6.
+    end; eauto 7.
 Qed.
 
 (*** *** Abortion *)
@@ -1185,7 +1237,13 @@ Inductive CbvAbortion : Tm -> Tm -> Prop :=
     (Hv1 : CbvValue t1)
     (Hv2 : CbvValue t2)
     (Hv3 : CbvValue t3),
-    CbvAbortion (app (app (app elimBool t1) t2) (app abort t3)) (app abort t3).
+    CbvAbortion (app (app (app elimBool t1) t2) (app abort t3)) (app abort t3)
+| CbvAbortion_elimList :
+  forall (t1 t2 t3 : Tm)
+    (Hv1 : CbvValue t1)
+    (Hv2 : CbvValue t2)
+    (Hv3 : CbvValue t3),
+    CbvAbortion (app (app (app elimList t1) t2) (app abort t3)) (app abort t3).
 
 #[export] Hint Constructors CbvAbortion : core.
 
@@ -1354,7 +1412,7 @@ Proof.
   induction Ht; subst; try now eauto 6 using lc_Typing.
   destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ]; [| now eauto].
   destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto].
-  now inversion Hv1; subst;
+  Time now inversion Hv1; subst;
     repeat (auto; match goal with
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
@@ -1441,7 +1499,25 @@ Inductive CbnValue : Tm -> Prop :=
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
-    CbnValue (app (app elimBool t1) t2).
+    CbnValue (app (app elimBool t1) t2)
+| CbnValue_ccons1 :
+  forall (t1 : Tm)
+    (Hlc1 : lc t1),
+    CbnValue (app ccons t1)
+| CbnValue_ccons2 :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnValue (app (app ccons t1) t2)
+| CbnValue_elimList1 :
+  forall (t1 : Tm)
+    (Hlc1 : lc t1),
+    CbnValue (app elimList t1)
+| CbnValue_elimList2 :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnValue (app (app elimList t1) t2).
 
 #[export] Hint Constructors CbnValue : core.
 
@@ -1522,7 +1598,21 @@ Inductive CbnContraction : Tm -> Tm -> Prop :=
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     CbnContraction
-      (app (app (app elimBool t1) t2) ff) t2.
+      (app (app (app elimBool t1) t2) ff) t2
+| CbnContraction_elimList_cnil :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnContraction (app (app (app elimList t1) t2) cnil) t1
+| CbnContraction_elimList_ccons :
+  forall (t1 t2 t3 t4 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3)
+    (Hlc4 : lc t4),
+    CbnContraction
+      (app (app (app elimList t1) t2) (app (app ccons t3) t4))
+      (app (app t2 t3) (app (app (app elimList t1) t2) t4)).
 
 #[export] Hint Constructors CbnContraction : core.
 
@@ -1530,14 +1620,14 @@ Lemma lc_CbnContraction_l :
   forall t t' : Tm,
     CbnContraction t t' -> lc t.
 Proof.
-  now inversion 1; eauto.
+  now inversion 1; eauto 6.
 Qed.
 
 Lemma lc_CbnContraction_r :
   forall t t' : Tm,
     CbnContraction t t' -> lc t'.
 Proof.
-  now inversion 1; eauto.
+  now inversion 1; eauto 6.
 Qed.
 
 #[export] Hint Immediate lc_CbnContraction_l lc_CbnContraction_r : core.
@@ -1565,7 +1655,7 @@ Proof.
   now inversion 1; subst; intros;
     repeat match goal with
     | H : Typing _ ?t _ |- _ => tryif is_var t then fail else (inversion H; subst; clear H)
-    end; eauto 6.
+    end; eauto 7.
 Qed.
 
 (*** *** Abortion *)
@@ -1611,7 +1701,13 @@ Inductive CbnAbortion : Tm -> Tm -> Prop :=
     (Hlc1 : lc t1)
     (Hlc2 : lc t2)
     (Hlc3 : lc t3),
-    CbnAbortion (app (app (app elimBool t1) t2) (app abort t3)) (app abort t3).
+    CbnAbortion (app (app (app elimBool t1) t2) (app abort t3)) (app abort t3)
+| CbnAbortion_elimList :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    CbnAbortion (app (app (app elimList t1) t2) (app abort t3)) (app abort t3).
 
 #[export] Hint Constructors CbnAbortion : core.
 
@@ -1672,7 +1768,7 @@ Inductive CbnStep : Tm -> Tm -> Prop :=
   forall t t' : Tm,
     CbnContraction t t' ->
     CbnStep t t'
-| CbnStep_CbvAbortion :
+| CbnStep_CbnAbortion :
   forall t t' : Tm,
     CbnAbortion t t' ->
     CbnStep t t'
@@ -1714,7 +1810,7 @@ Lemma CbnContraction_CbnStep_det :
     CbnContraction t t1 -> CbnStep t t2 -> t1 = t2.
 Proof.
   inversion 2; subst; intros; [| |
-    try match goal with
+    match goal with
     | Hs : CbnStep ?t ?t' |- _ =>
       now apply CbnStep_not_CbnValue in Hs; [| inversion H; subst; eauto]
     end..].
@@ -1794,7 +1890,6 @@ Proof.
     + inversion Ht3.
     + right. eexists.
     admit.
-  - 
 Admitted.
 
 Lemma Cbv_Cbn :
@@ -1805,4 +1900,372 @@ Proof.
   - inversion 1; eauto.
   - inversion 1; eauto.
     + constructor.
+Admitted.
+
+(** ** Full reduction *)
+
+(** Normal and neutral forms *)
+
+Inductive Nf : Tm -> Prop :=
+| Nf_Ne :
+  forall (t' : Tm),
+    Ne t' -> Nf t'
+| Nf_abs  :
+  forall (t' : Tm) (l : list Atom)
+    (Hne' : forall x : Atom, x # l -> Ne (t' {{ 0 ~> x }})),
+    Nf (abs t')
+(*
+| Nf_const :
+  forall (c : Const),
+    Nf c
+| Nf_elimUnit1 :
+  forall (t' : Tm)
+    (Hnf' : Nf t'),
+    Nf (app elimUnit t')
+| Nf_abort1 :
+  forall (t' : Tm)
+    (Hnf1 : Nf t'),
+    Nf (app abort t')
+| Nf_pair1 :
+  forall t1 : Tm,
+    Nf t1 ->
+    Nf (app pair t1)
+| Nf_pair2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app pair t1) t2)
+| Nf_elimProd1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app elimProd t1)
+| Nf_inl1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app inl t1)
+| Nf_in41 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app inr t1)
+| Nf_case1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app case t1)
+| Nf_case2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app case t1) t2)
+| Nf_succ1 :
+  forall (t' : Tm)
+    (Hnf' : Nf t'),
+    Nf (app succ t')
+| Nf_rec1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app rec t1)
+| Nf_rec2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app rec t1) t2)
+| Nf_elimBool1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app elimBool t1)
+| Nf_elimBool2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app elimBool t1) t2)
+| Nf_ccons1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app ccons t1)
+| Nf_ccons2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app ccons t1) t2)
+| Nf_elimList1 :
+  forall (t1 : Tm)
+    (Hnf1 : Nf t1),
+    Nf (app elimList t1)
+| Nf_elimList2 :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2),
+    Nf (app (app elimList t1) t2)
+*)
+
+with Ne : Tm -> Prop :=
+| Ne_fvar :
+  forall (x : Atom),
+    Ne x
+| Ne_app  :
+  forall (t1 t2 : Tm)
+    (Ne1 : Ne t1)
+    (Nf2 : Nf t2),
+    Ne (app t1 t2).
+
+#[export] Hint Constructors Nf Ne : core.
+
+Lemma lc_Nf :
+  forall t : Tm,
+    Nf t -> lc t
+
+with lc_Ne :
+  forall t : Tm,
+    Ne t -> lc t.
+Proof.
+  - induction 1.
+    + now apply lc_Ne.
+    + now econstructor; eauto.
+  - induction 1; [now constructor |].
+    constructor.
+    + now apply lc_Ne.
+    + now apply lc_Nf.
+Admitted.
+
+#[export] Hint Immediate lc_Nf : core.
+
+(** ** Contraction *)
+
+Inductive Contraction : Tm -> Tm -> Prop :=
+| Contraction_app_abs :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hlc1 : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }}))
+    (Hlc2 : lc t2),
+    Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]}).
+(*
+| Contraction_annot :
+  forall (t : Tm) (A : Ty)
+    (Hlc : lc t),
+    Contraction (annot t A) t
+| Contraction_elimUnit :
+  forall (t1 : Tm)
+    (Hlc1 : lc t1),
+    Contraction (app (app elimUnit t1) unit) (app t1 unit)
+| Contraction_outl_pair :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction (app outl (app (app pair t1) t2)) t1
+| Contraction_outr_pair :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction (app outr (app (app pair t1) t2)) t2
+| Contraction_elimProd_pair :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    Contraction (app (app elimProd t1) (app (app pair t2) t3)) (app (app t1 t2) t3)
+| Contraction_case_inl :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    Contraction (app (app (app case t1) t2) (app inl t3)) (app t1 t3)
+| Contraction_case_inr :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    Contraction (app (app (app case t1) t2) (app inr t3)) (app t2 t3)
+| Contraction_rec_zero :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction (app (app (app rec t1) t2) zero) t1
+| Contraction_rec_succ :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    Contraction
+      (app (app (app rec t1) t2) (app succ t3))
+      (app t2 (app (app (app rec t1) t2) t3))
+| Contraction_elimBool_tt :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction
+      (app (app (app elimBool t1) t2) tt) t1
+| Contraction_elimBool_ff :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction
+      (app (app (app elimBool t1) t2) ff) t2
+| Contraction_elimList_cnil :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    Contraction (app (app (app elimList t1) t2) cnil) t1
+| Contraction_elimList_ccons :
+  forall (t1 t2 t3 t4 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3)
+    (Hlc4 : lc t4),
+    Contraction
+      (app (app (app elimList t1) t2) (app (app ccons t3) t4))
+      (app (app t2 t3) (app (app (app elimList t1) t2) t4)).
+*)
+#[export] Hint Constructors Contraction : core.
+
+Lemma lc_Contraction_l :
+  forall t t' : Tm,
+    Contraction t t' -> lc t.
+Proof.
+  now inversion 1; eauto 6.
+Qed.
+
+Lemma lc_Contraction_r :
+  forall t t' : Tm,
+    Contraction t t' -> lc t'.
+Proof.
+  now inversion 1; eauto 6.
+Qed.
+
+#[export] Hint Immediate lc_Contraction_l lc_Contraction_r : core.
+
+Lemma Contraction_det :
+  forall t t1 t2 : Tm,
+    Contraction t t1 -> Contraction t t2 -> t1 = t2.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+Lemma Contraction_not_Nf :
+  forall t t' : Tm,
+    Contraction t t' -> Nf t -> False.
+Proof.
+  do 2 inversion 1; subst.
+  inversion H3; subst.
+  now inversion Ne1.
+Qed.
+
+Lemma preservation_Contraction :
+  forall (Γ : Ctx) (t t' : Tm) (A : Ty),
+    Contraction t t' ->
+    Typing Γ t A ->
+    Typing Γ t' A.
+Proof.
+  now inversion 1; subst; intros;
+    repeat match goal with
+    | H : Typing _ ?t _ |- _ => tryif is_var t then fail else (inversion H; subst; clear H)
+    end; eauto 7.
+Qed.
+
+(** ** Reduction *)
+
+Inductive Step : Tm -> Tm -> Prop :=
+| Step_Contraction :
+  forall t t' : Tm,
+    Contraction t t' ->
+    Step t t'
+| Step_app_l :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    Step t1 t1' ->
+    Step (app t1 t2) (app t1' t2)
+| Step_app_r :
+  forall (t1 t2 t2' : Tm),
+    lc t1 ->
+    Step t2 t2' ->
+    Step (app t1 t2) (app t1 t2').
+
+#[export] Hint Constructors Step : core.
+
+Lemma lc_Step_l :
+  forall t t' : Tm,
+    Step t t' -> lc t.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma lc_Step_r :
+  forall t t' : Tm,
+    Step t t' -> lc t'.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma Step_not_Nf :
+  forall t t' : Tm,
+    Step t t' -> Nf t -> False
+
+with Step_not_Ne :
+  forall t t' : Tm,
+    Step t t' -> Ne t -> False.
+Proof.
+  - destruct 1; intros Hnf.
+    + now eapply Contraction_not_Nf; eauto.
+    + inversion Hnf; subst.
+      inversion H1; subst.
+      now apply Step_not_Ne in H0.
+    + inversion Hnf; subst.
+      inversion H1; subst.
+      now apply Step_not_Nf in H0.
+  - destruct 1; intros Hnf.
+    + now eapply Contraction_not_Nf; eauto.
+    + inversion Hnf; subst.
+      now apply Step_not_Ne in H0.
+    + inversion Hnf; subst.
+      now apply Step_not_Nf in H0.
+Qed.
+
+#[export] Hint Immediate lc_Step_l lc_Step_r : core.
+
+(** ** Progress and preservation *)
+
+Lemma preservation_ :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
+    Step t1 t2 ->
+    Typing Γ t1 A ->
+    Typing Γ t2 A.
+Proof.
+  intros Γ t1 t2 A Hstep; revert A.
+  induction Hstep; intros A; [| now inversion 1; subst; eauto..].
+  now eapply preservation_Contraction.
+Qed.
+
+Lemma progress_ :
+  forall (Γ : Ctx) (t : Tm) (A : Ty),
+    Typing Γ t A ->
+      Ne t \/ Nf t \/ exists t' : Tm, Step t t'.
+Proof.
+  intros Γ t A Ht.
+  induction Ht; subst; try now eauto 6 using lc_Typing.
+  - right; left.
+    apply Nf_abs with l; intros x Hx.
+    admit.
+  - 
+    
+
+  destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ]; [| now eauto].
+  inversion Hv1; subst;
+    repeat (auto; match goal with
+    | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
+    | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
+    end); eauto;
+  match goal with
+  | |- context [Nf (app _ ?t)] =>
+    repeat match goal with
+    | Hv : Nf t, Ht : Typing [] t _ |- _ =>
+      inversion Hv; subst; inversion Ht; subst
+    | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
+    | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
+    end
+  end; eauto 7.
+  - destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ].
+    inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
+    + inversion Ht3.
+    + inversion Ht3.
+    + inversion Ht3.
+    + right. eexists.
+    admit.
 Admitted.
