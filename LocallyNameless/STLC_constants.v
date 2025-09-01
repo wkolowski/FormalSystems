@@ -1912,9 +1912,8 @@ Inductive Nf : Tm -> Prop :=
     Ne t' -> Nf t'
 | Nf_abs  :
   forall (t' : Tm) (l : list Atom)
-    (Hne' : forall x : Atom, x # l -> Ne (t' {{ 0 ~> x }})),
+    (Hnf' : forall x : Atom, x # l -> Nf (t' {{ 0 ~> x }})),
     Nf (abs t')
-(*
 | Nf_const :
   forall (c : Const),
     Nf c
@@ -1943,7 +1942,7 @@ Inductive Nf : Tm -> Prop :=
   forall (t1 : Tm)
     (Hnf1 : Nf t1),
     Nf (app inl t1)
-| Nf_in41 :
+| Nf_inr1 :
   forall (t1 : Tm)
     (Hnf1 : Nf t1),
     Nf (app inr t1)
@@ -1996,7 +1995,6 @@ Inductive Nf : Tm -> Prop :=
     (Hnf1 : Nf t1)
     (Hnf2 : Nf t2),
     Nf (app (app elimList t1) t2)
-*)
 
 with Ne : Tm -> Prop :=
 | Ne_fvar :
@@ -2004,9 +2002,47 @@ with Ne : Tm -> Prop :=
     Ne x
 | Ne_app  :
   forall (t1 t2 : Tm)
-    (Ne1 : Ne t1)
-    (Nf2 : Nf t2),
-    Ne (app t1 t2).
+    (Hne1 : Ne t1)
+    (Hnf2 : Nf t2),
+    Ne (app t1 t2)
+| Ne_elimUnit :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hne2 : Ne t2),
+    Ne (app (app elimUnit t1) t2)
+| Ne_abort :
+  forall (t1 : Tm)
+    (Hne1 : Ne t1),
+    Ne (app abort t1)
+| Ne_elimProd :
+  forall (t1 t2 : Tm)
+    (Hnf1 : Nf t1)
+    (Hne2 : Ne t2),
+    Ne (app (app elimProd t1) t2)
+| Ne_case :
+  forall (t1 t2 t3 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2)
+    (Hne3 : Ne t3),
+    Ne (app (app (app case t1) t2) t3)
+| Ne_rec :
+  forall (t1 t2 t3 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2)
+    (Hne3 : Ne t3),
+    Ne (app (app (app rec t1) t2) t3)
+| Ne_elimBool :
+  forall (t1 t2 t3 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2)
+    (Hne3 : Ne t3),
+    Ne (app (app (app elimBool t1) t2) t3)
+| Ne_elimList :
+  forall (t1 t2 t3 : Tm)
+    (Hnf1 : Nf t1)
+    (Hnf2 : Nf t2)
+    (Hne3 : Ne t3),
+    Ne (app (app (app elimList t1) t2) t3).
 
 #[export] Hint Constructors Nf Ne : core.
 
@@ -2018,16 +2054,14 @@ with lc_Ne :
   forall t : Tm,
     Ne t -> lc t.
 Proof.
-  - induction 1.
+  - destruct 1; [| | now repeat constructor; auto..].
     + now apply lc_Ne.
-    + now econstructor; eauto.
-  - induction 1; [now constructor |].
-    constructor.
-    + now apply lc_Ne.
-    + now apply lc_Nf.
-Admitted.
+    + apply lc_abs with l; intros x Hx.
+      now apply lc_Nf, Hnf'.
+  - destruct 1; repeat constructor; (try now apply lc_Ne); auto.
+Qed.
 
-#[export] Hint Immediate lc_Nf : core.
+#[export] Hint Resolve lc_Nf : core.
 
 (** ** Contraction *)
 
@@ -2036,8 +2070,7 @@ Inductive Contraction : Tm -> Tm -> Prop :=
   forall (t1 t2 : Tm) (l : list Atom)
     (Hlc1 : forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }}))
     (Hlc2 : lc t2),
-    Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]}).
-(*
+    Contraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
 | Contraction_annot :
   forall (t : Tm) (A : Ty)
     (Hlc : lc t),
@@ -2113,7 +2146,7 @@ Inductive Contraction : Tm -> Tm -> Prop :=
     Contraction
       (app (app (app elimList t1) t2) (app (app ccons t3) t4))
       (app (app t2 t3) (app (app (app elimList t1) t2) t4)).
-*)
+
 #[export] Hint Constructors Contraction : core.
 
 Lemma lc_Contraction_l :
@@ -2143,9 +2176,11 @@ Lemma Contraction_not_Nf :
   forall t t' : Tm,
     Contraction t t' -> Nf t -> False.
 Proof.
-  do 2 inversion 1; subst.
-  inversion H3; subst.
-  now inversion Ne1.
+  inversion 1; subst; intros;
+  repeat match goal with
+  | Hnf : Nf ?t |- _ => tryif is_var t then fail else inversion Hnf; subst; clear Hnf
+  | Hne : Ne ?t |- _ => tryif is_var t then fail else inversion Hne; subst; clear Hne
+  end.
 Qed.
 
 Lemma preservation_Contraction :
@@ -2167,6 +2202,10 @@ Inductive Step : Tm -> Tm -> Prop :=
   forall t t' : Tm,
     Contraction t t' ->
     Step t t'
+| Step_abs :
+  forall (t t' : Tm) (l : list Atom)
+    (Hs : forall x : Atom, x # l -> Step (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})),
+    Step (abs t) (abs t')
 | Step_app_l :
   forall (t1 t1' t2 : Tm),
     lc t2 ->
@@ -2204,18 +2243,20 @@ with Step_not_Ne :
 Proof.
   - destruct 1; intros Hnf.
     + now eapply Contraction_not_Nf; eauto.
-    + inversion Hnf; subst.
-      inversion H1; subst.
-      now apply Step_not_Ne in H0.
-    + inversion Hnf; subst.
-      inversion H1; subst.
-      now apply Step_not_Nf in H0.
+    + inversion Hnf; subst; [now inversion H |].
+      pose (x := fresh (l ++ l0)).
+      now apply (Step_not_Nf (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})); auto.
+    + apply Step_not_Nf in H0; [easy |]; clear Step_not_Nf Step_not_Ne.
+      inversion Hnf; subst; try now eauto.
+      now inversion H1; subst; auto.
+    + apply Step_not_Nf in H0; [easy |]; clear Step_not_Nf Step_not_Ne.
+      inversion Hnf; subst; try now eauto.
+      now inversion H1; subst; auto.
   - destruct 1; intros Hnf.
     + now eapply Contraction_not_Nf; eauto.
-    + inversion Hnf; subst.
-      now apply Step_not_Ne in H0.
-    + inversion Hnf; subst.
-      now apply Step_not_Nf in H0.
+    + now inversion Hnf.
+    + now inversion Hnf; subst; eauto.
+    + now inversion Hnf; subst; eauto.
 Qed.
 
 #[export] Hint Immediate lc_Step_l lc_Step_r : core.
@@ -2228,44 +2269,59 @@ Lemma preservation_ :
     Typing Γ t1 A ->
     Typing Γ t2 A.
 Proof.
-  intros Γ t1 t2 A Hstep; revert A.
-  induction Hstep; intros A; [| now inversion 1; subst; eauto..].
-  now eapply preservation_Contraction.
+  intros Γ t1 t2 A Hstep; revert Γ A.
+  induction Hstep; intros Γ A; [| | now inversion 1; subst; eauto..].
+  - now eapply preservation_Contraction.
+  - inversion 1; subst.
+    now apply Typing_abs with (l ++ l0); intros x Hx; auto.
 Qed.
 
 Lemma progress_ :
   forall (Γ : Ctx) (t : Tm) (A : Ty),
     Typing Γ t A ->
-      Ne t \/ Nf t \/ exists t' : Tm, Step t t'.
+      Nf t \/ exists t' : Tm, Step t t'.
 Proof.
   intros Γ t A Ht.
-  induction Ht; subst; try now eauto 6 using lc_Typing.
-  - right; left.
-    apply Nf_abs with l; intros x Hx.
-    admit.
-  - 
-    
+  induction Ht; subst; try now eauto 6.
+  - destruct (H (fresh (l ++ fv t')) ltac:(auto)) as [| [t'' IH] ].
+    + left; apply Nf_abs with (l ++ fv (t')); intros x Hx.
+      destruct (H x ltac:(auto)) as [| [t'' IH] ]; [easy |].
+      apply Step_not_Nf in IH; [easy |].
+      admit.
+    + right; exists (abs t'').
+      apply Step_abs with l; intros x Hx.
+      admit.
+  - destruct IHHt1 as [| [t1' IH1] ]; [| now eauto].
+    destruct IHHt2 as [| [t2' IH2] ]; [| now eauto].
+(*
+    inversion H; subst; [now destruct IHHt2 as [| [t'' IH] ]; eauto.. | |].
+    + right; exists (t' {[ 0 ~> t2 ]}); constructor.
+      constructor 1 with l; [| now eauto].
+      intros x Hx.
+      apply lc_Typing in Ht1.
+      now inversion Ht1; eauto.
+    + inversion H; subst. Focus 2.
+  - right. eauto. destruct IHHt as [| [t1' IH1] ].
+    inversion H; subst; [now destruct IHHt2 as [| [t'' IH] ]; eauto |].
+    right; exists (t' {[ 0 ~> t2 ]}); constructor.
+    constructor 1 with l; [| now eauto].
+    intros x Hx.
+    apply lc_Typing in Ht1.
+    now inversion Ht1; eauto.
+*)
 
-  destruct (IHHt1 eq_refl) as [ Hv1 | [t1' Hs1] ]; [| now eauto].
-  inversion Hv1; subst;
+  inversion H; subst; clear H;
     repeat (auto; match goal with
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
-    end); eauto;
+    end); eauto 7.
   match goal with
   | |- context [Nf (app _ ?t)] =>
     repeat match goal with
-    | Hv : Nf t, Ht : Typing [] t _ |- _ =>
+    | Hv : Nf t, Ht : Typing _ t _ |- _ =>
       inversion Hv; subst; inversion Ht; subst
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
     end
-  end; eauto 7.
-  - destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ].
-    inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
-    + inversion Ht3.
-    + inversion Ht3.
-    + inversion Ht3.
-    + right. eexists.
-    admit.
+  end; eauto.
 Admitted.
