@@ -209,7 +209,7 @@ Proof.
     + apply MultiStep_refl.
       apply lc_abs with l; intros y Hy.
       now apply lc_open_invariant with x.
-    + admit.
+    + eapply abs_eq; cycle 1; eauto. admit.
   - constructor 2 with (abs (t2 {{ 0 <~ x }})).
     + constructor 2 with l. 
       intros y Hy.

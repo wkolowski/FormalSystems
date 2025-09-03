@@ -211,14 +211,22 @@ Defined.
 
 (** ** Characterization of equality *)
 
+Lemma close_fv :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv t ->
+    t {{ i <~ x }} = t.
+Proof.
+  induction t; cbn; intros i x Hx;
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto..].
+  now firstorder decide_all.
+Qed.
+
 Lemma open_close_fv :
   forall (t : Tm) (i : nat) (x : Atom),
     x # fv t ->
     t {{ i ~> x }} {{ i <~ x }} = t.
 Proof.
-  induction t; cbn; intros i x Hx;
-    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto..].
-  now firstorder decide_all.
+  now intros; rewrite open_close_eq, close_fv.
 Qed.
 
 Lemma abs_eq :
@@ -1921,10 +1929,10 @@ Inductive Nf : Tm -> Prop :=
   forall (t' : Tm)
     (Hnf' : Nf t'),
     Nf (app elimUnit t')
-| Nf_abort1 :
+(* | Nf_abort1 :
   forall (t' : Tm)
     (Hnf1 : Nf t'),
-    Nf (app abort t')
+    Nf (app abort t') *)
 | Nf_pair1 :
   forall t1 : Tm,
     Nf t1 ->
@@ -2014,6 +2022,14 @@ with Ne : Tm -> Prop :=
   forall (t1 : Tm)
     (Hne1 : Ne t1),
     Ne (app abort t1)
+| Ne_outl :
+  forall (t1 : Tm)
+    (Hne1 : Ne t1),
+    Ne (app outl t1)
+| Ne_outr :
+  forall (t1 : Tm)
+    (Hne1 : Ne t1),
+    Ne (app outr t1)
 | Ne_elimProd :
   forall (t1 t2 : Tm)
     (Hnf1 : Nf t1)
@@ -2165,6 +2181,17 @@ Qed.
 
 #[export] Hint Immediate lc_Contraction_l lc_Contraction_r : core.
 
+Lemma Contraction_subst :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    Contraction t t' ->
+    Contraction (t [[ x := u ]]) (t' [[ x := u]]).
+Proof.
+  inversion 2; cbn; rewrite ?open'_subst by easy; auto.
+  constructor 1 with (x :: l); [| now apply lc_subst].
+  now intros y Hy; rewrite subst_open; auto.
+Qed.
+
 Lemma Contraction_det :
   forall t t1 t2 : Tm,
     Contraction t t1 -> Contraction t t2 -> t1 = t2.
@@ -2252,11 +2279,28 @@ Proof.
     + apply Step_not_Nf in H0; [easy |]; clear Step_not_Nf Step_not_Ne.
       inversion Hnf; subst; try now eauto.
       now inversion H1; subst; auto.
+  - destruct 1; intros Hne.
+    + now eapply Contraction_not_Nf; eauto.
+    + now inversion Hne; subst; clear Hne.
+    + now inversion Hne; subst; clear Hne; eauto.
+    + now inversion Hne; subst; clear Hne; eauto.
+Restart.
   - destruct 1; intros Hnf.
     + now eapply Contraction_not_Nf; eauto.
-    + now inversion Hnf.
-    + now inversion Hnf; subst; eauto.
-    + now inversion Hnf; subst; eauto.
+    + inversion Hnf; subst; [now inversion H |].
+      pose (x := fresh (l ++ l0)).
+      now apply (Step_not_Nf (t {{ 0 ~> x }}) (t' {{ 0 ~> x }})); auto.
+    + apply Step_not_Nf in H0; [easy |]; clear Step_not_Nf Step_not_Ne.
+      inversion Hnf; subst; try now eauto.
+      now inversion H1; subst; auto.
+    + apply Step_not_Nf in H0; [easy |]; clear Step_not_Nf Step_not_Ne.
+      inversion Hnf; subst; try now eauto.
+      now inversion H1; subst; auto.
+  - destruct 1; intros Hnf;
+      try match goal with
+      | Hne : Ne ?t |- _ => tryif is_var t then fail else now inversion Hne; subst; clear Hne; eauto
+      end.
+    now eapply Contraction_not_Nf; eauto.
 Qed.
 
 #[export] Hint Immediate lc_Step_l lc_Step_r : core.
@@ -2276,6 +2320,163 @@ Proof.
     now apply Typing_abs with (l ++ l0); intros x Hx; auto.
 Qed.
 
+Lemma Nf_subst_var :
+  forall (t : Tm) (x y : Atom),
+    Nf t -> Nf (t [[ x := y ]])
+
+with Ne_subst_var :
+  forall (t : Tm) (x y : Atom),
+    Ne t -> Ne (t [[ x := y ]]).
+Proof.
+  - destruct 1; cbn;
+      try now constructor; apply Nf_subst_var; auto.
+    + now constructor; apply Ne_subst_var.
+    + apply Nf_abs with (x :: l); intros z Hz.
+      now rewrite !subst_open; auto.
+  - destruct 1; cbn; try now constructor; auto.
+    now decide_all.
+Qed.
+
+Lemma subst_subst_var :
+  forall (t : Tm) (x y : Atom),
+    t [[ x := y ]] [[ y := x]] = t.
+Proof.
+Admitted.
+
+Lemma Nf_subst_var' :
+  forall (t : Tm) (x y : Atom),
+    Nf (t [[ x := y ]]) -> Nf t.
+Proof.
+  intros.
+  rewrite <- (subst_subst_var _ x y).
+  now apply Nf_subst_var.
+Admitted.
+(*
+Restart.
+  - destruct t; cbn; intros; try easy.
+    + now do 2 constructor.
+    + inversion H; subst.
+      * now inversion H0.
+      * apply Nf_abs with (x :: l); intros z Hz.
+        apply (Nf_subst_var' _ x y).
+        rewrite <- subst_open by auto.
+        now apply Hnf'; auto.
+    + admit.
+    + inversion H; subst.
+      now inversion H0.
+  - destruct t; cbn; intros; econstructor; eauto.
+Qed.
+*)
+
+Lemma Nf_rename :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    x # fv t ->
+    Nf (t {{ i ~> x }}) -> Nf (t {{ i ~> y }}).
+Proof.
+  intros t i x y Hx Hnf.
+  rewrite <- !open'_atom, !open'_spec with (x := x) by easy.
+  now apply Nf_subst_var.
+Qed.
+
+Lemma Nf_rename' :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    Nf (t {{ i ~> x }}) -> Nf (t {{ i ~> y }}).
+Proof.
+  intros t i x y Hnf.
+  apply (Nf_subst_var _ x y) in Hnf.
+  apply (Nf_subst_var' _ x y).
+  rewrite open_subst in Hnf |- *.
+  now decide_all.
+Qed.
+
+Lemma Nf_open :
+  forall (t : Tm) (i : nat) (x : Atom),
+    Nf t -> Nf (t {{ i ~> x }}).
+Proof.
+  now intros; rewrite open_lc; auto.
+Qed.
+
+Lemma Step_open :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    Step t1 t2 -> Step (t1 {{ i ~> x }}) (t2 {{ i ~> x }}).
+Proof.
+  now intros; rewrite !open_lc; eauto.
+Qed.
+
+Lemma Step_close :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    x # fv t1 ++ fv t2 ->
+    Step t1 t2 -> Step (t1 {{ i <~ x }}) (t2 {{ i <~ x }}).
+Proof.
+Admitted.
+
+Lemma Step_open_l :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    Step (t1 {{ i ~> x }}) t2 -> Step (t1 {{ i ~> x }}) (t2 {{ i ~> x }}).
+Proof.
+  intros.
+  apply (Step_open _ _ i x) in H.
+  now rewrite open_open_eq in H.
+Qed.
+
+Lemma Step_subst :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    Step t t' ->
+    Step (t [[ x := u ]]) (t' [[ x := u]]).
+Proof.
+  intros t t' u x Hlc Hfs; revert u x Hlc.
+  induction Hfs; cbn; intros.
+  - constructor.
+    now apply Contraction_subst.
+  - constructor 2 with (x :: l); intros y Hy.
+    now rewrite !subst_open; auto.
+  - now constructor 3; eauto.
+  - now constructor 4; eauto.
+Qed.
+
+Lemma Step_subst' :
+  forall (t t' : Tm) (x y : Atom),
+    Step (t [[ x := y ]]) (t' [[ x := y]]) ->
+    Step t t'.
+Proof.
+  intros t t' x y Hs.
+  apply (Step_subst _ _ x y) in Hs; [| easy].
+  now rewrite 2!subst_subst_var in Hs.
+Qed.
+
+Lemma Step_rename :
+  forall (t t' : Tm) (i : nat) (x y : Atom),
+    x # fv t ++ fv t' ->
+    Step (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
+      Step (t {{ i ~> y }}) (t' {{ i ~> y }}).
+Proof.
+  intros t t' i x y Hx Hfs.
+  rewrite <- 2!open'_atom, 2!open'_spec with (x := x) by auto.
+  now apply Step_subst.
+Qed.
+
+Lemma Step_rename_l :
+  forall (t t' : Tm) (i : nat) (x y : Atom),
+    x # fv t ->
+    Step (t {{ i ~> x }}) t' ->
+      Step (t {{ i ~> y }}) t'.
+Proof.
+  intros t t' i x y Hx Hfs.
+  rewrite <- !open'_atom, !open'_spec with (x := x) by auto.
+Abort.
+
+Lemma Step_rename' :
+  forall (t t' : Tm) (i : nat) (x y : Atom),
+    Step (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
+      Step (t {{ i ~> y }}) (t' {{ i ~> y }}).
+Proof.
+  intros t t' i x y Hfs.
+  apply (Step_subst  _ _ (fresh (fv t ++ fv t')) x) in Hfs; [| easy].
+  Check open'_atom. rewrite <- !open'_atom.
+  Check open'_spec.
+Abort.
+
 Lemma progress_ :
   forall (Γ : Ctx) (t : Tm) (A : Ty),
     Typing Γ t A ->
@@ -2283,45 +2484,59 @@ Lemma progress_ :
 Proof.
   intros Γ t A Ht.
   induction Ht; subst; try now eauto 6.
-  - destruct (H (fresh (l ++ fv t')) ltac:(auto)) as [| [t'' IH] ].
-    + left; apply Nf_abs with (l ++ fv (t')); intros x Hx.
-      destruct (H x ltac:(auto)) as [| [t'' IH] ]; [easy |].
-      apply Step_not_Nf in IH; [easy |].
-      admit.
-    + right; exists (abs t'').
-      apply Step_abs with l; intros x Hx.
-      admit.
+  - pose (x := fresh (l ++ fv t')).
+    destruct (H x ltac:(auto)) as [| [t'' IH] ].
+    + left; apply Nf_abs with (l ++ fv t'); intros y Hy.
+      now apply Nf_rename with x; auto.
+    + right; exists (abs (t'' {{ 0 <~ x }})).
+      pose (y := fresh (l ++ fv t' ++ fv t'')).
+      apply Step_abs with (x :: y :: l); intros z Hz.
+      apply (Step_close _ _ 0 y) in IH; [| admit].
+
+
+      apply (Step_subst _ _ y x) in IH; [| easy].
+      apply (Step_subst' _ _ x y).
+      rewrite !open_subst. decide_all; auto. admit.
+      Check open_subst _ 0 x y x.
+      rewrite open_subst in IH; decide_all.
+      enough (Step (t' [[ x := y ]] {{0 ~> z}}) (t'' [[x := y]] {{ 0 <~ y }} {{0 ~> z}})) by admit.
+      apply Step_open.
+      apply (Step_close _ _ 0 y) in IH; [| auto].
+
+      rewrite subst_fv by admit.
+      apply Step_open.
+
+ Search subst close. eapply Step_rename with (x := fresh (l ++ fv t' ++ fv t'')).
+      assert (Hs1 :
+        Step
+          (t' {{ 0 ~> fresh (l ++ fv t') }} {{ 0 <~ fresh (l ++ fv (t' {{ 0 ~> fresh (l ++ fv t') }}) ++ fv t'') }})
+          (t'' {{ 0 <~ fresh (l ++ fv t') }})).
+      admit. clear IH.
+      rewrite close_fv in Hs1 by auto. Search close open.
+      cut (Step (t' {{ 0 ~> fresh (l ++ fv t') }} {{ 0 <~ fresh (l ++ fv t') }}) (t'' {{ 0 <~ fresh (l ++ fv t') }})).
+      {
+        intros Hs.
+        apply Step_open.
+        rewrite open_close_fv in Hs by auto.
+        easy.
+      }
+      
+
+      apply Step_rename with (fresh (l ++ fv t')). [now auto |].
+      destruct (H x Hx).
+      * apply Step_not_Nf in IH; [easy |].
+        now apply Nf_rename' with x.
+      * apply Step_rename with (fresh (l ++ fv t' ++ fv t'')); [now auto |].
+        apply Step_open_l.
+        apply Step_rename_l.
   - destruct IHHt1 as [| [t1' IH1] ]; [| now eauto].
     destruct IHHt2 as [| [t2' IH2] ]; [| now eauto].
-(*
-    inversion H; subst; [now destruct IHHt2 as [| [t'' IH] ]; eauto.. | |].
-    + right; exists (t' {[ 0 ~> t2 ]}); constructor.
-      constructor 1 with l; [| now eauto].
-      intros x Hx.
-      apply lc_Typing in Ht1.
-      now inversion Ht1; eauto.
-    + inversion H; subst. Focus 2.
-  - right. eauto. destruct IHHt as [| [t1' IH1] ].
-    inversion H; subst; [now destruct IHHt2 as [| [t'' IH] ]; eauto |].
-    right; exists (t' {[ 0 ~> t2 ]}); constructor.
-    constructor 1 with l; [| now eauto].
-    intros x Hx.
-    apply lc_Typing in Ht1.
-    now inversion Ht1; eauto.
-*)
-
-  inversion H; subst; clear H;
-    repeat (auto; match goal with
-    | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
-    | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
-    end); eauto 7.
-  match goal with
-  | |- context [Nf (app _ ?t)] =>
-    repeat match goal with
-    | Hv : Nf t, Ht : Typing _ t _ |- _ =>
-      inversion Hv; subst; inversion Ht; subst
-    | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
-    | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
-    end
-  end; eauto.
+    Time inversion H; subst; clear H;
+      repeat (auto; match goal with
+      | H : Typing _ ?t _ |- _ => tryif is_var t then fail else inversion H; subst; clear H
+      end); only 1: eauto 7;
+    inversion H0; subst; clear H0;
+      repeat (auto; match goal with
+      | H : Typing _ ?t _ |- _ => tryif is_var t then fail else inversion H; subst; clear H
+      end); eauto.
 Admitted.
