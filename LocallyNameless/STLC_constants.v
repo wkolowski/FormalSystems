@@ -2339,34 +2339,25 @@ Qed.
 
 Lemma subst_subst_var :
   forall (t : Tm) (x y : Atom),
+    y # fv t ->
     t [[ x := y ]] [[ y := x]] = t.
 Proof.
-Admitted.
+  induction t; cbn; intros; try easy.
+  - now firstorder decide_all.
+  - now rewrite IHt.
+  - now rewrite IHt1, IHt2; auto.
+  - now rewrite IHt.
+Qed.
 
 Lemma Nf_subst_var' :
   forall (t : Tm) (x y : Atom),
+    y # fv t ->
     Nf (t [[ x := y ]]) -> Nf t.
 Proof.
   intros.
-  rewrite <- (subst_subst_var _ x y).
+  rewrite <- (subst_subst_var _ x y) by auto.
   now apply Nf_subst_var.
-Admitted.
-(*
-Restart.
-  - destruct t; cbn; intros; try easy.
-    + now do 2 constructor.
-    + inversion H; subst.
-      * now inversion H0.
-      * apply Nf_abs with (x :: l); intros z Hz.
-        apply (Nf_subst_var' _ x y).
-        rewrite <- subst_open by auto.
-        now apply Hnf'; auto.
-    + admit.
-    + inversion H; subst.
-      now inversion H0.
-  - destruct t; cbn; intros; econstructor; eauto.
 Qed.
-*)
 
 Lemma Nf_rename :
   forall (t : Tm) (i : nat) (x y : Atom),
@@ -2385,8 +2376,15 @@ Proof.
   intros t i x y Hnf.
   apply (Nf_subst_var _ x y) in Hnf.
   apply (Nf_subst_var' _ x y).
-  rewrite open_subst in Hnf |- *.
-  now decide_all.
+(*   rewrite open_subst in Hnf. |- *. *)
+(*   now decide_all. *)
+Restart.
+  induction t; cbn; intros; auto.
+  - inversion H; subst.
+    + now inversion H0.
+    + constructor 2 with l; intros z Hz.
+      admit.
+    + 
 Qed.
 
 Lemma Nf_open :
@@ -2403,11 +2401,67 @@ Proof.
   now intros; rewrite !open_lc; eauto.
 Qed.
 
+Lemma fv_open :
+  forall (t : Tm) (i : nat) (x : Atom),
+    incl (fv t) (fv (t {{ i ~> x }})).
+Proof.
+  induction t; cbn; intros; try easy.
+  apply incl_app.
+  - now apply incl_app_l.
+  - now apply incl_app_r.
+Qed.
+
+Lemma fv_open' :
+  forall (t : Tm) (i : nat) (x : Atom),
+    incl (fv (t {{ i ~> x }})) (x :: fv t).
+Proof.
+  induction t; cbn; intros; try easy.
+  - admit.
+  - now decide_all.
+  - apply incl_app.
+    + rewrite app_comm_cons.
+      now apply incl_app_l.
+    + admit.
+Admitted.
+
+Lemma lc_close :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv t ->
+    lc t ->
+    lc (t {{ i <~ x }}).
+Proof.
+  intros t i x Hx Hlc; revert i x Hx.
+  induction Hlc; cbn; intros; [now firstorder decide_all | | now auto..].
+  constructor 2 with (x :: l); intros y Hy.
+  rewrite <- open_close_neq by auto.
+  apply H; [now auto |].
+  apply Fresh_incl with (y :: fv t').
+  - now apply fv_open'.
+  - now rewrite_fresh; auto.
+Qed.
+
 Lemma Step_close :
   forall (t1 t2 : Tm) (i : nat) (x : Atom),
     x # fv t1 ++ fv t2 ->
-    Step t1 t2 -> Step (t1 {{ i <~ x }}) (t2 {{ i <~ x }}).
+    Step t1 t2 ->
+    Step (t1 {{ i <~ x }}) (t2 {{ i <~ x }}).
 Proof.
+  intros t1 t2 i x Hx Hs; revert i x Hx.
+  induction Hs; cbn; intros.
+  - admit.
+  - constructor 2 with (x :: l); intros y Hy.
+    rewrite <- open_close_neq by auto.
+    rewrite <- open_close_neq at 1 by auto.
+    apply H; [now auto |].
+    apply Fresh_incl with (y :: fv t ++ fv t'); [| now rewrite_fresh; auto].
+    rewrite app_comm_cons.
+    apply incl_app.
+    + now apply incl_app_l, fv_open'.
+    + admit.
+  - constructor 3; [| now auto].
+    now apply lc_close; auto.
+  - constructor 4; [| now auto].
+    now apply lc_close; auto.
 Admitted.
 
 Lemma Step_open_l :
@@ -2437,12 +2491,13 @@ Qed.
 
 Lemma Step_subst' :
   forall (t t' : Tm) (x y : Atom),
+    y # fv t ++ fv t' ->
     Step (t [[ x := y ]]) (t' [[ x := y]]) ->
     Step t t'.
 Proof.
-  intros t t' x y Hs.
+  intros t t' x y Hy Hs.
   apply (Step_subst _ _ x y) in Hs; [| easy].
-  now rewrite 2!subst_subst_var in Hs.
+  now rewrite 2!subst_subst_var in Hs; auto.
 Qed.
 
 Lemma Step_rename :
