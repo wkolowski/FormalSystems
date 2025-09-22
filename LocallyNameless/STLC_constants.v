@@ -2340,13 +2340,20 @@ Qed.
 Lemma subst_subst_var :
   forall (t : Tm) (x y : Atom),
     y # fv t ->
-    t [[ x := y ]] [[ y := x]] = t.
+    t [[ x := y ]] [[ y := x ]] = t.
 Proof.
   induction t; cbn; intros; try easy.
   - now firstorder decide_all.
   - now rewrite IHt.
   - now rewrite IHt1, IHt2; auto.
   - now rewrite IHt.
+Qed.
+
+Lemma Nf_open :
+  forall (t : Tm) (i : nat) (x : Atom),
+    Nf t -> Nf (t {{ i ~> x }}).
+Proof.
+  now intros; rewrite open_lc; auto.
 Qed.
 
 Lemma Nf_subst_var' :
@@ -2358,6 +2365,20 @@ Proof.
   rewrite <- (subst_subst_var _ x y) by auto.
   now apply Nf_subst_var.
 Qed.
+
+Lemma Nf_subst_var'' :
+  forall (t : Tm) (x y : Atom),
+    Nf (t [[ x := y ]]) -> Nf t.
+Proof.
+  induction t; cbn; intros.
+  - now do 2 constructor.
+  - now inversion H; inversion H0.
+  - inversion H; subst; [now inversion H0 | clear H].
+    apply Nf_abs with (x :: y :: l); intros z Hz.
+    specialize (Hnf' z ltac:(auto)).
+    rewrite subst_open in Hnf' by auto.
+    apply Nf_open.
+Abort.
 
 Lemma Nf_rename :
   forall (t : Tm) (i : nat) (x y : Atom),
@@ -2384,15 +2405,8 @@ Restart.
     + now inversion H0.
     + constructor 2 with l; intros z Hz.
       admit.
-    + 
-Qed.
-
-Lemma Nf_open :
-  forall (t : Tm) (i : nat) (x : Atom),
-    Nf t -> Nf (t {{ i ~> x }}).
-Proof.
-  now intros; rewrite open_lc; auto.
-Qed.
+  - admit.
+Admitted.
 
 Lemma Step_open :
   forall (t1 t2 : Tm) (i : nat) (x : Atom),
@@ -2440,36 +2454,23 @@ Proof.
   - now rewrite_fresh; auto.
 Qed.
 
-Lemma Step_close :
-  forall (t1 t2 : Tm) (i : nat) (x : Atom),
-    x # fv t1 ++ fv t2 ->
-    Step t1 t2 ->
-    Step (t1 {{ i <~ x }}) (t2 {{ i <~ x }}).
-Proof.
-  intros t1 t2 i x Hx Hs; revert i x Hx.
-  induction Hs; cbn; intros.
-  - admit.
-  - constructor 2 with (x :: l); intros y Hy.
-    rewrite <- open_close_neq by auto.
-    rewrite <- open_close_neq at 1 by auto.
-    apply H; [now auto |].
-    apply Fresh_incl with (y :: fv t ++ fv t'); [| now rewrite_fresh; auto].
-    rewrite app_comm_cons.
-    apply incl_app.
-    + now apply incl_app_l, fv_open'.
-    + admit.
-  - constructor 3; [| now auto].
-    now apply lc_close; auto.
-  - constructor 4; [| now auto].
-    now apply lc_close; auto.
-Admitted.
-
 Lemma Step_open_l :
   forall (t1 t2 : Tm) (i : nat) (x : Atom),
-    Step (t1 {{ i ~> x }}) t2 -> Step (t1 {{ i ~> x }}) (t2 {{ i ~> x }}).
+    Step (t1 {{ i ~> x }}) t2 ->
+    Step (t1 {{ i ~> x }}) (t2 {{ i ~> x }}).
 Proof.
   intros.
   apply (Step_open _ _ i x) in H.
+  now rewrite open_open_eq in H.
+Qed.
+
+Lemma Step_open_l' :
+  forall (t1 t2 : Tm) (i : nat) (x y : Atom),
+    Step (t1 {{ i ~> x }}) t2 ->
+    Step (t1 {{ i ~> x }}) (t2 {{ i ~> y }}).
+Proof.
+  intros.
+  apply (Step_open _ _ i y) in H.
   now rewrite open_open_eq in H.
 Qed.
 
@@ -2477,7 +2478,7 @@ Lemma Step_subst :
   forall (t t' u : Tm) (x : Atom),
     lc u ->
     Step t t' ->
-    Step (t [[ x := u ]]) (t' [[ x := u]]).
+    Step (t [[ x := u ]]) (t' [[ x := u ]]).
 Proof.
   intros t t' u x Hlc Hfs; revert u x Hlc.
   induction Hfs; cbn; intros.
@@ -2492,13 +2493,27 @@ Qed.
 Lemma Step_subst' :
   forall (t t' : Tm) (x y : Atom),
     y # fv t ++ fv t' ->
-    Step (t [[ x := y ]]) (t' [[ x := y]]) ->
+    Step (t [[ x := y ]]) (t' [[ x := y ]]) ->
     Step t t'.
 Proof.
   intros t t' x y Hy Hs.
   apply (Step_subst _ _ x y) in Hs; [| easy].
   now rewrite 2!subst_subst_var in Hs; auto.
 Qed.
+
+Lemma Step_subst'' :
+  forall (t t' u : Tm) (x : Atom),
+    lc u ->
+    Step (t [[ x := u ]]) (t' [[ x := u ]]) ->
+    Step t t'.
+Proof.
+  intros t t' u x Hlc Hs.
+  remember (t [[ x := u ]]) as t1.
+  remember (t' [[ x := u ]]) as t2.
+  revert t t' x u Heqt1 Heqt2 Hlc.
+  induction Hs; intros; subst.
+  - admit.
+Abort.
 
 Lemma Step_rename :
   forall (t t' : Tm) (i : nat) (x y : Atom),
@@ -2510,27 +2525,38 @@ Proof.
   rewrite <- 2!open'_atom, 2!open'_spec with (x := x) by auto.
   now apply Step_subst.
 Qed.
+Check open'_atom.
+Check open'_spec.
 
-Lemma Step_rename_l :
-  forall (t t' : Tm) (i : nat) (x y : Atom),
-    x # fv t ->
-    Step (t {{ i ~> x }}) t' ->
-      Step (t {{ i ~> y }}) t'.
+Lemma Step_std' :
+  forall (t1 t1' t2 : Tm) (i : nat) (x : Atom),
+    Step t1 t2 -> t1 = t1' {{ i ~> x }} ->
+      exists t2' : Tm, t2 = t2' {{ i ~> x }}.
 Proof.
-  intros t t' i x y Hx Hfs.
-  rewrite <- !open'_atom, !open'_spec with (x := x) by auto.
-Abort.
+  intros t1 t1' t2 i x Hs; revert t1' i x.
+  induction Hs; intros; subst; cbn.
+  - admit.
+  - destruct t1'; cbn in *; inversion H0; subst; [now decide_all |].
+    clear H0.
+    admit.
+  - destruct t1'0; cbn in *; inversion H0; subst; [now decide_all |].
+    destruct (IHHs _ _ _ eq_refl) as [t2' ->].
+    now  exists (app t2' t1'0_2); cbn.
+  - destruct t1'; cbn in *; inversion H0; subst; [now decide_all |].
+    destruct (IHHs _ _ _ eq_refl) as [t2'0 ->].
+    now  exists (app t1'1 t2'0); cbn.
+Restart.
+  intros; subst.
+  apply Step_open_l in H.
+Admitted.
 
-Lemma Step_rename' :
-  forall (t t' : Tm) (i : nat) (x y : Atom),
-    Step (t {{ i ~> x }}) (t' {{ i ~> x }}) ->
-      Step (t {{ i ~> y }}) (t' {{ i ~> y }}).
+Lemma Step_std :
+  forall (t1 t2' : Tm) (i : nat) (x : Atom),
+    Step (t1 {{ i ~> x }}) t2' ->
+      exists t2 : Tm, t2' = t2 {{ i ~> x }} /\ (x # fv t1 -> x # fv t2).
 Proof.
-  intros t t' i x y Hfs.
-  apply (Step_subst  _ _ (fresh (fv t ++ fv t')) x) in Hfs; [| easy].
-  Check open'_atom. rewrite <- !open'_atom.
-  Check open'_spec.
-Abort.
+(*   now intros; eapply Step_std'; eauto. *)
+Admitted.
 
 Lemma progress_ :
   forall (Γ : Ctx) (t : Tm) (A : Ty),
@@ -2538,52 +2564,7 @@ Lemma progress_ :
       Nf t \/ exists t' : Tm, Step t t'.
 Proof.
   intros Γ t A Ht.
-  induction Ht; subst; try now eauto 6.
-  - pose (x := fresh (l ++ fv t')).
-    destruct (H x ltac:(auto)) as [| [t'' IH] ].
-    + left; apply Nf_abs with (l ++ fv t'); intros y Hy.
-      now apply Nf_rename with x; auto.
-    + right; exists (abs (t'' {{ 0 <~ x }})).
-      pose (y := fresh (l ++ fv t' ++ fv t'')).
-      apply Step_abs with (x :: y :: l); intros z Hz.
-      apply (Step_close _ _ 0 y) in IH; [| admit].
-
-
-      apply (Step_subst _ _ y x) in IH; [| easy].
-      apply (Step_subst' _ _ x y).
-      rewrite !open_subst. decide_all; auto. admit.
-      Check open_subst _ 0 x y x.
-      rewrite open_subst in IH; decide_all.
-      enough (Step (t' [[ x := y ]] {{0 ~> z}}) (t'' [[x := y]] {{ 0 <~ y }} {{0 ~> z}})) by admit.
-      apply Step_open.
-      apply (Step_close _ _ 0 y) in IH; [| auto].
-
-      rewrite subst_fv by admit.
-      apply Step_open.
-
- Search subst close. eapply Step_rename with (x := fresh (l ++ fv t' ++ fv t'')).
-      assert (Hs1 :
-        Step
-          (t' {{ 0 ~> fresh (l ++ fv t') }} {{ 0 <~ fresh (l ++ fv (t' {{ 0 ~> fresh (l ++ fv t') }}) ++ fv t'') }})
-          (t'' {{ 0 <~ fresh (l ++ fv t') }})).
-      admit. clear IH.
-      rewrite close_fv in Hs1 by auto. Search close open.
-      cut (Step (t' {{ 0 ~> fresh (l ++ fv t') }} {{ 0 <~ fresh (l ++ fv t') }}) (t'' {{ 0 <~ fresh (l ++ fv t') }})).
-      {
-        intros Hs.
-        apply Step_open.
-        rewrite open_close_fv in Hs by auto.
-        easy.
-      }
-      
-
-      apply Step_rename with (fresh (l ++ fv t')). [now auto |].
-      destruct (H x Hx).
-      * apply Step_not_Nf in IH; [easy |].
-        now apply Nf_rename' with x.
-      * apply Step_rename with (fresh (l ++ fv t' ++ fv t'')); [now auto |].
-        apply Step_open_l.
-        apply Step_rename_l.
+  induction Ht; subst; (try now eauto); cycle 1.
   - destruct IHHt1 as [| [t1' IH1] ]; [| now eauto].
     destruct IHHt2 as [| [t2' IH2] ]; [| now eauto].
     Time inversion H; subst; clear H;
@@ -2594,4 +2575,12 @@ Proof.
       repeat (auto; match goal with
       | H : Typing _ ?t _ |- _ => tryif is_var t then fail else inversion H; subst; clear H
       end); eauto.
+  - pose (x := fresh (l ++ fv t')).
+    destruct (H x ltac:(auto)) as [| [t1' IH1] ].
+    + left; apply Nf_abs with (l ++ fv t'); intros y Hy.
+      now apply Nf_rename with x; auto.
+    + apply Step_std in IH1 as IH1'; destruct IH1' as [t1'' [-> ] ].
+      right; exists (abs t1'').
+      apply Step_abs with (x :: l); intros z Hz.
+      now apply Step_rename with x; auto.
 Admitted.
