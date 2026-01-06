@@ -210,8 +210,17 @@ match t with
   | _ => None
   end
 | unit => Some TyUnit
-| elimUnit t1 t2  => None
-| elimUnit' t1 t2 => None
+| elimUnit t1 t2  =>
+  if check Γ t1 TyUnit
+  then
+    let x := fresh (fv t2) in
+      infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x }})
+  else None
+| elimUnit' t1 t2 =>
+  match infer Γ t2 with
+  | Some (TyFun TyUnit A) => if check Γ t1 TyUnit then Some A else None
+  | _ => None
+  end
 | elimUnit''      => None
 | abort t'        => None
 | pair t1 t2      =>
@@ -230,6 +239,8 @@ match t with
   | _ => None
   end
 | elimProd t1 t2  => None
+| elimProd' t1 t2  => None
+| elimProd''      => None
 | inl t'          => None
 | inr t'          => None
 | case t1 t2 t3   => None
@@ -238,6 +249,8 @@ match t with
 | zero            => Some TyNat
 | succ t'         => if check Γ t' TyNat then Some TyNat else None
 | rec t1 t2 t3    => None
+| rec' t1 t2 t3   => None
+| rec''           => None
 end
 
 with check (Γ : Ctx) (t : Tm) (A : Ty) {struct t} : bool :=
@@ -258,12 +271,18 @@ match t with
 | unit            => decide (A = TyUnit)
 | elimUnit t1 t2  => decide (infer Γ t = Some A)
 | elimUnit' t1 t2 => decide (infer Γ t = Some A)
-| elimUnit''      => decide (infer Γ t = Some A)
+| elimUnit''      =>
+  match A with
+  | TyFun (TyFun TyUnit B1) (TyFun TyUnit B2) => decide (B1 = B2)
+  | _ => false
+  end
 | abort t'        => check Γ t' TyEmpty
 | pair t1 t2      => decide (infer Γ t = Some A)
 | outl t'         => decide (infer Γ t = Some A)
 | outr t'         => decide (infer Γ t = Some A)
 | elimProd t1 t2  => decide (infer Γ t = Some A)
+| elimProd' t1 t2 => decide (infer Γ t = Some A)
+| elimProd''      => decide (infer Γ t = Some A)
 | inl t'          =>
   match A with
   | TySum B _ => check Γ t' B
@@ -280,6 +299,8 @@ match t with
 | zero            => decide (A = TyNat)
 | succ t'         => decide (infer Γ t = Some A)
 | rec t1 t2 t3    => decide (infer Γ t = Some A)
+| rec' t1 t2 t3   => decide (infer Γ t = Some A)
+| rec''           => decide (infer Γ t = Some A)
 (* | _ => decide (infer Γ t = Some A) *)
 end.
 Set Guard Checking.
@@ -313,8 +334,20 @@ Proof.
       now apply check_spec.
     + injection Hi as [= <-].
       now constructor.
-    + easy.
-    + easy.
+    + destruct (check Γ t1 TyUnit) eqn: Hc; [| easy].
+      destruct (infer _ (t2 {{ 0 ~> fresh (fv t2) }})) as [A' |] eqn: Hi2; [| easy..].
+      injection Hi as [= ->].
+      eapply Typing_elimUnit with (map fst Γ ++ fv t2).
+      * now apply check_spec.
+      * intros x Hfv.
+        apply infer_spec; [now eauto |].
+        admit. (* Need infer_rename or Typing_rename *)
+    + destruct (infer Γ t2) as [ [ [] | | | | |] |] eqn: Hi2; try easy.
+      destruct (check Γ t1 TyUnit) eqn: Hc1; [| easy].
+      injection Hi as [= ->].
+      apply Typing_elimUnit'.
+      * now apply check_spec.
+      * now apply infer_spec.
     + easy.
     + easy.
     + destruct (infer Γ t1) eqn: Hi1; [| easy].
@@ -335,12 +368,16 @@ Proof.
     + easy.
     + easy.
     + easy.
+    + easy.
+    + easy.
     + injection Hi as [= <-].
       now constructor.
     + destruct (check Γ t TyNat) eqn: Hc; [| easy].
       injection Hi as [= <-].
       constructor.
       now apply check_spec.
+    + easy.
+    + easy.
     + easy.
   - destruct t; intros A Hwf Hc.
     + apply infer_spec; [easy |].
@@ -364,8 +401,14 @@ Proof.
       now cbn in Hc |- *; apply Decidable_sound in Hc.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
-    + apply infer_spec; [easy |].
-      now cbn in Hc |- *; apply Decidable_sound in Hc.
+    + cbn in Hc |- *.
+      destruct A; try easy.
+      destruct A1; try easy.
+      destruct A1_1; try easy.
+      destruct A2; try easy.
+      destruct A2_1; try easy.
+      apply Decidable_sound in Hc as ->.
+      now constructor.
     + cbn in Hc.
       now constructor; apply check_spec.
     + apply infer_spec; [easy |].
@@ -376,6 +419,8 @@ Proof.
       now cbn in Hc |- *; apply Decidable_sound in Hc.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
+    + easy.
+    + easy.
     + destruct A as [ | | | | | ]; cbn in Hc; try easy.
       now constructor; apply check_spec.
     + destruct A as [ | | | | | ]; cbn in Hc; try easy.
@@ -392,6 +437,8 @@ Proof.
       now cbn in Hc |- *; apply Decidable_sound in Hc.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
+    + easy.
+    + easy.
 Admitted.
 
 (*

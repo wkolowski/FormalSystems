@@ -2494,7 +2494,7 @@ Proof.
   - now eapply CbnAbortion_not_CbnValue; eauto.
 Qed.
 
-#[export] Hint Resolve lc_CbnStep_l lc_CbnStep_r CbnStep_not_CbnValue : core.
+#[export] Hint Immediate lc_CbnStep_l lc_CbnStep_r : core.
 
 Lemma CbnContraction_CbnStep_det :
   forall t t1 t2 : Tm,

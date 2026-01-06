@@ -17,17 +17,17 @@ Lemma lc_FullContraction_l :
   forall t t' : Tm,
     FullContraction t t' -> lc t.
 Proof.
-  now inversion 1; subst; econstructor; eauto.
+  now inversion 1; eauto.
 Qed.
 
 Lemma lc_FullContraction_r :
   forall t t' : Tm,
     FullContraction t t' -> lc t'.
 Proof.
-  now inversion 1; subst; eauto.
+  now inversion 1; eauto.
 Qed.
 
-#[export] Hint Resolve lc_FullContraction_l lc_FullContraction_r : core.
+#[export] Hint Immediate lc_FullContraction_l lc_FullContraction_r : core.
 
 Lemma FullContraction_det :
   forall t t1 t2 : Tm,
@@ -102,6 +102,11 @@ Proof.
     now rewrite !subst_open; auto.
   - now constructor 3; eauto.
   - now constructor 4; eauto.
+Restart.
+  intros t t' u x Hlc Hfs; revert u x Hlc.
+  induction Hfs; cbn; intros; only 1, 3-4: eauto.
+  constructor 2 with (x :: l); intros y Hy.
+  now rewrite !subst_open; auto.
 Qed.
 
 Lemma FullStep_rename :
@@ -136,8 +141,6 @@ Require Import Coq.Classes.RelationClasses.
 Proof.
   now induction 1; eauto.
 Qed.
-
-Require Import Coq.Relations.Relation_Operators.
 
 Lemma lc_MultiStep_l :
   forall t t' : Tm,
@@ -296,7 +299,7 @@ Lemma ParallelStep_refl :
     ParallelStep t t.
 Proof.
   induction 1; eauto.
-Admitted.
+Admitted. (* Will work after we add more cases/remove terms *)
 
 Lemma lc_ParallelStep_l :
   forall t t' : Tm,
@@ -348,7 +351,7 @@ Lemma ParallelStep_FullContraction :
   forall t1 t2 : Tm,
     FullContraction t1 t2 -> ParallelStep t1 t2.
 Proof.
-  now inversion 1; subst; eauto.
+  now inversion 1; eauto.
 Qed.
 
 Lemma ParallelStep_FullStep :
@@ -685,8 +688,7 @@ Lemma confluent_Step :
       exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
 Proof.
   setoid_rewrite MultiStep_ParallelMultiStep.
-  intros t t1 t2 Hs1 Hs2.
-  now apply confluent_ParallelMultiStep with t.
+  now apply confluent_ParallelMultiStep.
 Qed.
 
 Inductive Development : Tm -> Tm -> Prop :=
@@ -749,6 +751,11 @@ Proof.
   do 2 inversion 1; subst.
   - rewrite H4.
     constructor 4 with l.
+Restart.
+  intros t1 t2 t3 H12 H23; revert t1 H12.
+  induction H23; intros.
+  - admit.
+  - inversion H12; subst.
 Admitted.
 
 Lemma FullStep_Development :
