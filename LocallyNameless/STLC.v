@@ -1097,7 +1097,7 @@ Inductive Typing : Ctx -> Tm -> Ty -> Prop :=
       Typing ((y, B) :: (x, A) :: Γ) (t2 {{ 0 ~> x }} {{ 1 ~> y }}) C),
     Typing Γ (elimProd t1 t2) C
 | Typing_elimProd' :
-  forall (Γ : Ctx) (t1 t2 : Tm) (A B C : Ty) (l : list Atom)
+  forall (Γ : Ctx) (t1 t2 : Tm) (A B C : Ty)
     (Ht1 : Typing Γ t1 (TyFun A (TyFun B C)))
     (Ht2 : Typing Γ t2 (TyProd A B)),
     Typing Γ (elimProd' t1 t2) C

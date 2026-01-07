@@ -197,6 +197,8 @@ Proof.
   now split; intros [= ->].
 Defined.
 
+Require Import Bool.
+
 Unset Guard Checking.
 Fixpoint infer (Γ : Ctx) (t : Tm) {struct t} : option Ty :=
 match t with
@@ -210,12 +212,14 @@ match t with
   | _ => None
   end
 | unit => Some TyUnit
-| elimUnit t1 t2  =>
+| elimUnit t1 t2  => None
+(*
   if check Γ t1 TyUnit
   then
     let x := fresh (fv t2) in
       infer ((x, TyUnit) :: Γ) (t2 {{ 0 ~> x }})
   else None
+*)
 | elimUnit' t1 t2 =>
   match infer Γ t2 with
   | Some (TyFun TyUnit A) => if check Γ t1 TyUnit then Some A else None
@@ -239,17 +243,47 @@ match t with
   | _ => None
   end
 | elimProd t1 t2  => None
-| elimProd' t1 t2  => None
+(*
+  match infer Γ t1 with
+  | Some (TyProd A B) =>
+    let x := fresh (fv t2) in
+    let y := fresh (x :: fv t2) in
+      infer ((y, B) :: (x, A) :: Γ) t2
+  | _ => None
+  end
+*)
+| elimProd' t1 t2  =>
+  match infer Γ t2, infer Γ t1 with
+  | Some (TyProd A B), Some (TyFun A' (TyFun B' C)) =>
+    if decide (A = A') && decide (B = B')
+    then Some C
+    else None
+  | _, _ => None
+  end
 | elimProd''      => None
 | inl t'          => None
 | inr t'          => None
 | case t1 t2 t3   => None
-| case' t1 t2 t3  => None
+| case' t1 t2 t3  =>
+  match infer Γ t1, infer Γ t2 with
+  | Some (TyFun A C1), Some (TyFun B C2) =>
+    if check Γ t3 (TySum A B) && decide (C1 = C2)
+    then Some C1
+    else None
+  | _, _ => None
+  end
 | case''          => None
 | zero            => Some TyNat
 | succ t'         => if check Γ t' TyNat then Some TyNat else None
 | rec t1 t2 t3    => None
-| rec' t1 t2 t3   => None
+| rec' t1 t2 t3   =>
+  match infer Γ t1 with
+  | Some A =>
+    if check Γ t2 (TyFun A A) && check Γ t3 TyNat
+    then Some A
+    else None
+  | _ => None
+  end
 | rec''           => None
 end
 
@@ -294,12 +328,16 @@ match t with
   | _ => false
   end
 | case t1 t2 t3   => decide (infer Γ t = Some A)
-| case' t1 t2 t3  => decide (infer Γ t = Some A)
+| case' t1 t2 t3  =>
+  match infer Γ t3 with
+  | Some (TySum B1 B2) => check Γ t1 (TyFun B1 A) && check Γ t2 (TyFun B2 A)
+  | _ => false
+  end
 | case''          => decide (infer Γ t = Some A)
 | zero            => decide (A = TyNat)
-| succ t'         => decide (infer Γ t = Some A)
+| succ t'         => decide (A = TyNat) && check Γ t' TyNat
 | rec t1 t2 t3    => decide (infer Γ t = Some A)
-| rec' t1 t2 t3   => decide (infer Γ t = Some A)
+| rec' t1 t2 t3   => check Γ t1 A && check Γ t2 (TyFun A A) && check Γ t3 TyNat
 | rec''           => decide (infer Γ t = Some A)
 (* | _ => decide (infer Γ t = Some A) *)
 end.
@@ -334,7 +372,8 @@ Proof.
       now apply check_spec.
     + injection Hi as [= <-].
       now constructor.
-    + destruct (check Γ t1 TyUnit) eqn: Hc; [| easy].
+    + easy.
+      (*destruct (check Γ t1 TyUnit) eqn: Hc; [| easy].
       destruct (infer _ (t2 {{ 0 ~> fresh (fv t2) }})) as [A' |] eqn: Hi2; [| easy..].
       injection Hi as [= ->].
       eapply Typing_elimUnit with (map fst Γ ++ fv t2).
@@ -342,6 +381,7 @@ Proof.
       * intros x Hfv.
         apply infer_spec; [now eauto |].
         admit. (* Need infer_rename or Typing_rename *)
+      *)
     + destruct (infer Γ t2) as [ [ [] | | | | |] |] eqn: Hi2; try easy.
       destruct (check Γ t1 TyUnit) eqn: Hc1; [| easy].
       injection Hi as [= ->].
@@ -363,12 +403,35 @@ Proof.
       apply Typing_outr with t0.
       now apply infer_spec.
     + easy.
+      (* destruct (infer Γ t1) as [ [] |] eqn: Hi'; try easy.
+      econstructor.
+      * now apply infer_spec; eauto.
+      * intros x y Hx Hy.
+        apply infer_spec; [now eauto |].
+        admit.
+      *)
+    + destruct (infer Γ t2) as [ [] |] eqn: Hi2; try easy.
+      destruct (infer Γ t1) as [ [] |] eqn: Hi1; try easy.
+      destruct t4; try easy.
+      decide (t = t3); [| easy].
+      decide (t0 = t4_1); [| easy].
+      cbn in Hi; subst; injection Hi as [= <-].
+      econstructor.
+      * now apply infer_spec; eauto.
+      * now apply infer_spec; eauto.
     + easy.
     + easy.
     + easy.
     + easy.
-    + easy.
-    + easy.
+    + destruct (infer Γ t1) as [ [] |] eqn: Hi1; try easy.
+      destruct (infer Γ t2) as [ [] |] eqn: Hi2; try easy.
+      destruct (check Γ t3 _) eqn: Hc3; [| easy].
+      decide (t0 = t5); subst; [| easy].
+      cbn in Hi; injection Hi as [= ->].
+      econstructor.
+      * now apply infer_spec; eauto.
+      * now apply infer_spec; eauto.
+      * now apply check_spec; eauto.
     + easy.
     + injection Hi as [= <-].
       now constructor.
@@ -377,7 +440,14 @@ Proof.
       constructor.
       now apply check_spec.
     + easy.
-    + easy.
+    + destruct (infer Γ t1) eqn: Hi1; try easy.
+      destruct (check Γ t2 _) eqn: Hc2; [| easy].
+      destruct (check Γ t3 _) eqn: Hc3; [| easy].
+      cbn in Hi; injection Hi as [= ->].
+      constructor.
+      * now apply infer_spec.
+      * now apply check_spec.
+      * now apply check_spec.
     + easy.
   - destruct t; intros A Hwf Hc.
     + apply infer_spec; [easy |].
@@ -419,7 +489,8 @@ Proof.
       now cbn in Hc |- *; apply Decidable_sound in Hc.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
-    + easy.
+    + apply infer_spec; [easy |].
+      now cbn in Hc |- *; apply Decidable_sound in Hc.
     + easy.
     + destruct A as [ | | | | | ]; cbn in Hc; try easy.
       now constructor; apply check_spec.
@@ -427,19 +498,32 @@ Proof.
       now constructor; apply check_spec.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
-    + apply infer_spec; [easy |].
-      now cbn in Hc |- *; apply Decidable_sound in Hc.
+    + cbn in Hc.
+      destruct (infer Γ t3) as [ [] |] eqn: Hi3; try easy.
+      destruct (check Γ t1 _) eqn: Hc1; [| easy].
+      destruct (check Γ t2 _) eqn: Hc2; [| easy].
+      econstructor.
+      * now apply check_spec; eauto.
+      * now apply check_spec; eauto.
+      * now apply infer_spec.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
     + cbn in Hc; apply Decidable_sound in Hc as ->.
       now constructor.
+    + cbn in Hc |- *.
+      decide (A = TyNat); subst; [| easy].
+      destruct (check Γ t TyNat) eqn: Hc'; [| easy].
+      constructor.
+      now apply check_spec.
     + apply infer_spec; [easy |].
       now cbn in Hc |- *; apply Decidable_sound in Hc.
-    + apply infer_spec; [easy |].
-      now cbn in Hc |- *; apply Decidable_sound in Hc.
+    + cbn in Hc.
+      destruct (check Γ t1 _) eqn: Hc1; [| easy].
+      destruct (check Γ t2 _) eqn: Hc2; [| easy].
+      destruct (check Γ t3 _) eqn: Hc3; [| easy].
+      now constructor; apply check_spec.
     + easy.
-    + easy.
-Admitted.
+Admitted. (* Cannot guess decreasing argument of fix. Because check calls infer on t. *)
 
 (*
 
