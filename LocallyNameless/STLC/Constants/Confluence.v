@@ -1,4 +1,4 @@
-From FormalSystems Require Export LocallyNameless.STLC.
+From FormalSystems Require Export LocallyNameless.STLC.Constants.
 
 (* * Confluence *)
 
