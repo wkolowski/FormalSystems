@@ -122,6 +122,41 @@ Qed.
 
 #[export] Hint Resolve FullStep_subst FullStep_rename : core.
 
+Inductive FullStep' : Tm -> Tm -> Prop :=
+| FullStep'_FullContraction :
+  forall t t' : Tm,
+    FullContraction t t' ->
+    FullStep' t t'
+| FullStep'_abs :
+  forall (t t' : Tm) (l : list Atom)
+    (Hfs' : forall x : Atom, x # l -> FullStep' (t {{ 0 ~> x }}) t'),
+    forall x : Atom, x # l ->
+    FullStep' (abs t) (abs (t {{ 0 <~ x }}))
+| FullStep'_app_l :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    FullStep' t1 t1' ->
+    FullStep' (app t1 t2) (app t1' t2)
+| FullStep'_app_r :
+  forall (t1 t1 t2 t2' : Tm),
+    lc t1 ->
+    FullStep' t2 t2' ->
+    FullStep' (app t1 t2) (app t1 t2').
+
+#[export] Hint Constructors FullStep' : core.
+
+Lemma FullStep'_spec :
+  forall (t1 t2 : Tm),
+    FullStep' t1 t2 <-> FullStep t1 t2.
+Proof.
+  split.
+  - induction 1; only 1, 3-4: now auto.
+    apply FullStep_abs with l; intros y Hy.
+    admit.
+  - induction 1; only 1, 3-4: now auto.
+    admit.
+Abort.
+
 Inductive MultiStep : Tm -> Tm -> Prop :=
 | MultiStep_refl :
   forall (t : Tm),
@@ -193,6 +228,74 @@ Proof.
   now eauto.
 Qed.
 
+
+Lemma standardize_FullContraction :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    FullContraction (t1 {{ i ~> x }}) t2 ->
+      exists t2' : Tm, t2 = t2' {{ i ~> x }}.
+Proof.
+  intros * Hfc.
+  inversion Hfc; subst; clear Hfc.
+  destruct t1; cbn in H0; try easy; [now decide_all |].
+  injection H0 as [= H1 ->].
+  exists (t0 {[ 0 ~> t1_2 {{ i ~> x }} ]} {{ i <~ x }}).
+  rewrite close_open_LocallyClosed; [easy |].
+  apply LocallyClosed_le with 0; [now lia |].
+  apply LocallyClosed_lc.
+  rewrite (open'_spec _ _ (fresh (l ++ fv t0))) by auto.
+  now apply lc_subst; auto.
+Qed.
+
+Check FullStep_rename.
+
+Lemma standardize_FullStep :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    FullStep (t1 {{ i ~> x }}) t2 ->
+      exists t2' : Tm, t2 = t2' {{ i ~> x }}.
+Proof.
+  intros.
+  exists (t2 {{ i <~ x }}).
+  rewrite close_open_eq.
+  now rewrite open_lc; eauto.
+Qed.
+
+Lemma standardize_FullStep' :
+  forall (t1 t2 : Tm) (i : nat) (x : Atom),
+    FullStep (t1 {{ i ~> x }}) t2 ->
+    FullStep (t1 {{ i ~> x }}) (t2 {{ i ~> x }}).
+Proof.
+  now intros; rewrite (open_lc t2); eauto.
+Qed.
+
+Lemma subst_atom :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc t -> t [[ x := y ]] = t {{ i <~ x }} {{ i ~> y }}.
+Proof.
+  intros t i x y Hlc; revert i x y.
+  induction Hlc; cbn; intros;
+    rewrite <- ?IHHlc, <- ?IHHlc1, <- ?IHHlc2; try now auto.
+  pose (l' := (x :: y :: l ++ fv t' ++
+    fv (t' [[x := y]]) ++ fv (t' {{S i <~ x}} {{S i ~> y}}))).
+  assert (Hl' := fresh_spec l').
+  apply (abs_eq _ _ (fresh l')); subst l'; [now auto |].
+  rewrite subst_open by auto.
+  rewrite open_open_neq by auto.
+  rewrite <- (open_close_neq _ 0 (S i)); [now auto.. |].
+  now rewrite Fresh_cons in Hl'.
+Qed.
+
+Lemma fv_close :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv (t {{ i <~ x }}).
+Proof.
+  induction t; cbn; intros; auto.
+  - decide_all.
+    now apply Fresh_singl.
+  - now apply Fresh_nil.
+  - now apply Fresh_app; auto.
+  - now apply Fresh_nil.
+Qed.
+
 Lemma MultiStep_abs :
   forall t t' : Tm,
     (exists l : list Atom, forall x : Atom, x # l ->
@@ -201,26 +304,35 @@ Lemma MultiStep_abs :
 Proof.
   intros t t' [l Hms].
   pose (x := fresh (l ++ fv t ++ fv t')).
+  assert (Hx : x # l ++ fv t ++ fv t') by apply fresh_spec.
   specialize (Hms x ltac:(auto)) as Hms'.
   clearbody x.
   remember (t {{ 0 ~> x }}) as u.
   remember (t' {{ 0 ~> x }}) as u'.
   clear Hms.
-  revert t t' Hequ Hequ'.
+  revert t t' Hx Hequ Hequ'.
   induction Hms'; intros; subst.
   - replace (abs t') with (abs t0).
     + apply MultiStep_refl.
       apply lc_abs with l; intros y Hy.
       now apply lc_open_invariant with x.
-    + eapply abs_eq; cycle 1; eauto. admit.
+    + now eapply abs_eq; cycle 1; eauto.
   - constructor 2 with (abs (t2 {{ 0 <~ x }})).
-    + constructor 2 with l. 
+    + constructor 2 with l.
       intros y Hy.
-      admit.
-    + apply IHHms'; [| easy].
-      
-specialize (IHHms' (t2 {{ 0 <~ x }}) t').
-Admitted.
+      rewrite <- (subst_atom _ 0) by eauto.
+      apply (FullStep_subst _ _ y x) in H; [| easy].
+      now rewrite <- !open'_spec, !open'_atom in H by auto.
+    + apply IHHms'.
+      * rewrite !Fresh_app.
+        repeat split; try now auto.
+        now apply fv_close.
+      * rewrite close_open_eq.
+        now rewrite (open_lc t2); eauto.
+      * easy.
+Qed.
+
+Print Assumptions MultiStep_abs.
 
 Lemma MultiStep_abs' :
   forall t t' : Tm,
@@ -264,6 +376,19 @@ Proof.
   - transitivity (app t1 t2); [| easy].
     apply MultiStep_app_r; [| now eauto].
     now apply lc_MultiStep_l in H.
+Qed.
+
+Lemma MultiStep_app_abs :
+  forall (t1 t2 t3 : Tm) (l : list Atom),
+    (forall x : Atom, x # l -> lc (t1 {{ 0 ~> x }})) ->
+    lc t2 ->
+    MultiStep (t1 {[ 0 ~> t2 ]}) t3 ->
+    MultiStep (app (abs t1) t2) t3.
+Proof.
+  intros t1 t2 t3 l Hlc1 Hlc2 Hms.
+  remember (t1 {[ 0 ~> t2 ]}) as t1'.
+  revert t1 t2 Hlc1 Hlc2 Heqt1'.
+  now induction Hms; intros; subst; eauto.
 Qed.
 
 #[export] Hint Resolve
@@ -515,7 +640,3 @@ Qed.
 
 Print Assumptions confluent_Step.
 Print Assumptions ParallelStep_refl.
-Print Assumptions MultiStep_abs.
-Print Assumptions confluent_Step.
-
-

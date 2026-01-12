@@ -9,34 +9,25 @@ Inductive Development : Tm -> Tm -> Prop :=
     (Hps' : forall x : Atom, x # l -> Development (t1 {{ 0 ~> x }}) (t2 {{ 0 ~> x }})),
     Development (abs t1) (abs t2)
 | Development_app :
-  forall (t1 t1' t2 t2' : Tm),
-    (forall u, t1 <> abs u) ->
-    Development t1 t1' ->
-    Development t2 t2' ->
+  forall (t1 t1' t2 t2' : Tm)
+    (Hd1 : Development t1 t1')
+    (Hd2 : Development t2 t2')
+    (Hneq : forall u : Tm, t1' <> abs u),
     Development (app t1 t2) (app t1' t2')
 | Development_app_abs :
-  forall (t1 t1' t1'' t2 t2' : Tm) (l : list Atom)
-    (Hps1 : forall x : Atom, x # l -> Development (t1 {{ 0 ~> x }}) (t1' {{ 0 ~> x }}))
-    (Hps2 : Development t2 t2')
-    (Heq : t1'' = t1' {[ 0 ~> t2' ]}),
-    Development (app (abs t1) t2) t1''.
+  forall (t1 t1' t1'' t2 t2' t3 : Tm)
+    (Hd1 : Development t1 t1')
+    (Hd2 : Development t2 t2')
+    (Heq : t1' = abs t1'')
+    (Hd' : Development (t1'' {[ 0 ~> t2' ]}) t3),
+    Development (app t1 t2) t3.
 
 #[export] Hint Constructors Development : core.
 
-(*
-Fixpoint development (t : Tm) : option Tm :=
-match t with
-| fvar x => Some (fvar x)
-| abs t' =>
-*)
-
-Goal Development (app (app (abs 0) (abs 0)) (abs 0)) (app (abs 0) (abs 0)).
+Lemma Development_abs0 :
+  Development (abs 0) (abs 0).
 Proof.
-  constructor; [now congruence | | now eauto].
-  now apply Development_app_abs with (t1' := 0) (t2' := abs 0) (l := []); eauto.
-  Unshelve.
-  exact [].
-  exact [].
+  now unshelve eauto; exact [].
 Qed.
 
 Lemma lc_Development_l :
@@ -50,7 +41,7 @@ Lemma lc_Development_r :
   forall t t' : Tm,
     Development t t' -> lc t'.
 Proof.
-  now induction 1; subst; eauto.
+  now induction 1; eauto.
 Qed.
 
 #[export] Hint Resolve lc_Development_l lc_Development_r : core.
@@ -64,34 +55,45 @@ Proof.
   - easy.
   - now apply abs_eq with (fresh (l ++ l0 ++ fv t2 ++ fv t4)); auto.
   - now erewrite IHHd1_1, IHHd1_2; eauto.
-  - now contradiction (H t3).
-  - now contradiction (H2 t1).
-  - rewrite !(open'_spec _ 0 (fresh (l ++ l0 ++ fv t1' ++ fv t1'0))) by auto.
-    now f_equal; auto.
+  - contradiction (Hneq t1'').
+    now apply IHHd1_1.
+  - contradiction (Hneq t1''); symmetry.
+    now apply IHHd1_1.
+  - apply IHHd1_3.
+    injection (IHHd1_1 _ Hd1) as [= ->].
+    now rewrite (IHHd1_2 _ Hd0).
+Qed.
+
+Lemma Dev_abs0_abs0_abs0 : Development (app (app (abs 0) (abs 0)) (abs 0)) (abs 0).
+Proof.
+  eauto using Development_abs0.
+Qed.
+
+Goal ~ Development (app (app (abs 0) (abs 0)) (abs 0)) (app (abs 0) (abs 0)).
+Proof.
+  intros Hd.
+  pose (Development_det _ _ _ Dev_abs0_abs0_abs0 Hd).
+  inversion e.
 Qed.
 
 Lemma Development_Nf :
   forall t1 t2 : Tm,
-    Development t1 t2 -> forall t3 : Tm, ~ FullContraction t2 t3.
+    Development t1 t2 -> forall t : Tm, ~ FullContraction t2 t.
 Proof.
-  induction 1; intros t3 Hfc.
+  induction 1; intros t Hfc; subst.
   - now inversion Hfc.
-  - admit.
-  - inversion Hfc; subst. auto.
-Abort.
-
+  - now inversion Hfc; subst.
+  - inversion Hfc; subst.
+    now contradiction (Hneq t0).
+  - now apply IHDevelopment3 in Hfc.
+Qed.
 
 Lemma Development_FullContraction :
   forall t1 t2 t3 : Tm,
     FullContraction t1 t2 -> Development t2 t3 -> Development t1 t3.
 Proof.
-  do 2 inversion 1; subst.
-  - rewrite H4.
-Restart.
-  intros t1 t2 t3 H12 H23; revert t1 H12.
-  induction H23; intros.
-  - admit.
-  - inversion H12; subst.
+  intros t1 t2 t3 [] Hd23. Print FullContraction.
+  eapply Development_app_abs with (t1' := abs t0) (t2' := t4).
 Admitted.
 
 Lemma FullStep_Development :
@@ -106,28 +108,25 @@ Proof.
     now eapply H; auto.
   - inversion Hd; subst.
     + constructor; [| now auto..].
-      intros u [= ->].
-      inversion Hfs; subst; [now inversion H0 |].
-      now contradiction (H2 t').
-    + inversion Hd; subst.
-      * now contradiction (H3 t0).
-      * 
-Restart.
-  intros t1 t2 t3 Hfs Hd; revert t1 Hfs.
-  induction Hd; intros.
-  - inversion Hfs; inversion H; subst.
-    destruct t0; cbn in H4; inversion H4; subst; cbn.
-Abort.
+      now apply IHHfs.
+    + apply Development_app_abs with (t1' := abs t1'') (t2' := t2') (t1'' := t1''); try easy.
+      now apply IHHfs.
+  - inversion Hd; subst.
+    + now constructor; auto.
+    + apply Development_app_abs with (t1' := abs t1'') (t2' := t2'0) (t1'' := t1''); try easy.
+      now apply IHHfs.
+Qed.
 
 Lemma MultiStep_Development :
   forall t1 t2 : Tm,
     Development t1 t2 -> MultiStep t1 t2.
 Proof.
   induction 1; eauto.
-  transitivity (app (abs t1') t2); [now eapply MultiStep_app; eauto |].
-  transitivity (app (abs t1') t2'); [now eapply MultiStep_app; eauto |].
+  transitivity (app t1' t2); [now eapply MultiStep_app; eauto |].
+  transitivity (app t1' t2'); [now eapply MultiStep_app; eauto |].
   subst.
-  now apply MultiStep_FullStep; constructor; eauto.
+  apply lc_Development_r in H; inversion H; subst.
+  now apply MultiStep_app_abs with l; eauto.
 Qed.
 
 #[export] Hint Resolve MultiStep_Development : core.

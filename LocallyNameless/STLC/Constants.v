@@ -239,6 +239,27 @@ Proof.
   now rewrite <- (open_close_fv t1 0 x), Heq, open_close_fv by auto.
 Qed.
 
+Lemma abs_eq' :
+  forall (t1 t2 : Tm),
+    (forall x : Atom,
+      x # fv t1 ++ fv t2 -> t1 {{ 0 ~> x }} = t2 {{ 0 ~> x }}) ->
+      abs t1 = abs t2.
+Proof.
+  intros t1 t2 Heq.
+  eapply abs_eq; [now eauto |].
+  now apply Heq; auto.
+Qed.
+
+Lemma abs_eq'' :
+  forall (t1 t2 : Tm) (l : list Atom),
+    (forall x : Atom, x # l -> t1 {{ 0 ~> x }} = t2 {{ 0 ~> x }}) ->
+      abs t1 = abs t2.
+Proof.
+  intros t1 t2 l Heq.
+  apply (abs_eq _ _ (fresh (l ++ fv t1 ++ fv t2))); [now eauto |].
+  now apply Heq; auto.
+Qed.
+
 (** ** Characterization of local closure *)
 
 Inductive LocallyClosed' : nat -> Tm -> Prop :=
@@ -602,8 +623,7 @@ Lemma lc_open_invariant :
 Proof.
   induction t; cbn; intros i x y Hlc;
     inversion Hlc; subst; try now eauto.
-  - apply lc_abs with l; intros z Hz.
-    admit.
+  apply lc_abs with l; intros z Hz.
 Admitted.
 
 Lemma lc_open_invariant' :
