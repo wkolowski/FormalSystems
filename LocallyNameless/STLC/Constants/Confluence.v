@@ -1,5 +1,7 @@
 From FormalSystems Require Export LocallyNameless.STLC.Constants.
 
+Require Export Coq.Classes.RelationClasses.
+
 (* * Confluence *)
 
 (* ** Contraction *)
@@ -170,8 +172,6 @@ Inductive MultiStep : Tm -> Tm -> Prop :=
 
 #[export] Hint Constructors MultiStep : core.
 
-Require Import Coq.Classes.RelationClasses.
-
 #[export] Instance Transitive_MultiStep : Transitive MultiStep.
 Proof.
   now induction 1; eauto.
@@ -245,8 +245,6 @@ Proof.
   rewrite (open'_spec _ _ (fresh (l ++ fv t0))) by auto.
   now apply lc_subst; auto.
 Qed.
-
-Check FullStep_rename.
 
 Lemma standardize_FullStep :
   forall (t1 t2 : Tm) (i : nat) (x : Atom),
@@ -331,8 +329,6 @@ Proof.
         now rewrite (open_lc t2); eauto.
       * easy.
 Qed.
-
-Print Assumptions MultiStep_abs.
 
 Lemma MultiStep_abs' :
   forall t t' : Tm,
@@ -457,6 +453,43 @@ Proof.
   - rewrite open'_subst by easy.
     constructor 4 with (x :: l); [| now apply IHHps].
     now intros y Hy; rewrite 2!subst_open; auto.
+Qed.
+
+Lemma ParallelStep_subst' :
+  forall (t t1 t2 : Tm) (x : Atom),
+    lc t ->
+    ParallelStep t1 t2 ->
+    ParallelStep (t [[ x := t1 ]]) (t [[ x := t2 ]]).
+Proof.
+  intros t t1 t2 x Hlc Hps.
+  assert (Hlc1 : lc t1) by eauto.
+  assert (Hlc2 : lc t2) by eauto.
+  revert t1 t2 x Hlc1 Hlc2 Hps.
+  induction Hlc; cbn; intros.
+  - now decide_all.
+  - apply ParallelStep_abs with (x :: l); intros y Hy.
+    now rewrite !subst_open; auto.
+  - now auto.
+  - admit. (* Will work with the full definition. *)
+  - admit.
+Admitted.
+
+Lemma ParallelStep_subst'' :
+  forall (t1 t1' t2 t2' : Tm) (x : Atom),
+    ParallelStep t1 t1' ->
+    ParallelStep t2 t2' ->
+    ParallelStep (t1 [[ x := t2 ]]) (t1' [[x := t2' ]]).
+Proof.
+  intros * Hps1 Hps2; revert t2 t2' x Hps2.
+  induction Hps1; cbn; intros.
+  - now decide_all.
+  - apply ParallelStep_abs with (x :: l); intros y Hy.
+    now rewrite !subst_open; eauto.
+  - now eauto.
+  - rewrite open'_subst by eauto.
+    apply ParallelStep_app_abs with (x :: l); [| now eauto].
+    intros y Hy.
+    now rewrite !subst_open; eauto.
 Qed.
 
 Lemma ParallelStep_rename :
@@ -586,57 +619,3 @@ Proof.
   - induction 1; [now eauto |].
     now transitivity t2; eauto.
 Qed.
-
-Axiom development : Tm -> Tm.
-
-Axiom development_spec :
-  forall t1 t2 : Tm,
-    ParallelStep t1 t2 -> ParallelStep t2 (development t1).
-
-Lemma confluent_ParallelStep :
-  forall t t1 t2 : Tm,
-    ParallelStep t t1 -> ParallelStep t t2 ->
-      ParallelStep t1 (development t) /\ ParallelStep t2 (development t).
-Proof.
-  intros t t1 t2 Hps1 Hps2.
-  now split; apply development_spec.
-Qed.
-
-Lemma confluent_ParallelStep_ParallelMultiStep :
-  forall t t1 t2 : Tm,
-    ParallelStep t t1 -> ParallelMultiStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  intros t t1 t2 H1 H2; revert t1 H1.
-  induction H2; intros; [now exists t1; eauto |].
-  edestruct (IHParallelMultiStep (development t1)) as [t4 [IH1 IH2] ].
-  - now apply development_spec.
-  - exists t4; split; [| easy].
-    transitivity (development t1); [| easy].
-    now apply ParallelMultiStep_ParallelStep, development_spec.
-Qed.
-
-Lemma confluent_ParallelMultiStep :
-  forall t t1 t2 : Tm,
-    ParallelMultiStep t t1 -> ParallelMultiStep t t2 ->
-      exists t3 : Tm, ParallelMultiStep t1 t3 /\ ParallelMultiStep t2 t3.
-Proof.
-  intros t t1 t2 H1 H2; revert t2 H2.
-  induction H1; intros; [now exists t2; eauto |].
-  destruct (confluent_ParallelStep_ParallelMultiStep _ _ _ H H2) as [t4 [H24 H04] ].
-  edestruct (IHParallelMultiStep _ H24) as [t5 [H35 H45] ].
-  exists t5; split; [easy |].
-  now transitivity t4.
-Qed.
-
-Lemma confluent_Step :
-  forall t t1 t2 : Tm,
-    MultiStep t t1 -> MultiStep t t2 ->
-      exists t3 : Tm, MultiStep t1 t3 /\ MultiStep t2 t3.
-Proof.
-  setoid_rewrite MultiStep_ParallelMultiStep.
-  now apply confluent_ParallelMultiStep.
-Qed.
-
-Print Assumptions confluent_Step.
-Print Assumptions ParallelStep_refl.

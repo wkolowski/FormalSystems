@@ -1654,6 +1654,13 @@ Inductive CbnAbortion : Tm -> Tm -> Prop :=
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     CbnAbortion (app (abort t1) t2) (abort t1)
+(*
+| CbnAbortion_elimUnit :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnAbortion (elimUnit t1 (abort t2)) (abort t2)
+*)
 | CbnAbortion_outl :
   forall (t : Tm)
     (Hlc' : lc  t),
@@ -1899,7 +1906,7 @@ Lemma Cbv_Cbn :
     CbvAbortion t1 t2 <-> CbnAbortion t1 t2.
 Proof.
   split.
-  - inversion 1; eauto.
+  - inversion 1; subst; eauto.
     admit.
   - inversion 1; eauto.
 Admitted.

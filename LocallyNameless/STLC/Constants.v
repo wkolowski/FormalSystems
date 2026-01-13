@@ -621,9 +621,16 @@ Lemma lc_open_invariant :
   forall (t : Tm) (i : nat) (x y : Atom),
     lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
 Proof.
+  intros.
+  rewrite <- open'_atom.
+  rewrite (open'_spec _ _ x y).
+  apply lc_subst.
+Restart.
   induction t; cbn; intros i x y Hlc;
-    inversion Hlc; subst; try now eauto.
+    inversion Hlc; subst; clear Hlc; try now eauto.
   apply lc_abs with l; intros z Hz.
+  assert (H : lc (t {{ S i ~> x }} {{ 0 ~> z }})) by now apply Hlc'.
+  rewrite open_open_neq in H by easy.
 Admitted.
 
 Lemma lc_open_invariant' :
@@ -2545,8 +2552,6 @@ Proof.
   rewrite <- 2!open'_atom, 2!open'_spec with (x := x) by auto.
   now apply Step_subst.
 Qed.
-Check open'_atom.
-Check open'_spec.
 
 Lemma Step_std' :
   forall (t1 t1' t2 : Tm) (i : nat) (x : Atom),

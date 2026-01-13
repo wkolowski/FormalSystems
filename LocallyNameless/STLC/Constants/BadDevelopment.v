@@ -92,7 +92,7 @@ Lemma Development_FullContraction :
   forall t1 t2 t3 : Tm,
     FullContraction t1 t2 -> Development t2 t3 -> Development t1 t3.
 Proof.
-  intros t1 t2 t3 [] Hd23. Print FullContraction.
+  intros t1 t2 t3 [] Hd23.
   eapply Development_app_abs with (t1' := abs t0) (t2' := t4).
 Admitted.
 
