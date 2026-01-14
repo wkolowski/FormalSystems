@@ -197,6 +197,25 @@ Defined.
 
 (** ** Characterization of equality *)
 
+Lemma close_fv :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv t ->
+    t {{ i <~ x }} = t.
+Proof.
+  induction t; cbn; intros i x Hx;
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto..].
+  now firstorder decide_all.
+Qed.
+
+Lemma fv_close :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv (t {{ i <~ x }}).
+Proof.
+  now induction t; cbn; intros;
+    try decide_all;
+    rewrite ?Fresh_nil, ?Fresh_cons, ?Fresh_app; auto.
+Qed.
+
 Lemma open_close_fv :
   forall (t : Tm) (i : nat) (x : Atom),
     x # fv t ->
@@ -729,6 +748,28 @@ Defined.
 *)
 Set Guard Checking.
 
+Fixpoint decide_lc (i : nat) (a : Atom) (t : Tm) {struct t} : bool :=
+match t with
+| fvar x          => true
+| bvar n          => decide (n < i)
+| abs t'          => decide_lc (S i) a t'
+| app t1 t2       => decide_lc i a t1 && decide_lc i a t2
+| annot t' A      => decide_lc i a t'
+| unit            => true
+| elimUnit t1 t2  => decide_lc i a t1 && decide_lc i a t2
+| abort t'        => decide_lc i a t'
+| pair t1 t2      => decide_lc i a t1 && decide_lc i a t2
+| outl t'         => decide_lc i a t'
+| outr t'         => decide_lc i a t'
+| elimProd t1 t2  => decide_lc i a t1 && decide_lc i a t2
+| inl t'          => decide_lc i a t'
+| inr t'          => decide_lc i a t'
+| case t1 t2 t3   => decide_lc i a t1 && decide_lc i a t2 && decide_lc i a t3
+| zero            => true
+| succ t'         => decide_lc i a t'
+| rec t1 t2 t3    => decide_lc i a t1 && decide_lc i a t2 && decide_lc i a t3
+end.
+
 Lemma lc_open_invariant :
   forall (t : Tm) (i : nat) (x y : Atom),
     lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
@@ -768,8 +809,8 @@ Qed.
     decide_lc' (fresh (fv t)) t;
 }.
 Proof.
-  split.
-Abort.
+  now destruct (decide_lc'_spec (fresh (fv t)) t).
+Defined.
 
 (** * Contexts *)
 
@@ -1101,13 +1142,17 @@ end.
 #[export, refine] Instance Decidable_CbvValue :
   forall t : Tm, Decidable (CbvValue t) :=
 {
-  Decidable_witness := cbvValue t;
+  Decidable_witness := if decide (lc t) then cbvValue t else false
 }.
 Proof.
+  decide (lc t); [| now split; eauto].
   split.
-  - induction t; inversion 1; auto.
-    + admit.
-Abort.
+  - induction t; cbn; inversion H; subst; try now eauto.
+    now intros [Ht1 Ht2]%andb_prop; eauto.
+  - induction 1; cbn in *; try now eauto.
+    inversion H; subst.
+    now rewrite IHCbvValue1, IHCbvValue2.
+Defined.
 
 (** *** Contraction *)
 

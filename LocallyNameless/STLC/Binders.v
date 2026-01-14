@@ -197,6 +197,25 @@ Defined.
 
 (** ** Characterization of equality *)
 
+Lemma close_fv :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv t ->
+    t {{ i <~ x }} = t.
+Proof.
+  induction t; cbn; intros i x Hx;
+    [| now rewrite 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3; auto..].
+  now firstorder decide_all.
+Qed.
+
+Lemma fv_close :
+  forall (t : Tm) (i : nat) (x : Atom),
+    x # fv (t {{ i <~ x }}).
+Proof.
+  now induction t; cbn; intros;
+    try decide_all;
+    rewrite ?Fresh_nil, ?Fresh_cons, ?Fresh_app; auto.
+Qed.
+
 Lemma open_close_fv :
   forall (t : Tm) (i : nat) (x : Atom),
     x # fv t ->

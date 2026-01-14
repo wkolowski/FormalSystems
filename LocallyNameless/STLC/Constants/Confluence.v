@@ -282,18 +282,6 @@ Proof.
   now rewrite Fresh_cons in Hl'.
 Qed.
 
-Lemma fv_close :
-  forall (t : Tm) (i : nat) (x : Atom),
-    x # fv (t {{ i <~ x }}).
-Proof.
-  induction t; cbn; intros; auto.
-  - decide_all.
-    now apply Fresh_singl.
-  - now apply Fresh_nil.
-  - now apply Fresh_app; auto.
-  - now apply Fresh_nil.
-Qed.
-
 Lemma MultiStep_abs :
   forall t t' : Tm,
     (exists l : list Atom, forall x : Atom, x # l ->
