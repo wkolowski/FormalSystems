@@ -592,12 +592,58 @@ Proof.
   now eapply LocallyClosed_le, LocallyClosed_lc; [lia |].
 Qed.
 
+Fixpoint abstract (i : nat) (t : Tm) : Tm :=
+match i with
+| 0 => t
+| S i' => abs (abstract i' t)
+end.
+
+Lemma open_abstract :
+  forall (i : nat) (t : Tm) (j : nat) (x : Atom),
+    lc t ->
+    abstract i t {{ j ~> x }} = abstract i (t {{ j ~> x }})
+
+with lc_abstract :
+  forall (i : nat) (t : Tm),
+    lc t -> lc (abstract i t).
+Proof.
+  - induction i; cbn; intros; [easy |].
+    rewrite !open_lc; [easy.. |].
+    now apply lc_abstract.
+  - induction i; cbn; intros; [easy |].
+    apply lc_abs with []; intros x _.
+    rewrite open_abstract by easy.
+    rewrite open_lc by easy.
+    now apply IHi.
+Qed.
+
 Lemma lc_open :
   forall (t : Tm) (i : nat) (a : Atom),
     lc t -> lc (t {{ i ~> a }}).
 Proof.
   now intros; rewrite open_lc.
 Qed.
+
+Definition lcify (i : nat) (t : Tm) : Tm :=
+match t with
+| bvar n => if decide (n < i) then abstract i t else t
+| _ => t
+end.
+
+Lemma lc_LocallyClosed :
+  forall (i : nat) (t : Tm),
+    LocallyClosed' i t -> lc (lcify i t).
+Proof.
+  induction 1; cbn; eauto.
+  - decide (n < i); [| easy].
+    apply lc_abstract.
+    admit.
+  - apply lc_abs with []; intros x _.
+    apply lc_open.
+    admit.
+  - admit.
+  - 
+Abort.
 
 Lemma open_subst :
   forall (t : Tm) (i : nat) (a b x : Atom),
@@ -688,6 +734,25 @@ Proof.
   now rewrite open'_lc.
 Qed.
 
+Lemma lc_open_invariant :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
+Proof.
+  induction t; cbn; intros i x y Hlc;
+    inversion Hlc; subst; try now eauto.
+  - apply lc_abs with l; intros z Hz.
+    admit.
+Admitted.
+
+Lemma lc_open_invariant' :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) <-> lc (t {{ i ~> y }}).
+Proof.
+  now split; apply lc_open_invariant.
+Qed.
+
+#[export] Hint Resolve lc_open_invariant : core.
+
 Require Import Recdef.
 
 Fixpoint size (t : Tm) : nat :=
@@ -720,26 +785,26 @@ Proof.
 Qed.
 
 Unset Guard Checking.
-Function decide_lc' (a : Atom) (t : Tm) {struct t} : bool :=
+Function decide_lc (a : Atom) (t : Tm) {struct t} : bool :=
 match t with
 | fvar x          => true
 | bvar n          => false
-| abs t'          => decide_lc' a (t' {{ 0 ~> a }})
-| app t1 t2       => decide_lc' a t1 && decide_lc' a t2
-| annot t' A      => decide_lc' a t'
+| abs t'          => decide_lc a (t' {{ 0 ~> a }})
+| app t1 t2       => decide_lc a t1 && decide_lc a t2
+| annot t' A      => decide_lc a t'
 | unit            => true
-| elimUnit t1 t2  => decide_lc' a t1 && decide_lc' a t2
-| abort t'        => decide_lc' a t'
-| pair t1 t2      => decide_lc' a t1 && decide_lc' a t2
-| outl t'         => decide_lc' a t'
-| outr t'         => decide_lc' a t'
-| elimProd t1 t2  => decide_lc' a t1 && decide_lc' a t2
-| inl t'          => decide_lc' a t'
-| inr t'          => decide_lc' a t'
-| case t1 t2 t3   => decide_lc' a t1 && decide_lc' a t2 && decide_lc' a t3
+| elimUnit t1 t2  => decide_lc a t1 && decide_lc a t2
+| abort t'        => decide_lc a t'
+| pair t1 t2      => decide_lc a t1 && decide_lc a t2
+| outl t'         => decide_lc a t'
+| outr t'         => decide_lc a t'
+| elimProd t1 t2  => decide_lc a t1 && decide_lc a t2
+| inl t'          => decide_lc a t'
+| inr t'          => decide_lc a t'
+| case t1 t2 t3   => decide_lc a t1 && decide_lc a t2 && decide_lc a t3
 | zero            => true
-| succ t'         => decide_lc' a t'
-| rec t1 t2 t3    => decide_lc' a t1 && decide_lc' a t2 && decide_lc' a t3
+| succ t'         => decide_lc a t'
+| rec t1 t2 t3    => decide_lc a t1 && decide_lc a t2 && decide_lc a t3
 end.
 (*
 Proof.
@@ -748,53 +813,12 @@ Defined.
 *)
 Set Guard Checking.
 
-Fixpoint decide_lc (i : nat) (a : Atom) (t : Tm) {struct t} : bool :=
-match t with
-| fvar x          => true
-| bvar n          => decide (n < i)
-| abs t'          => decide_lc (S i) a t'
-| app t1 t2       => decide_lc i a t1 && decide_lc i a t2
-| annot t' A      => decide_lc i a t'
-| unit            => true
-| elimUnit t1 t2  => decide_lc i a t1 && decide_lc i a t2
-| abort t'        => decide_lc i a t'
-| pair t1 t2      => decide_lc i a t1 && decide_lc i a t2
-| outl t'         => decide_lc i a t'
-| outr t'         => decide_lc i a t'
-| elimProd t1 t2  => decide_lc i a t1 && decide_lc i a t2
-| inl t'          => decide_lc i a t'
-| inr t'          => decide_lc i a t'
-| case t1 t2 t3   => decide_lc i a t1 && decide_lc i a t2 && decide_lc i a t3
-| zero            => true
-| succ t'         => decide_lc i a t'
-| rec t1 t2 t3    => decide_lc i a t1 && decide_lc i a t2 && decide_lc i a t3
-end.
-
-Lemma lc_open_invariant :
-  forall (t : Tm) (i : nat) (x y : Atom),
-    lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
-Proof.
-  induction t; cbn; intros i x y Hlc;
-    inversion Hlc; subst; try now eauto.
-  - apply lc_abs with l; intros z Hz.
-    admit.
-Admitted.
-
-Lemma lc_open_invariant' :
-  forall (t : Tm) (i : nat) (x y : Atom),
-    lc (t {{ i ~> x }}) <-> lc (t {{ i ~> y }}).
-Proof.
-  now split; apply lc_open_invariant.
-Qed.
-
-#[export] Hint Resolve lc_open_invariant : core.
-
-Lemma decide_lc'_spec :
+Lemma decide_lc_spec :
   forall (a : Atom) (t : Tm),
-    reflect (lc t) (decide_lc' a t).
+    reflect (lc t) (decide_lc a t).
 Proof.
   intros a t.
-  functional induction (decide_lc' a t);
+  functional induction (decide_lc a t);
     try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
       cbn; constructor; [auto | inversion 1..]).
   destruct IHb; constructor; [now apply lc_abs with [];  eauto |].
@@ -806,10 +830,10 @@ Qed.
   forall t : Tm, Decidable (lc t) :=
 {
   Decidable_witness :=
-    decide_lc' (fresh (fv t)) t;
+    decide_lc (fresh (fv t)) t;
 }.
 Proof.
-  now destruct (decide_lc'_spec (fresh (fv t)) t).
+  now destruct (decide_lc_spec (fresh (fv t)) t).
 Defined.
 
 (** * Contexts *)
@@ -1128,9 +1152,9 @@ Qed.
 
 Fixpoint cbvValue (t : Tm) : bool :=
 match t with
-| abs t'               => true
+| abs t'               => decide (lc (abs t'))
 | unit                 => true
-| abort t'             => true
+| abort t'             => decide (lc t')
 | pair t1 t2           => cbvValue t1 && cbvValue t2
 | inl t'               => cbvValue t'
 | inr t'               => cbvValue t'
@@ -1142,15 +1166,17 @@ end.
 #[export, refine] Instance Decidable_CbvValue :
   forall t : Tm, Decidable (CbvValue t) :=
 {
-  Decidable_witness := if decide (lc t) then cbvValue t else false
+  Decidable_witness := cbvValue t
 }.
 Proof.
-  decide (lc t); [| now split; eauto].
   split.
-  - induction t; cbn; inversion H; subst; try now eauto.
-    now intros [Ht1 Ht2]%andb_prop; eauto.
-  - induction 1; cbn in *; try now eauto.
-    inversion H; subst.
+  - induction t; cbn; subst; try now eauto.
+    + intros H%Decidable_sound.
+      now inversion H; subst; eauto.
+    + intros H%Decidable_sound.
+      now eauto.
+    + now intros [Ht1 Ht2]%andb_prop; eauto.
+  - induction 1; cbn in *; try now eauto using Decidable_complete.
     now rewrite IHCbvValue1, IHCbvValue2.
 Defined.
 
@@ -1576,7 +1602,7 @@ Inductive CbnValue : Tm -> Prop :=
   forall (t' : Tm)
     (Hlc' : lc t'),
     CbnValue (succ t').
-
+Print CbvValue.
 #[export] Hint Constructors CbnValue : core.
 
 Lemma lc_CbnValue :
@@ -1587,6 +1613,33 @@ Proof.
 Qed.
 
 #[export] Hint Immediate lc_CbnValue : core.
+
+Definition cbnValue (t : Tm) : bool :=
+match t with
+| fvar _     => false
+| bvar _     => false
+| abs t'     => true
+| unit       => true
+| annot _ _  => false
+| abort t'   => true
+| pair t1 t2 => true
+| inl t'     => true
+| inr t'     => true
+| zero       => true
+| succ t'    => true
+| _          => false
+end.
+
+#[export, refine] Instance Decidable_CbnValue' :
+  forall t : Tm, Decidable (CbnValue t) :=
+{
+  Decidable_witness := cbnValue t && decide (lc t)
+}.
+Proof.
+  split.
+  - now destruct t; cbn; try easy; intros H%Decidable_sound; inversion H; eauto.
+  - now destruct 1; cbn; try easy; rewrite ?Decidable_spec; eauto.
+Qed.
 
 (** ** Contraction *)
 

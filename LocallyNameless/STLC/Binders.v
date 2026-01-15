@@ -179,7 +179,8 @@ end.
 Proof.
   - unfold supports, Fresh'.
     induction t; cbn; only 1: rename a into b; intros a Ha;
-      [| now f_equal; rewrite 1?(close_invariant _ _ 0), 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
+      [| now f_equal; rewrite 1?(close_invariant _ _ 0),
+          1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
     now firstorder decide_all.
   - intros t.
     setoid_rewrite LocallyClosed_forall.
@@ -697,6 +698,30 @@ Proof.
   now rewrite open'_lc.
 Qed.
 
+Lemma lc_open_invariant :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
+Proof.
+  induction t; cbn; intros i x y Hlc;
+    inversion Hlc; subst; try now eauto.
+  - apply lc_abs with l; intros z Hz.
+    admit.
+  - apply lc_elimUnit with l; [now eauto |].
+    intros z Hz.
+    apply lc_open.
+    apply IHt2 with x.
+    replace (t2 {{ S i ~> x }}) with (t2 {{ S i ~> x }} {{ 0 ~> z }}).
+Admitted.
+
+Lemma lc_open_invariant' :
+  forall (t : Tm) (i : nat) (x y : Atom),
+    lc (t {{ i ~> x }}) <-> lc (t {{ i ~> y }}).
+Proof.
+  now split; apply lc_open_invariant.
+Qed.
+
+#[export] Hint Resolve lc_open_invariant : core.
+
 Require Import Recdef.
 
 Fixpoint size (t : Tm) : nat :=
@@ -745,7 +770,8 @@ match t with
 | elimProd t1 t2  => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }} {{ 1 ~> a }})
 | inl t'          => decide_lc' a t'
 | inr t'          => decide_lc' a t'
-| case t1 t2 t3   => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }}) && decide_lc' a (t3 {{ 0 ~> a }})
+| case t1 t2 t3   =>
+  decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }}) && decide_lc' a (t3 {{ 0 ~> a }})
 | zero            => true
 | succ t'         => decide_lc' a t'
 | rec t1 t2 t3    => decide_lc' a t1 && decide_lc' a (t2 {{ 0 ~> a }}) && decide_lc' a t3
@@ -757,30 +783,6 @@ Defined.
 *)
 Set Guard Checking.
 
-Lemma lc_open_invariant :
-  forall (t : Tm) (i : nat) (x y : Atom),
-    lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
-Proof.
-  induction t; cbn; intros i x y Hlc;
-    inversion Hlc; subst; try now eauto.
-  - apply lc_abs with l; intros z Hz.
-    admit.
-  - apply lc_elimUnit with l; [now eauto |].
-    intros z Hz.
-    apply lc_open.
-    apply IHt2 with x.
-    replace (t2 {{ S i ~> x }}) with (t2 {{ S i ~> x }} {{ 0 ~> z }}).
-Admitted.
-
-Lemma lc_open_invariant' :
-  forall (t : Tm) (i : nat) (x y : Atom),
-    lc (t {{ i ~> x }}) <-> lc (t {{ i ~> y }}).
-Proof.
-  now split; apply lc_open_invariant.
-Qed.
-
-#[export] Hint Resolve lc_open_invariant : core.
-
 Lemma decide_lc'_spec :
   forall (a : Atom) (t : Tm),
     reflect (lc t) (decide_lc' a t).
@@ -789,36 +791,38 @@ Proof.
   functional induction (decide_lc' a t);
     try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
       cbn; constructor; [auto | inversion 1..]).
-  - destruct IHb; constructor; [now eauto |].
-    inversion 1.
-    now specialize (Hlc' (fresh l) (fresh_spec l)); eauto.
-  - destruct IHb, IHb0; cbn; constructor; [now eauto | inversion 1..].
-    + now specialize (Hlc2 (fresh l0) (fresh_spec l0)); eauto.
-    + now specialize (Hlc2 (fresh l0) (fresh_spec l0)); eauto.
-    + now specialize (Hlc2 (fresh l) (fresh_spec l)); eauto.
-  - destruct IHb, IHb0; cbn; constructor; [| inversion 1..].
+  - destruct IHb; constructor; [now apply lc_abs with []; eauto |].
+    now inversion 1; eauto.
+  - destruct IHb, IHb0; cbn; constructor; [| inversion 1..]; unshelve eauto.
+    now exact [].
+  - destruct IHb, IHb0; cbn; constructor; [| inversion 1; subst..]; try easy.
     + apply lc_elimProd with []; [easy |].
       intros x y _ Hy.
-      admit.
-    + specialize (Hlc2 (fresh l0) (fresh (fresh l0 :: l0)) ltac:(auto) ltac:(auto)).
-      eapply lc_open_invariant in Hlc2.
-      admit.
-    + admit.
-    + admit.
+      apply lc_open_invariant with a.
+      rewrite open_open_neq by easy.
+      apply lc_open_invariant with a.
+      now rewrite open_open_neq by easy.
+    + pose (x := fresh l0).
+      pose (y := fresh (x :: l0)).
+      specialize (Hlc2 x y ltac:(auto) ltac:(auto)).
+      apply (lc_open_invariant _ _ y a) in Hlc2.
+      rewrite open_open_neq in Hlc2 by easy.
+      apply (lc_open_invariant _ _ x a) in Hlc2.
+      now rewrite open_open_neq in Hlc2 by easy.
   - destruct IHb; cbn; [| now constructor; inversion 1; eauto].
     destruct IHb0; cbn; cycle 1.
     + constructor; inversion 1.
       now eapply n, lc_open_invariant, Hlc2, fresh_spec.
-    + destruct IHb1; cbn; [now constructor; eauto |].
+    + destruct IHb1; cbn; [now constructor; unshelve eauto; exact [] |].
       constructor; inversion 1; subst.
       now eapply n, lc_open_invariant, Hlc3, fresh_spec.
   - destruct IHb; cbn; [| now constructor; inversion 1; eauto].
     destruct IHb0; cbn; cycle 1.
     + constructor; inversion 1.
       now eapply n, lc_open_invariant, Hlc2, fresh_spec.
-    + destruct IHb1; cbn; [now constructor; eauto |].
+    + destruct IHb1; cbn; [now constructor; unshelve eauto; exact [] |].
       now constructor; inversion 1; eauto.
-Abort.
+Defined.
 
 #[export, refine] Instance Decidable_lc :
   forall t : Tm, Decidable (lc t) :=
@@ -827,9 +831,8 @@ Abort.
     decide_lc' (fresh (fv t)) t;
 }.
 Proof.
-  split.
-  - induction t; cbn; try easy.
-Abort.
+  now destruct (decide_lc'_spec (fresh (fv t)) t).
+Defined.
 
 (** * Contexts *)
 
@@ -1175,9 +1178,9 @@ Qed.
 
 Fixpoint cbvValue (t : Tm) : bool :=
 match t with
-| abs t'               => true
+| abs t'               => decide (lc (abs t'))
 | unit                 => true
-| abort t'             => true
+| abort t'             => decide (lc t')
 | pair t1 t2           => cbvValue t1 && cbvValue t2
 | inl t'               => cbvValue t'
 | inr t'               => cbvValue t'
@@ -1189,13 +1192,19 @@ end.
 #[export, refine] Instance Decidable_CbvValue :
   forall t : Tm, Decidable (CbvValue t) :=
 {
-  Decidable_witness := cbvValue t;
+  Decidable_witness := cbvValue t
 }.
 Proof.
   split.
-  - induction t; inversion 1; auto.
-    + admit.
-Abort.
+  - induction t; cbn; subst; try now eauto.
+    + intros H%Decidable_sound.
+      now inversion H; subst; eauto.
+    + intros H%Decidable_sound.
+      now eauto.
+    + now intros [Ht1 Ht2]%andb_prop; eauto.
+  - induction 1; cbn in *; try now eauto using Decidable_complete.
+    now rewrite IHCbvValue1, IHCbvValue2.
+Defined.
 
 (** *** Contraction *)
 
@@ -1629,6 +1638,33 @@ Proof.
 Qed.
 
 #[export] Hint Immediate lc_CbnValue : core.
+
+Definition cbnValue (t : Tm) : bool :=
+match t with
+| fvar _     => false
+| bvar _     => false
+| abs t'     => true
+| unit       => true
+| annot _ _  => false
+| abort t'   => true
+| pair t1 t2 => true
+| inl t'     => true
+| inr t'     => true
+| zero       => true
+| succ t'    => true
+| _          => false
+end.
+
+#[export, refine] Instance Decidable_CbnValue' :
+  forall t : Tm, Decidable (CbnValue t) :=
+{
+  Decidable_witness := cbnValue t && decide (lc t)
+}.
+Proof.
+  split.
+  - now destruct t; cbn; try easy; intros H%Decidable_sound; inversion H; eauto.
+  - now destruct 1; cbn; try easy; rewrite ?Decidable_spec; eauto.
+Qed.
 
 (** ** Contraction *)
 

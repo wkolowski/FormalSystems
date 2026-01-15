@@ -590,42 +590,6 @@ Proof.
   now rewrite open'_lc.
 Qed.
 
-Require Import Recdef.
-
-Fixpoint size (t : Tm) : nat :=
-match t with
-| fvar x          => 1
-| bvar n          => 1
-| abs t'          => 1 + size t'
-| app t1 t2       => 1 + size t1 + size t2
-| annot t' A      => 1 + size t'
-| const _         => 1
-end.
-
-Lemma size_open :
-  forall (t : Tm) (i : nat) (a : Atom),
-    size (t {{ i ~> a }}) = size t.
-Proof.
-  now induction t; cbn; intros; auto.
-Qed.
-
-Unset Guard Checking.
-Function decide_lc' (a : Atom) (t : Tm) {struct t} : bool :=
-match t with
-| fvar x          => true
-| bvar n          => false
-| abs t'          => decide_lc' a (t' {{ 0 ~> a }})
-| app t1 t2       => decide_lc' a t1 && decide_lc' a t2
-| annot t' A      => decide_lc' a t'
-| const _         => true
-end.
-(*
-Proof.
-  all: now cbn; intros; rewrite ?size_open; lia.
-Defined.
-*)
-Set Guard Checking.
-
 Lemma lc_open_invariant :
   forall (t : Tm) (i : nat) (x y : Atom),
     lc (t {{ i ~> x }}) -> lc (t {{ i ~> y }}).
@@ -651,12 +615,48 @@ Qed.
 
 #[export] Hint Resolve lc_open_invariant : core.
 
-Lemma decide_lc'_spec :
+Require Import Recdef.
+
+Fixpoint size (t : Tm) : nat :=
+match t with
+| fvar x          => 1
+| bvar n          => 1
+| abs t'          => 1 + size t'
+| app t1 t2       => 1 + size t1 + size t2
+| annot t' A      => 1 + size t'
+| const _         => 1
+end.
+
+Lemma size_open :
+  forall (t : Tm) (i : nat) (a : Atom),
+    size (t {{ i ~> a }}) = size t.
+Proof.
+  now induction t; cbn; intros; auto.
+Qed.
+
+Unset Guard Checking.
+Function decide_lc (a : Atom) (t : Tm) {struct t} : bool :=
+match t with
+| fvar x          => true
+| bvar n          => false
+| abs t'          => decide_lc a (t' {{ 0 ~> a }})
+| app t1 t2       => decide_lc a t1 && decide_lc a t2
+| annot t' A      => decide_lc a t'
+| const _         => true
+end.
+(*
+Proof.
+  all: now cbn; intros; rewrite ?size_open; lia.
+Defined.
+*)
+Set Guard Checking.
+
+Lemma decide_lc_spec :
   forall (a : Atom) (t : Tm),
-    reflect (lc t) (decide_lc' a t).
+    reflect (lc t) (decide_lc a t).
 Proof.
   intros a t.
-  functional induction (decide_lc' a t);
+  functional induction (decide_lc a t);
     try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
       cbn; constructor; [auto | inversion 1..]).
   destruct IHb; constructor.
@@ -668,10 +668,10 @@ Qed.
   forall t : Tm, Decidable (lc t) :=
 {
   Decidable_witness :=
-    decide_lc' (fresh (fv t)) t;
+    decide_lc (fresh (fv t)) t;
 }.
 Proof.
-  now destruct (decide_lc'_spec (fresh (fv t)) t).
+  now destruct (decide_lc_spec (fresh (fv t)) t).
 Defined.
 
 (** * Contexts *)
@@ -979,7 +979,7 @@ Inductive CbvValue : Tm -> Prop :=
     CbvValue (app elimUnit t')
 | CbvValue_abort1 :
   forall (t' : Tm)
-    (Hv1 : CbvValue t'),
+    (Hlc' : CbvValue t'),
     CbvValue (app abort t')
 | CbvValue_pair1 :
   forall t1 : Tm,
@@ -1067,7 +1067,7 @@ Fixpoint cbvValue (t : Tm) : bool :=
 match t with
 | fvar _                   => false
 | bvar _                   => false
-| abs t'                   => decide_lc' (fresh (fv t)) t
+| abs t'                   => decide (lc t)
 | annot _ _                => false
 | const _                  => true
 | app elimUnit t'          => cbvValue t'
@@ -1099,16 +1099,16 @@ end.
 Proof.
   split.
   - induction t; inversion 1; auto.
-    + destruct (decide_lc'_spec (fresh (fv t)) (t {{ 0 ~> fresh (fv t) }})); [| easy].
-      now unshelve eauto; exact [].
+    + decide (lc (abs t)); [| easy].
+      now inversion H0; eauto.
     + destruct t1; try easy; [| now destruct c; eauto].
       destruct t1_1; try easy.
       destruct c; try easy;
         apply andb_prop in H1 as []; cbn in *;
         specialize (IHt1 H0); inversion IHt1; eauto.
   - induction 1; cbn; auto; [| now rewrite andb_true_iff..].
-    now destruct (decide_lc'_spec (fresh (fv t')) (t' {{ 0 ~> fresh (fv t') }})); [| eauto].
-Defined.
+    now decide (lc (abs t')); eauto.
+Qed.
 
 (** *** Contraction *)
 
@@ -1253,11 +1253,11 @@ Inductive CbvAbortion : Tm -> Tm -> Prop :=
     CbvAbortion (app (app elimUnit t1) (app abort t2)) (app abort t2)
 | CbvAbortion_outl :
   forall (t : Tm)
-    (Hv' : CbvValue  t),
+    (Hv' : CbvValue t),
     CbvAbortion (app outl (app abort t)) (app abort t)
 | CbvAbortion_outr :
   forall (t : Tm)
-    (Hv' : CbvValue  t),
+    (Hv' : CbvValue t),
     CbvAbortion (app outr (app abort t)) (app abort t)
 | CbvAbortion_elimProd :
   forall (t1 t2 : Tm)
@@ -1573,6 +1573,52 @@ Proof.
 Qed.
 
 #[export] Hint Immediate lc_CbnValue : core.
+
+Definition cbnValue (t : Tm) : bool :=
+match t with
+| fvar _                   => false
+| bvar _                   => false
+| abs t'                   => true
+| annot _ _                => false
+| const _                  => true
+| app elimUnit t'          => true
+| app abort t'             => true
+| app pair t1              => true
+| app (app pair t1) t2     => true
+| app elimProd t1          => true
+| app inl t'               => true
+| app inr t'               => true
+| app case t1              => true
+| app (app case t1) t2     => true
+| app succ t'              => true
+| app rec t1               => true
+| app (app rec t1) t2      => true
+| app elimBool t1          => true
+| app (app elimBool t1) t2 => true
+| app ccons t1             => true
+| app (app ccons t1) t2    => true
+| app elimList t1          => true
+| app (app elimList t1) t2 => true
+| app _ _                  => false
+end.
+
+#[export, refine] Instance Decidable_CbnValue' :
+  forall t : Tm, Decidable (CbnValue t) :=
+{
+  Decidable_witness := cbnValue t && decide (lc t)
+}.
+Proof.
+  split.
+  - destruct t; cbn; intros H; try easy.
+    + decide (lc (abs t)); [| easy].
+      now inversion H0; eauto.
+    + destruct t1; try easy; cycle 1.
+      * now destruct c; cbn in *; try apply Decidable_sound in H; inversion H; subst; eauto.
+      * destruct t1_1; try easy.
+        now destruct c; cbn in *; try easy;
+          apply Decidable_sound in H; inversion H; try inversion Hlc1; subst; eauto.
+  - now induction 1; cbn; auto; rewrite ?andb_true_iff, ?Decidable_spec; eauto.
+Qed.
 
 (** ** Contraction *)
 
@@ -1934,7 +1980,7 @@ Proof.
       try now inversion Ht3.
     + now eauto.
     + now eauto.
-    + right. exists (app outl t2').
+    + right. exists (app outl t2'). Print CbnStep.
 Admitted.
 
 Lemma Cbv_Cbn :
@@ -2345,7 +2391,7 @@ Qed.
 
 (** ** Progress and preservation *)
 
-Lemma preservation_ :
+Lemma preservation :
   forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
     Step t1 t2 ->
     Typing Γ t1 A ->
