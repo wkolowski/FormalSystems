@@ -1602,7 +1602,7 @@ Inductive CbnValue : Tm -> Prop :=
   forall (t' : Tm)
     (Hlc' : lc t'),
     CbnValue (succ t').
-Print CbvValue.
+
 #[export] Hint Constructors CbnValue : core.
 
 Lemma lc_CbnValue :
@@ -1906,7 +1906,7 @@ Proof.
   - now eapply CbnAbortion_not_CbnValue; eauto.
 Qed.
 
-#[export] Hint Resolve lc_CbnStep_l lc_CbnStep_r CbnStep_not_CbnValue : core.
+#[export] Hint Immediate lc_CbnStep_l lc_CbnStep_r CbnStep_not_CbnValue : core.
 
 Lemma CbnContraction_CbnStep_det :
   forall t t1 t2 : Tm,
@@ -2008,3 +2008,480 @@ Proof.
     admit.
   - inversion 1; eauto.
 Admitted.
+
+(** ** Deep CBV *)
+
+(** *** Values *)
+
+Inductive DeepCbvValue : Tm -> Prop :=
+| DeepCbvValue_abs  :
+  forall (t' : Tm) (l : list Atom)
+    (Hv' : forall x : Atom, x # l -> DeepCbvValue (t' {{ 0 ~> x }})),
+    DeepCbvValue (abs t')
+| DeepCbvValue_unit : DeepCbvValue unit
+| DeepCbvValue_abort :
+  forall (t' : Tm)
+    (Hlc' : lc t'),
+    DeepCbvValue (abort t')
+| DeepCbvValue_pair :
+  forall t1 t2 : Tm,
+    DeepCbvValue t1 ->
+    DeepCbvValue t2 ->
+    DeepCbvValue (pair t1 t2)
+| DeepCbvValue_inl :
+  forall v : Tm,
+    DeepCbvValue v ->
+    DeepCbvValue (inl v)
+| DeepCbvValue_inr :
+  forall v : Tm,
+    DeepCbvValue v ->
+    DeepCbvValue (inr v)
+| DeepCbvValue_zero : DeepCbvValue zero
+| DeepCbvValue_succ :
+  forall (t' : Tm)
+    (Hv' : DeepCbvValue t'),
+    DeepCbvValue (succ t').
+
+#[export] Hint Constructors DeepCbvValue : core.
+
+Lemma lc_DeepCbvValue :
+  forall t : Tm,
+    DeepCbvValue t -> lc t.
+Proof.
+  induction 1; try now auto.
+  now eapply lc_abs; eauto.
+Qed.
+
+#[export] Hint Resolve lc_DeepCbvValue : core.
+
+Fixpoint deepCbvValue (t : Tm) : bool :=
+match t with
+| abs t'               => decide (lc (abs t'))
+| unit                 => true
+| abort t'             => decide (lc t')
+| pair t1 t2           => deepCbvValue t1 && deepCbvValue t2
+| inl t'               => deepCbvValue t'
+| inr t'               => deepCbvValue t'
+| zero                 => true
+| succ t'              => deepCbvValue t'
+| _                    => false
+end.
+
+(*
+#[export, refine] Instance Decidable_DeepCbvValue :
+  forall t : Tm, Decidable (DeepCbvValue t) :=
+{
+  Decidable_witness := deepCbvValue t
+}.
+Proof.
+  split.
+  - induction t; cbn; subst; try now eauto.
+    + intros H%Decidable_sound.
+      now inversion H; subst; eauto.
+    + intros H%Decidable_sound.
+      now eauto.
+    + now intros [Ht1 Ht2]%andb_prop; eauto.
+  - induction 1; cbn in *; try now eauto using Decidable_complete.
+    now rewrite IHDeepCbvValue1, IHDeepCbvValue2.
+Defined.
+*)
+
+(** *** Contraction *)
+
+Inductive DeepCbvContraction : Tm -> Tm -> Prop :=
+| DeepCbvContraction_app_abs :
+  forall (t1 t2 : Tm) (l : list Atom)
+    (Hv1 : DeepCbvValue (abs t1))
+    (Hv2 : DeepCbvValue t2),
+    DeepCbvContraction (app (abs t1) t2) (t1 {[ 0 ~> t2 ]})
+| DeepCbvContraction_annot :
+  forall (t : Tm) (A : Ty)
+    (Hlc : lc t),
+    DeepCbvContraction (annot t A) t
+| DeepCbvContraction_elimUnit_unit :
+  forall (t : Tm)
+    (Hlc : lc t),
+    DeepCbvContraction (elimUnit t unit) (app t unit)
+| DeepCbvContraction_outl_pair :
+  forall (v1 v2 : Tm)
+    (Hv1 : DeepCbvValue v1)
+    (Hv2 : DeepCbvValue v2),
+    DeepCbvContraction (outl (pair v1 v2)) v1
+| DeepCbvContraction_outr_pair :
+  forall (v1 v2 : Tm)
+    (Hv1 : DeepCbvValue v1)
+    (Hv2 : DeepCbvValue v2),
+    DeepCbvContraction (outr (pair v1 v2)) v2
+| DeepCbvContraction_elimProd_pair :
+  forall (v1 v2 t : Tm)
+    (Hv1 : DeepCbvValue v1)
+    (Hv2 : DeepCbvValue v2)
+    (Hlc3 : lc t),
+    DeepCbvContraction (elimProd t (pair v1 v2)) (app (app t v1) v2)
+| DeepCbvContraction_case_inl :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv3 : DeepCbvValue t3),
+    DeepCbvContraction (case t1 t2 (inl t3)) (app t1 t3)
+| DeepCbvContraction_case_inr :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv3 : DeepCbvValue t3),
+    DeepCbvContraction (case t1 t2 (inr t3)) (app t2 t3)
+| DeepCbvContraction_rec_zero :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    DeepCbvContraction (rec t1 t2 zero) t1
+| DeepCbvContraction_rec_succ :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hv3 : DeepCbvValue t3),
+    DeepCbvContraction (rec t1 t2 (succ t3)) (app t2 (rec t1 t2 t3)).
+
+#[export] Hint Constructors DeepCbvContraction : core.
+
+Lemma lc_DeepCbvContraction_l :
+  forall t t' : Tm,
+    DeepCbvContraction t t' -> lc t.
+Proof.
+  now inversion 1; auto.
+Qed.
+
+Lemma lc_DeepCbvContraction_r :
+  forall t t' : Tm,
+    DeepCbvContraction t t' -> lc t'.
+Proof.
+  inversion 1; subst; try now auto.
+  inversion Hv1; subst.
+  now rewrite (open'_spec _ _ (fresh (l ++ l0 ++ fv t1))); auto.
+Qed.
+
+#[export] Hint Immediate lc_DeepCbvContraction_l lc_DeepCbvContraction_r : core.
+
+Lemma DeepCbvContraction_det :
+  forall t t1 t2 : Tm,
+    DeepCbvContraction t t1 -> DeepCbvContraction t t2 -> t1 = t2.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+Lemma DeepCbvContraction_not_DeepCbvValue :
+  forall t t' : Tm,
+    DeepCbvContraction t t' -> DeepCbvValue t -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+#[export] Hint Resolve DeepCbvContraction_det DeepCbvContraction_not_DeepCbvValue : core.
+
+Lemma preservation_DeepCbvContraction :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
+    DeepCbvContraction t1 t2 ->
+    Typing Γ t1 A ->
+    Typing Γ t2 A.
+Proof.
+  now inversion 1; subst; intros;
+    repeat match goal with
+    | H : Typing _ ?t _ |- _ => tryif is_var t then fail else (inversion H; subst; clear H)
+    end; eauto.
+Qed.
+
+(*** *** Abortion *)
+
+Inductive DeepCbvAbortion : Tm -> Tm -> Prop :=
+| DeepCbvAbortion_app :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    DeepCbvAbortion (app (abort t1) t2) (abort t1)
+| DeepCbvAbortion_elimUnit :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    DeepCbvAbortion (elimUnit t1 (abort t2)) (abort t2)
+| DeepCbvAbortion_outl :
+  forall (t : Tm)
+    (Hlc' : lc  t),
+    DeepCbvAbortion (outl (abort t)) (abort t)
+| DeepCbvAbortion_outr :
+  forall (t : Tm)
+    (Hlc' : lc  t),
+    DeepCbvAbortion (outr (abort t)) (abort t)
+| DeepCbvAbortion_elimProd :
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    DeepCbvAbortion (elimProd t1 (abort t2)) (abort t2)
+| DeepCbvAbortion_case :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    DeepCbvAbortion (case t1 t2 (abort t3)) (abort t3)
+| DeepCbvAbortion_rec :
+  forall (t1 t2 t3 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hlc3 : lc t3),
+    DeepCbvAbortion (rec t1 t2 (abort t3)) (abort t3).
+
+#[export] Hint Constructors DeepCbvAbortion : core.
+
+Lemma lc_DeepCbvAbortion_l :
+  forall t t' : Tm,
+    DeepCbvAbortion t t' -> lc t.
+Proof.
+  now inversion 1; auto.
+Qed.
+
+Lemma lc_DeepCbvAbortion_r :
+  forall t t' : Tm,
+    DeepCbvAbortion t t' -> lc t'.
+Proof.
+  now inversion 1; auto.
+Qed.
+
+#[export] Hint Resolve lc_DeepCbvAbortion_l lc_DeepCbvAbortion_r : core.
+
+Lemma DeepCbvAbortion_det :
+  forall t t1 t2 : Tm,
+    DeepCbvAbortion t t1 -> DeepCbvAbortion t t2 -> t1 = t2.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+Lemma DeepCbvAbortion_not_DeepCbvValue :
+  forall t t' : Tm,
+    DeepCbvAbortion t t' -> DeepCbvValue t -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+Lemma DeepCbvAbortion_not_DeepCbvContraction :
+  forall t t1 t2 : Tm,
+    DeepCbvAbortion t t1 -> DeepCbvContraction t t2 -> False.
+Proof.
+  now do 2 inversion 1.
+Qed.
+
+#[export] Hint Resolve
+  DeepCbvAbortion_det DeepCbvAbortion_not_DeepCbvValue DeepCbvAbortion_not_DeepCbvContraction : core.
+
+Lemma preservation_DeepCbvAbortion :
+  forall (Γ : Ctx) (t t' : Tm) (A : Ty),
+    DeepCbvAbortion t t' ->
+    Typing Γ t A ->
+    Typing Γ t' A.
+Proof.
+  now do 2 inversion 1; subst;
+    match goal with
+    | H : Typing _ (abort _) _ |- _ => inversion H
+    end; auto.
+Qed.
+
+(** *** Reduction *)
+
+Inductive DeepCbvStep : Tm -> Tm -> Prop :=
+| DeepCbvStep_DeepCbvContraction :
+  forall t t' : Tm,
+    DeepCbvContraction t t' ->
+    DeepCbvStep t t'
+| DeepCbvStep_DeepCbvAbortion :
+  forall t t' : Tm,
+    DeepCbvAbortion t t' ->
+    DeepCbvStep t t'
+| DeepCbvStep_abs :
+  forall (t1 t1' : Tm) (l : list Atom)
+    (Hs1 : forall x : Atom, x # l -> DeepCbvStep (t1 {{ 0 ~> x }}) (t1' {{ 0 ~> x }})),
+    DeepCbvStep (abs t1) (abs t1')
+| DeepCbvStep_app_l :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    DeepCbvStep t1 t1' ->
+    DeepCbvStep (app t1 t2) (app t1' t2)
+| DeepCbvStep_app_r :
+  forall (t1 t2 t2' : Tm) (l : list Atom)
+    (Hv1 : DeepCbvValue (abs t1)),
+    DeepCbvStep t2 t2' ->
+    DeepCbvStep (app (abs t1) t2) (app (abs t1) t2')
+| DeepCbvStep_elimUnit :
+  forall (t1 t2 t2' : Tm)
+    (Hlc1 : lc t1),
+    DeepCbvStep t2 t2' ->
+    DeepCbvStep (elimUnit t1 t2) (elimUnit t1 t2')
+| DeepCbvStep_pair_l :
+  forall (t1 t1' t2 : Tm),
+    lc t2 ->
+    DeepCbvStep t1 t1' ->
+    DeepCbvStep (pair t1 t2) (pair t1' t2)
+| DeepCbvStep_pair_r :
+  forall (t1 t2 t2' : Tm),
+    DeepCbvValue t1 ->
+    DeepCbvStep t2 t2' ->
+    DeepCbvStep (pair t1 t2) (pair t1 t2')
+| DeepCbvStep_outl :
+  forall (t t' : Tm),
+    DeepCbvStep t t' ->
+    DeepCbvStep (outl t) (outl t')
+| DeepCbvStep_outr :
+  forall (t t' : Tm),
+    DeepCbvStep t t' ->
+    DeepCbvStep (outr t) (outr t')
+| DeepCbvStep_elimProd :
+  forall (t1 t2 t2' : Tm)
+    (Hlc1 : lc t1)
+    (Hs2 : DeepCbvStep t2 t2'),
+    DeepCbvStep (elimProd t1 t2) (elimProd t1 t2')
+| DeepCbvStep_inl :
+  forall t t' : Tm,
+    DeepCbvStep t t' ->
+    DeepCbvStep (inl t) (inl t')
+| DeepCbvStep_inr :
+  forall t t' : Tm,
+    DeepCbvStep t t' ->
+    DeepCbvStep (inr t) (inr t')
+| DeepCbvStep_case :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : DeepCbvStep t3 t3'),
+    DeepCbvStep (case t1 t2 t3) (case t1 t2 t3')
+| DeepCbvStep_succ :
+  forall (t t' : Tm),
+    DeepCbvStep t t' ->
+    DeepCbvStep (succ t) (succ t')
+| DeepCbvStep_rec :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : DeepCbvStep t3 t3'),
+    DeepCbvStep (rec t1 t2 t3) (rec t1 t2 t3').
+
+#[export] Hint Constructors DeepCbvStep : core.
+
+Lemma lc_DeepCbvStep_l :
+  forall t t' : Tm,
+    DeepCbvStep t t' -> lc t.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma lc_DeepCbvStep_r :
+  forall t t' : Tm,
+    DeepCbvStep t t' -> lc t'.
+Proof.
+  now induction 1; eauto.
+Qed.
+
+Lemma DeepCbvStep_not_DeepCbvValue :
+  forall t t' : Tm,
+    DeepCbvStep t t' -> DeepCbvValue t -> False.
+Proof.
+  induction 1; intros Hv; [| | | now inversion Hv..].
+  - now eapply DeepCbvContraction_not_DeepCbvValue; eauto.
+  - now eapply DeepCbvAbortion_not_DeepCbvValue; eauto.
+  - inversion Hv; subst.
+    now apply (H (fresh (l ++ l0))); auto.
+Qed.
+
+#[export] Hint Immediate lc_DeepCbvStep_l lc_DeepCbvStep_r DeepCbvStep_not_DeepCbvValue : core.
+
+Lemma DeepCbvContraction_DeepCbvStep_det :
+  forall t t1 t2 : Tm,
+    DeepCbvContraction t t1 -> DeepCbvStep t t2 -> t1 = t2.
+Proof.
+  inversion 2; subst; intros; [| |
+    try match goal with
+    | Hs : DeepCbvStep _ _ |- _ =>
+      now apply DeepCbvStep_not_DeepCbvValue in Hs; [| inversion H; subst; eauto]
+    end..].
+  - now eapply DeepCbvContraction_det; eauto.
+  - now eapply DeepCbvAbortion_not_DeepCbvContraction in H; [| eauto].
+Qed.
+
+Lemma DeepCbvAbortion_DeepCbvStep_det :
+  forall t t1 t2 : Tm,
+    DeepCbvAbortion t t1 -> DeepCbvStep t t2 -> t1 = t2.
+Proof.
+  inversion 2; subst; intros; [| |
+    match goal with
+    | Hs : DeepCbvStep _ _ |- _ =>
+      now apply DeepCbvStep_not_DeepCbvValue in Hs; [| inversion H; subst; eauto]
+    end..].
+  - now eapply DeepCbvAbortion_not_DeepCbvContraction in H; [| eauto].
+  - now eapply DeepCbvAbortion_det; eauto.
+Qed.
+
+#[export] Hint Resolve DeepCbvContraction_DeepCbvStep_det DeepCbvAbortion_DeepCbvStep_det : core.
+
+Lemma DeepCbvStep_det :
+  forall t t1 t2 : Tm,
+    DeepCbvStep t t1 -> DeepCbvStep t t2 -> t1 = t2.
+Proof.
+  intros t t1 t2 Hs1 Hs2; revert t2 Hs2.
+  induction Hs1; intros; inversion Hs2; subst; clear Hs2;
+    repeat match goal with
+    | H : DeepCbvContraction _ _ |- _  => now eapply DeepCbvContraction_DeepCbvStep_det in H; eauto
+    | H : DeepCbvAbortion _ _ |- _     => now eapply DeepCbvAbortion_DeepCbvStep_det in H; eauto
+    | H : DeepCbvStep (app _ _) _ |- _ => now apply DeepCbvStep_not_DeepCbvValue in H; auto
+    | H : DeepCbvStep ?t _ |- _        =>
+      tryif is_evar t
+      then fail
+      else now apply DeepCbvStep_not_DeepCbvValue in H; [| eauto]
+    end; try now firstorder congruence.
+  now apply abs_eq with (fresh (l ++ l0 ++ fv t1' ++ fv t1'0)); auto.
+Qed.
+
+(** *** Progress and preservation *)
+
+Lemma preservation_deep_cbv :
+  forall (Γ : Ctx) (t1 t2 : Tm) (A : Ty),
+    DeepCbvStep t1 t2 ->
+    Typing Γ t1 A ->
+    Typing Γ t2 A.
+Proof.
+  intros Γ t1 t2 A Hstep; revert Γ A.
+  induction Hstep; intros Γ A; [| | | now inversion 1; subst; eauto..].
+  - now eapply preservation_DeepCbvContraction.
+  - now eapply preservation_DeepCbvAbortion.
+  - inversion 1; subst.
+    now apply Typing_abs with (l ++ l0); eauto.
+Qed.
+
+(*
+Lemma progress_deep_cbv :
+  forall (Γ : Ctx) (t : Tm) (A : Ty),
+    Typing Γ t A ->
+      DeepCbvValue t \/ exists t' : Tm, DeepCbvStep t t'.
+Proof.
+  intros Γ t A Ht.
+  induction Ht; subst; try now auto.
+  - admit.
+  - destruct IHHt1 as [ Hv | [t1' Hs1] ]; [| now eauto].
+    inversion Hv; subst; inversion Ht1; subst; try now auto.
+    + destruct IHHt2 as [ Hv2 | [t2' Hs2] ]; eauto.
+    + now eauto 6.
+  - now right; eauto.
+  - right; destruct (IHHt2 eq_refl) as [ Hv | [t2' Hs2] ]; [| now eauto].
+    now inversion Hv; subst; inversion Ht2; subst; try (now inversion Ht0); eauto 6.
+  - now left; eauto.
+  - now destruct (IHHt1 eq_refl) as [| [] ], (IHHt2 eq_refl) as [| [] ]; eauto.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    now inversion Hv; subst; inversion Ht; subst; try (now inversion Ht1); eauto 6.
+  - right; destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; [| now eauto].
+    now inversion Hv; subst; inversion Ht; subst; try (now inversion Ht1); eauto 6.
+  - right; destruct (IHHt2 eq_refl) as [Hv | [t'' Hs] ]; [| now eauto 6].
+    now inversion Hv; subst; inversion Ht2; subst; try (now inversion Ht0); eauto 6.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt3 eq_refl) as [Hv3 | [] ]; [| now eauto].
+    now inversion Hv3; subst; inversion Ht3; subst; try (now inversion Ht0); eauto 6.
+  - now destruct (IHHt eq_refl) as [Hv | [t'' Hs] ]; eauto.
+  - right; destruct (IHHt3 eq_refl) as [Hv1 | [t1' Hs1] ]; [| now eauto 6].
+    now inversion Hv1; subst; inversion Ht3; subst; try (now inversion Ht0); eauto 7.
+Admitted.
+*)

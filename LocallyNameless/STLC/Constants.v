@@ -193,7 +193,8 @@ end.
 Proof.
   - unfold supports, Fresh'.
     induction t; cbn; only 1: rename a into b; intros a Ha;
-      [| now f_equal; rewrite 1?(close_invariant _ _ 0), 1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
+      [| now f_equal; rewrite 1?(close_invariant _ _ 0),
+           1?IHt, 1?IHt1, 1?IHt2, 1?IHt3 by auto..].
     now firstorder decide_all.
   - intros t.
     setoid_rewrite LocallyClosed_forall.
@@ -1633,9 +1634,10 @@ Inductive CbnContraction : Tm -> Tm -> Prop :=
     (Hlc : lc t),
     CbnContraction (annot t A) t
 | CbnContraction_elimUnit :
-  forall (t1 : Tm)
-    (Hlc1 : lc t1),
-    CbnContraction (app (app elimUnit t1) unit) (app t1 unit)
+  forall (t1 t2 : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2),
+    CbnContraction (app (app elimUnit t1) t2) (app t1 unit)
 | CbnContraction_outl_pair :
   forall (t1 t2 : Tm)
     (Hlc1 : lc t1)
@@ -1756,13 +1758,6 @@ Inductive CbnAbortion : Tm -> Tm -> Prop :=
     (Hlc1 : lc t1)
     (Hlc2 : lc t2),
     CbnAbortion (app (app abort t1) t2) (app abort t1)
-(*
-| CbnAbortion_elimUnit :
-  forall (t1 t2 : Tm)
-    (Hlc1 : lc t1)
-    (Hlc2 : lc t2),
-    CbnAbortion (app (app elimUnit t1) (app abort t2)) (app abort t2)
-*)
 | CbnAbortion_outl :
   forall (t : Tm)
     (Hlc' : lc  t),
@@ -1868,7 +1863,44 @@ Inductive CbnStep : Tm -> Tm -> Prop :=
   forall (t1 t1' t2 : Tm),
     lc t2 ->
     CbnStep t1 t1' ->
-    CbnStep (app t1 t2) (app t1' t2).
+    CbnStep (app t1 t2) (app t1' t2)
+| CbnStep_outl :
+  forall (t t' : Tm),
+    CbnStep t t' ->
+    CbnStep (app outl t) (app outl t')
+| CbnStep_outr :
+  forall (t t' : Tm),
+    CbnStep t t' ->
+    CbnStep (app outr t) (app outr t')
+| CbnStep_elimProd :
+  forall (t1 t2 t2' : Tm)
+    (Hlc1 : lc t1)
+    (Hs2 : CbnStep t2 t2'),
+    CbnStep (app (app elimProd t1) t2) (app (app elimProd t1) t2')
+| CbnStep_case :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : CbnStep t3 t3'),
+    CbnStep (app (app (app case t1) t2) t3) (app (app (app case t1) t2) t3')
+| CbnStep_rec :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3 : CbnStep t3 t3'),
+    CbnStep (app (app (app rec t1) t2) t3) (app (app (app rec t1) t2) t3')
+| CbnStep_elimBool :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3  : CbnStep t3 t3'),
+    CbnStep (app (app (app elimBool t1) t2) t3) (app (app (app elimBool t1) t2) t3')
+| CbnStep_elimList :
+  forall (t1 t2 t3 t3' : Tm)
+    (Hlc1 : lc t1)
+    (Hlc2 : lc t2)
+    (Hs3  : CbnStep t3 t3'),
+    CbnStep (app (app (app elimList t1) t2) t3) (app (app (app elimList t1) t2) t3').
 
 #[export] Hint Constructors CbnStep : core.
 
@@ -1974,14 +2006,19 @@ Proof.
     | H : Typing _ (const _) _ |- _ => inversion H; subst; clear H
     | H : Typing _ (app _ _) _ |- _ => inversion H; subst; clear H
     end
-  end; eauto 7.
-  - destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ].
-    inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst;
-      try now inversion Ht3.
-    + now eauto.
-    + now eauto.
-    + right. exists (app outl t2'). Print CbnStep.
-Admitted.
+  end; eauto 7;
+    (destruct (IHHt2 eq_refl) as [ Hv2 | [t2' Hs2] ]; [| now eauto]).
+  - now inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; inversion Ht1; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; try inversion Ht1; subst;
+      try inversion Ht5; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; try inversion Ht1; subst;
+      try inversion Ht5; subst; eauto.
+  - now inversion Hv2; subst; inversion Ht2; subst; try inversion Ht1; subst;
+      try inversion Ht5; subst; eauto.
+Qed.
 
 Lemma Cbv_Cbn :
   forall (t1 t2 : Tm),
@@ -2487,7 +2524,6 @@ Proof.
   - apply incl_app.
     + rewrite app_comm_cons.
       now apply incl_app_l.
-    + Search incl cons.
 Admitted.
 
 Lemma lc_close :
