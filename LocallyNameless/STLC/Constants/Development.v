@@ -72,21 +72,18 @@ Proof.
     now f_equal; auto.
 Qed.
 
-Lemma MultiStep_Development :
-  forall t1 t2 : Tm,
-    Development t1 t2 -> MultiStep t1 t2.
-Proof.
-  induction 1; subst; eauto.
-  transitivity (app (abs t1') t2); [now eapply MultiStep_app; eauto |].
-  transitivity (app (abs t1') t2'); [now eapply MultiStep_app; eauto |].
-  now apply MultiStep_FullStep; constructor; eauto.
-Qed.
-
 Lemma ParallelStep_Development :
   forall t1 t2 : Tm,
     Development t1 t2 -> ParallelStep t1 t2.
 Proof.
   now induction 1; subst; eauto.
+Qed.
+
+Lemma MultiStep_Development :
+  forall t1 t2 : Tm,
+    Development t1 t2 -> MultiStep t1 t2.
+Proof.
+  now intros; apply MultiStep_ParallelStep, ParallelStep_Development.
 Qed.
 
 #[export] Hint Resolve MultiStep_Development ParallelStep_Development : core.
@@ -109,17 +106,8 @@ Proof.
     rewrite !(open'_spec _ _ x ) by auto.
     now apply ParallelStep_subst''; eauto.
 Qed.
-(*
- eauto.
-    assert (Ht1 : ParallelStep (t1'0 {{ 0 ~> x }}) (t1' {{ 0 ~> x }})) by now auto.
-    apply (ParallelStep_subst _ _ t2'0 x) in Ht1.
 
-
-    rewrite !(open'_spec _ _ x _) by auto.
-Admitted.
-*)
-
-Lemma confluent_ParallelStep :
+Lemma confluent_ParallelStep_Development :
   forall t t' t1 t2 : Tm,
     Development t t' ->
     ParallelStep t t1 -> ParallelStep t t2 ->
@@ -131,6 +119,7 @@ Qed.
 
 Require Import Recdef.
 
+(*
 Function development (t : Tm) : Tm :=
 match t with
 | fvar x => fvar x
@@ -142,91 +131,130 @@ match t with
 | app t1 t2 => app (development t1) (development t2)
 | _ => t
 end.
+*)
 
-Function development' (t : Tm) {measure size t} : Tm :=
+(*
+Function dev' (env : list Tm) (t : Tm) : Tm :=
+match t with
+| fvar x => fvar x
+| bvar i =>
+  match nth_option i env with
+  | None => bvar i
+  | Some t => t
+  end
+| abs t' =>
+  let x := fresh (fv t) in
+    abs (development (t' {{ 0 ~> x }}) {{ 0 <~ x }})
+| app (abs t1) t2 =>
+  let x := fresh (fv t) in
+  let t1' := development (t1 {{ 0 ~> x }}) in
+    t1' [[ x := development t2 ]]
+| app t1 t2 => app (development t1) (development t2)
+| _ => t
+end.
+*)
+
+Module wut.
+
+Function development (t : Tm): Tm :=
 match t with
 | fvar x => fvar x
 | bvar i => bvar i
-| abs t' =>
-  let x := fresh (fv t) in
-    abs (development' (t' {{ 0 ~> x }}) {{ 0 <~ x }})
-| app (abs t1) t2 =>
-  let x := fresh (fv t) in
-  let t1' := development' (t1 {{ 0 ~> x }}) in
-    t1' [[ x := development' t2 ]]
-| app t1 t2 => app (development' t1) (development' t2)
+| abs t' => abs (development t')
+| app (abs t1) t2 => development t1 {[ 0 ~> development t2 ]}
+| app t1 t2 => app (development t1) (development t2)
 | _ => t
 end.
-Proof.
-  all: now intros; subst; cbn; rewrite ?size_open; lia.
-Defined.
 
-Lemma open_development' :
-  forall (t : Tm) (i : nat) (x : Atom),
-    development' t {{ i ~> x }} = development' (t {{ i ~> x }}).
-Proof.
-  intros t.
-  functional induction (development t); cbn in *; intros; [easy | ..].
-  - now decide_all.
-  - rewrite (development'_equation (abs t')),
-      (development'_equation (abs (t' {{ _ ~> _ }}))); cbn.
-    apply abs_eq'; intros y Hy.
-Abort.
-
-Lemma development'_spec :
-  forall (t : Tm),
-    development' t = development t.
-Proof.
-  intros t.
-  functional induction (development' t); cbn in *; only 1-2: easy.
-  - rewrite IHt0.
-    admit.
-  - rewrite IHt0, IHt1.
-Abort.
-
-Lemma lc_development :
+Lemma lc_development0 :
   forall t : Tm,
     lc t -> lc (development t).
 Proof.
   induction 1; cbn; try now auto.
   - apply lc_abs with l; intros x Hx.
     admit.
-  - 
-Abort.
-
-Lemma not_open_development :
-  exists (t : Tm) (i : nat) (x : Atom),
-    development t {{ i ~> x }} <> development (t {{ i ~> x }}).
+  - inversion H; subst; cbn; try now auto.
+    apply lc_open'; [| easy].
+    inversion IHlc1; subst.
+    now eauto.
+Admitted.
+    
+Lemma open_development0 :
+  forall (t : Tm) (i : nat) (x : Atom),
+    lc t -> development t {{ i ~> x }} = development t.
 Proof.
-  exists (app (abs 1) (abs 0)), 0, (fresh []).
-  cbn.
-  decide_all.
-Qed.
+  intros t i x Hlc; revert i x.
+  induction Hlc; cbn in *; intros; try easy.
+  - admit.
+  - destruct t1; cbn in *; rewrite ?IHHlc1, ?IHHlc2; try now auto.
+    inversion Hlc1; subst.
+    rewrite open_lc; [easy |].
+    apply lc_open'; [| now apply lc_development0].
+    admit.
+  - now rewrite open_lc.
+Admitted.
 
 Lemma open_development :
   forall (t : Tm) (i : nat) (x : Atom),
-    development t {{ i ~> x }} = development (t {{ i ~> x }}).
+    lc t -> development t {{ i ~> x }} = development (t {{ i ~> x }})
+
+with lc_development :
+  forall (t : Tm),
+    lc t -> lc (development t).
 Proof.
-  induction t; cbn; intros; auto.
-  -
-Restart.
-  intros t.
-  functional induction (development t); cbn; intros.
-  - easy.
-  - now decide_all.
-  - now rewrite IHt0.
-  - admit.
-  - destruct t1; cbn.
-    + now rewrite IHt1.
-    + now decide_all; now rewrite IHt1.
-    + easy.
-    + cbn in IHt0.
-      now destruct t1_1; cbn in *; rewrite ?IHt0, ?IHt1; try easy.
-    + now rewrite IHt1.
-    + now rewrite IHt1.
-  - destruct t; cbn; try easy.
-    now destruct t1.
+  - intros.
+    rewrite open_lc; [| now apply lc_development].
+    now rewrite open_lc.
+  - induction 1; cbn; only 1, 4-5: now auto.
+    + apply lc_abs with l; intros x Hx.
+      specialize (H x Hx).
+      rewrite <- open_development in H; [easy |].
+      admit.
+    + inversion H; subst; cbn; try now auto.
+      apply lc_open'; [| easy].
+      inversion IHlc1; subst.
+      now eauto.
 Admitted.
+
+Lemma development_spec :
+  forall t : Tm,
+    lc t -> Development t (development t).
+Proof.
+  induction 1; cbn.
+  - now constructor.
+  - apply Development_abs with l; intros x Hx.
+    rewrite open_development.
+    now apply H.
+    admit.
+  - inversion IHlc1; subst; clear IHlc1; try easy.
+    + now econstructor; [congruence | eauto..].
+    + now eapply Development_app_abs; eauto.
+    + cbn; rewrite <- H1.
+      now econstructor; [congruence | eauto..].
+    + now econstructor; [congruence | eauto..].
+  - admit.
+  - admit.
+Admitted.
+
+End wut.
+
+Function development (t : Tm) {measure size t} : Tm :=
+match t with
+| fvar x => fvar x
+| bvar i => bvar i
+| abs t' =>
+  let x := fresh (fv t) in
+    abs (development (t' {{ 0 ~> x }}) {{ 0 <~ x }})
+| app (abs t1) t2 =>
+  let x := fresh (fv t) in
+  let t1' := development (t1 {{ 0 ~> x }}) in
+    t1' [[ x := development t2 ]]
+| app t1 t2 => app (development t1) (development t2)
+| _ => t
+end.
+Proof.
+  all: now intros; subst; cbn; rewrite ?size_close, ?size_open; lia.
+Defined.
 
 Lemma development_spec :
   forall t : Tm,

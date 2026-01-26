@@ -133,7 +133,7 @@ Inductive FullStep' : Tm -> Tm -> Prop :=
   forall (t t' : Tm) (l : list Atom)
     (Hfs' : forall x : Atom, x # l -> FullStep' (t {{ 0 ~> x }}) t'),
     forall x : Atom, x # l ->
-    FullStep' (abs t) (abs (t {{ 0 <~ x }}))
+    FullStep' (abs t) (abs (t' {{ 0 <~ x }}))
 | FullStep'_app_l :
   forall (t1 t1' t2 : Tm),
     lc t2 ->
@@ -156,7 +156,7 @@ Proof.
     apply FullStep_abs with l; intros y Hy.
     admit.
   - induction 1; only 1, 3-4: now auto.
-    admit.
+    
 Abort.
 
 Inductive MultiStep : Tm -> Tm -> Prop :=
@@ -227,7 +227,6 @@ Lemma MultiStep_FullStep :
 Proof.
   now eauto.
 Qed.
-
 
 Lemma standardize_FullContraction :
   forall (t1 t2 : Tm) (i : nat) (x : Atom),
@@ -458,9 +457,9 @@ Proof.
   - apply ParallelStep_abs with (x :: l); intros y Hy.
     now rewrite !subst_open; auto.
   - now auto.
-  - admit. (* Will work with the full definition. *)
   - admit.
-Admitted.
+  - admit.
+Admitted. (* Will work with the full definition. *)
 
 Lemma ParallelStep_subst'' :
   forall (t1 t1' t2 t2' : Tm) (x : Atom),

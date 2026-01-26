@@ -635,6 +635,13 @@ Proof.
   now induction t; cbn; intros; auto.
 Qed.
 
+Lemma size_close :
+  forall (t : Tm) (i : nat) (a : Atom),
+    size (t {{ i <~ a }}) = size t.
+Proof.
+  now induction t; cbn; intros; auto.
+Qed.
+
 Unset Guard Checking.
 Function decide_lc (a : Atom) (t : Tm) {struct t} : bool :=
 match t with
