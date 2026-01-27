@@ -7,3 +7,6 @@ makefile
 .makefile.d
 .coqdeps.d
 .lia.cache
+
+result
+

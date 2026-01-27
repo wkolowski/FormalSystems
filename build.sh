@@ -1,10 +1,14 @@
 #!/bin/sh
 
-# Generate a makefile.
-coq_makefile -R "." FormalSystems -o makefile $(find -name "*v")
+coq_makefile -R "." FormalSystems -o makefile $(find . -name "*v")
 
-# Build the library.
-make -j `nproc`
+# Use NIX_BUILD_CORES if set (nix build), otherwise use nproc (manual)
+if [ -n "$NIX_BUILD_CORES" ]; then
+  JOBS=$NIX_BUILD_CORES
+else
+  JOBS=$(nproc)
+fi
 
-# Delete the makefile and related files.
+make -j $JOBS
+
 rm makefile makefile.conf

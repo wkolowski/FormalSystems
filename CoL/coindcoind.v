@@ -61,6 +61,9 @@ Inductive Position (g : Structure) : Type :=
 
 Arguments In {g} _.
 
+(* TODO: coincoind *)
+
+(*
 From Typonomikon Require F3.
 
 CoFixpoint len {g : Structure} (r : Run g) : F3.conat :=
@@ -103,6 +106,7 @@ CoInductive Strict (g : Structure) : Type :=
 }.
 
 Arguments StrictOut {g} _.
+*)
 
 (*
 Inductive Winner {g : Structure} : Run g -> Player -> Type :=
