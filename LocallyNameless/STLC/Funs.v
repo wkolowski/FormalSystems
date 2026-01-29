@@ -784,8 +784,56 @@ Proof.
   now induction t; cbn; intros; auto.
 Qed.
 
-Unset Guard Checking.
-Function decide_lc (a : Atom) (t : Tm) {struct t} : bool :=
+From Equations Require Import Equations.
+
+Equations decide_lc (a : Atom) (t : Tm) : bool by wf (size t) lt :=
+decide_lc a (fvar x)         := true;
+decide_lc a (bvar n)         := false;
+decide_lc a (abs t')         := decide_lc a (t' {{ 0 ~> a }});
+decide_lc a (app t1 t2)      := decide_lc a t1 && decide_lc a t2;
+decide_lc a (annot t' A)     := decide_lc a t';
+decide_lc a unit             := true;
+decide_lc a (elimUnit t1 t2) := decide_lc a t1 && decide_lc a t2;
+decide_lc a (abort t')       := decide_lc a t';
+decide_lc a (pair t1 t2)     := decide_lc a t1 && decide_lc a t2;
+decide_lc a (outl t')        := decide_lc a t';
+decide_lc a (outr t')        := decide_lc a t';
+decide_lc a (elimProd t1 t2) := decide_lc a t1 && decide_lc a t2;
+decide_lc a (inl t')         := decide_lc a t';
+decide_lc a (inr t')         := decide_lc a t';
+decide_lc a (case t1 t2 t3)  := decide_lc a t1 && decide_lc a t2 && decide_lc a t3;
+decide_lc a zero             := true;
+decide_lc a (succ t')        := decide_lc a t';
+decide_lc a (rec t1 t2 t3)   := decide_lc a t1 && decide_lc a t2 && decide_lc a t3.
+
+Solve All Obligations with (cbn; intros; rewrite ?size_open; lia).
+
+Lemma decide_lc_spec :
+  forall (a : Atom) (t : Tm),
+    reflect (lc t) (decide_lc a t).
+Proof.
+  intros a t.
+  funelim (decide_lc a t);
+    try (now try destruct H; try destruct H0; try destruct H1;
+      cbn; constructor; [auto | inversion 1..]).
+  destruct H; constructor.
+  - now unshelve eauto; exact [].
+  - now inversion 1; subst; eauto.
+Qed.
+
+#[export, refine] Instance Decidable_lc :
+  forall t : Tm, Decidable (lc t) :=
+{
+  Decidable_witness :=
+    decide_lc (fresh (fv t)) t;
+}.
+Proof.
+  now destruct (decide_lc_spec (fresh (fv t)) t).
+Defined.
+
+Module Old.
+
+Function decide_lc (a : Atom) (t : Tm) {measure size t} : bool :=
 match t with
 | fvar x          => true
 | bvar n          => false
@@ -806,35 +854,89 @@ match t with
 | succ t'         => decide_lc a t'
 | rec t1 t2 t3    => decide_lc a t1 && decide_lc a t2 && decide_lc a t3
 end.
-(*
 Proof.
   all: now cbn; intros; rewrite ?size_open; lia.
 Defined.
-*)
-Set Guard Checking.
 
 Lemma decide_lc_spec :
   forall (a : Atom) (t : Tm),
     reflect (lc t) (decide_lc a t).
 Proof.
-  intros a t.
-  functional induction (decide_lc a t);
-    try (now try destruct IHb; try destruct IHb0; try destruct IHb1;
-      cbn; constructor; [auto | inversion 1..]).
-  destruct IHb; constructor; [now apply lc_abs with [];  eauto |].
-  inversion 1.
-  now specialize (Hlc' (fresh l) (fresh_spec l)); eauto.
+  intros a t; revert t.
+  Require Import Wellfounded.
+  apply (@well_founded_induction _ (fun t1 t2 => size t1 < size t2));
+    [now apply wf_inverse_image, Wf_nat.lt_wf |].
+  intros t; destruct t; cbn; intros IH; rewrite 1?decide_lc_equation.
+  - now constructor.
+  - now constructor.
+  - destruct (IH (t {{ 0 ~> a }})).
+    + now rewrite size_open; lia.
+    + constructor.
+      apply lc_abs with []; intros x _.
+      now apply lc_open_invariant with a.
+    + constructor; inversion 1; subst.
+      apply n, lc_open_invariant with (fresh l), Hlc'.
+      now auto.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - now constructor.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t3); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - now constructor.
+  - destruct (IH t); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
+  - destruct (IH t1); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t2); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    destruct (IH t3); cbn;
+      [now rewrite ?size_open; lia | | now constructor; inversion 1; auto].
+    now constructor; auto.
 Qed.
 
-#[export, refine] Instance Decidable_lc :
-  forall t : Tm, Decidable (lc t) :=
-{
-  Decidable_witness :=
-    decide_lc (fresh (fv t)) t;
-}.
-Proof.
-  now destruct (decide_lc_spec (fresh (fv t)) t).
-Defined.
+End Old.
 
 (** * Contexts *)
 

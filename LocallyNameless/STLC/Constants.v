@@ -642,8 +642,7 @@ Proof.
   now induction t; cbn; intros; auto.
 Qed.
 
-Unset Guard Checking.
-Function decide_lc (a : Atom) (t : Tm) {struct t} : bool :=
+Function decide_lc (a : Atom) (t : Tm) {measure size t} : bool :=
 match t with
 | fvar x          => true
 | bvar n          => false
@@ -652,12 +651,9 @@ match t with
 | annot t' A      => decide_lc a t'
 | const _         => true
 end.
-(*
 Proof.
   all: now cbn; intros; rewrite ?size_open; lia.
 Defined.
-*)
-Set Guard Checking.
 
 Lemma decide_lc_spec :
   forall (a : Atom) (t : Tm),
