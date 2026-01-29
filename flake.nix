@@ -16,7 +16,7 @@
 
         enableParallelBuilding = true;
 
-        buildInputs = [ pkgs.coq_8_20 ];
+        buildInputs = with pkgs; [ coq_8_20 coqPackages_8_20.equations ];
 
         buildPhase =
         ''
@@ -33,7 +33,7 @@
 
       devShells.${system}.default = pkgs.mkShell
       {
-        buildInputs = with pkgs; [ coq_8_20 coqPackages_8_20.coqide ];
+        buildInputs = with pkgs; [ coq_8_20 coqPackages_8_20.coqide coqPackages_8_20.equations ];
         shellHook =
         ''
           export PS1="\n\[\033[1;32m\][nix:\w]\$\[\033[0m\] "

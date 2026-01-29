@@ -6,6 +6,7 @@ pkgs.mkShell
   [
     coq_8_20
     coqPackages_8_20.coqide
+    coqPackages_8_20.equations
   ];
 
   shellHook =
