@@ -1,12 +1,16 @@
-*.aux
 *.vo
-*.vok
 *.vos
+*.vok
+*.aux
 *.glob
+
+*crashcoqide
+*v.d
+
+.*
+*~
+
 makefile
-.makefile.d
-.coqdeps.d
-.lia.cache
+makefile.conf
 
 result
-
