@@ -81,7 +81,10 @@ Proof.
     + now inversion H; inversion Hlc3; eauto.
 Qed.
 
+(*
 Module wut.
+
+Require Import Recdef.
 
 Function hasRedex (t : Tm) {measure size t} : bool :=
 match t with
@@ -134,15 +137,11 @@ Proof.
   all: intros; subst; cbn; lia.
 Defined.
 
-Require Import Recdef.
-
 Lemma hasRedex_complete :
   forall t t' : Tm,
     CbnStep t t' -> hasRedex t = true.
 Proof.
-  induction 1. admit. admit. rewrite hasRedex_equation. cbn; auto.
-  (* Each step case directly shows hasRedex finds it *)
-Qed.
+Admitted.
 
 Lemma hasRedex_spec :
   forall t : Tm,
@@ -162,6 +161,7 @@ Proof.
 Abort.
 
 End wut.
+*)
 
 Equations hasRedex (t : Tm) : bool :=
 hasRedex (fvar _)                := false;
@@ -221,7 +221,7 @@ Proof.
     | HA : CbnAbortion _ _ |- _ => now inversion HA
     | Hlc : lc ?t |- _ =>  tryif is_var t then fail else inversion Hlc; subst; clear Hlc
     | |- exists _, _ => now eauto
-    end. Focus 2. 
+    end.
 Restart.
   intros t.
   decide (lc t); cbn; [| now rewrite andb_false_r; constructor; intros [t' HC]; eauto].
@@ -233,44 +233,4 @@ Restart.
   | H : CbnContraction _ _ |- _ => now inversion H
   | H : CbnAbortion _ _ |- _ => now inversion H
   end.
-  - admit.
-  - destruct t1; simp hasRedex; cbn.
-    match goal
-
- constructor; auto;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      end.
-    now inversion H; subst; inversion Hlc1; subst; eauto.
-  - destruct t; simp isRedex; constructor; auto;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      | H : lc _ |- _ => inversion H; subst; clear H
-      end.
-    now inversion Hlc'; eauto.
-  - destruct t; simp isRedex; constructor; auto;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      | H : lc _ |- _ => inversion H; subst; clear H
-      end.
-    now inversion Hlc'; eauto.
-  - destruct t2; simp isRedex; constructor;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      | H : lc _ |- _ => inversion H; subst; clear H
-      end.
-    now inversion Hlc2; eauto.
-  - destruct t3; simp isRedex; constructor;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      | H : lc _ |- _ => inversion H; subst; clear H
-      end.
-    + now inversion Hlc3; eauto.
-    + now inversion Hlc3; eauto.
-  - destruct t3; simp isRedex; constructor;
-      try match goal with
-      | |- ~ _ => intros [t' HC]; inversion HC; subst
-      end.
-    + now inversion H; eauto.
-    + now inversion H; inversion Hlc3; eauto.
-Qed.
+Abort.

@@ -178,7 +178,7 @@ Proof.
     inversion IHlc1; subst.
     now eauto.
 Admitted.
-    
+
 Lemma open_development0 :
   forall (t : Tm) (i : nat) (x : Atom),
     lc t -> development t {{ i ~> x }} = development t.
@@ -262,16 +262,6 @@ Lemma development_spec :
 Proof.
   induction 1; cbn.
   - now constructor.
-  - apply Development_abs with l; intros x Hx.
-    rewrite open_development.
-    now apply H.
-  - inversion IHlc1; subst; clear IHlc1; try easy.
-    + now econstructor; [congruence | eauto..].
-    + now eapply Development_app_abs; eauto.
-    + cbn; rewrite <- H1.
-      now econstructor; [congruence | eauto..].
-    + now econstructor; [congruence | eauto..].
-  - admit.
   - admit.
 Admitted.
 
