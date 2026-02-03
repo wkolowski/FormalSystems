@@ -1,4 +1,4 @@
-Require Export Recdef.
+From Stdlib Require Export Recdef.
 
 From FormalSystems Require Export Base.
 

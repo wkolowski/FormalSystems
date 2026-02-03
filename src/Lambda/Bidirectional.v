@@ -1,6 +1,4 @@
-Require Import Bool Arith.
-
-Require Import List.
+From Stdlib Require Import Bool Arith List.
 Import ListNotations.
 
 (** 1.1 STLC with Booleans *)

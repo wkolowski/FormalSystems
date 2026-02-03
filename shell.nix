@@ -1,12 +1,22 @@
 { pkgs ? import <nixpkgs> {} }:
 
+let
+  # Coq with CoqIDE.
+  coq-with-ide = pkgs.coq_9_1.override { buildIde = true; };
+
+  # Make "coqide" an alias for "rocqide".
+  coqide-alias = pkgs.writeShellScriptBin "coqide" ''
+    exec ${coq-with-ide}/bin/rocqide "$@"
+  '';
+in
+
 pkgs.mkShell
 {
   buildInputs = with pkgs;
   [
-    coq_8_20
-    coqPackages_8_20.coqide
-    coqPackages_8_20.equations
+    coq-with-ide
+    coqide-alias
+    rocqPackages_9_1.stdlib
   ];
 
   shellHook =
@@ -15,7 +25,7 @@ pkgs.mkShell
     RESET="\033[0m"
 
     export PROJECT_ROOT=$(pwd)
-    export PS1="\n\[''${GREEN}\]Formal\''${PWD#\''$PROJECT_ROOT}>\[''${RESET}\] "
+    export PS1="\n\[''${GREEN}\]Formal Systems\''${PWD#\''$PROJECT_ROOT}>\[''${RESET}\] "
 
     echo ""
     echo -e "Various formal systems in Coq"

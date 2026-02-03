@@ -1,4 +1,4 @@
-Require Import Recdef.
+From Stdlib Require Import Recdef.
 
 From FormalSystems Require Import Base.
 

@@ -8,23 +8,26 @@ pkgs.stdenv.mkDerivation
 
   enableParallelBuilding = true;
 
-  buildInputs =
+  buildInputs = with pkgs;
   [
-    pkgs.coq_8_20
-    pkgs.coqPackages_8_20.equations
+    coq_9_1
+    rocqPackages_9_1.stdlib
   ];
 
   buildPhase =
   ''
     patchShebangs build.sh
     ./build.sh
-    rm -f makefile makefile.conf .makefile.d
   '';
 
   installPhase =
   ''
-    INSTALLPATH=$out/lib/coq/${pkgs.coq_8_20.coq-version}/user-contrib/FormalSystems
+    INSTALLPATH=$out/lib/coq/${pkgs.coq_9_1.coq-version}/user-contrib/FormalSystems
+
     mkdir -p $INSTALLPATH
-    cp -r * $INSTALLPATH
+    cp -r src/* $INSTALLPATH/
+
+    # Remove .vos, .vok and .aux files.
+    find $INSTALLPATH -name "*.vos" -o -name "*.vok" -o -name ".*.aux" | xargs rm -f
   '';
 }

@@ -11,13 +11,8 @@
     at the same time. Here this would require mutual coinduction and I
     don't know how to do it properly. *)
 
-Require Import List.
+From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
 Import ListNotations.
-
-Require Import Bool.
-Require Import Arith.
-
-Require Import FunctionalExtensionality.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 
@@ -101,8 +96,6 @@ Axiom sim_eq :
 (** The axiom is fine, because replacing [sim] with [=] in the definition
     of [sim] gives exactly what HoTT tells us is the characterization of
     paths for constant games. *)
-
-Require Import Setoid.
 
 Lemma sim_refl :
   forall g : ConstantGame, sim g g.

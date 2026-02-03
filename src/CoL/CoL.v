@@ -11,10 +11,8 @@
     at the same time. Here this would require mutual coinduction and I
     don't know how to do it properly. *)
 
-Require Import List.
+From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
 Import ListNotations.
-
-Require Import Bool Arith FunctionalExtensionality Setoid.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 

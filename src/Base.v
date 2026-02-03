@@ -1,6 +1,4 @@
-Require Export Bool Arith.
-
-Require Export List.
+From Stdlib Require Export Bool Arith List.
 Export ListNotations.
 
 Parameter Loc : Type.

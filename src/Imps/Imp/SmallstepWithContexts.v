@@ -1,4 +1,4 @@
-Require Import Recdef.
+From Stdlib Require Import Recdef.
 
 From FormalSystems Require Import Imp.Syntax.
 From FormalSystems Require Imp.Smallstep.

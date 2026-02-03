@@ -1,10 +1,5 @@
-Require Import List.
+From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
 Import ListNotations.
-
-Require Import Bool.
-Require Import Arith.
-
-Require Import FunctionalExtensionality.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 

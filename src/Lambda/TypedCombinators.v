@@ -1,5 +1,4 @@
-Require Import Bool Arith Equality.
-Require Import List.
+From Stdlib Require Import Bool Arith List.
 Import ListNotations.
 
 From FormalSystems Require Import Base.
@@ -12,61 +11,118 @@ Inductive Ty : Type :=
 
 Notation "a → b" := (TArr a b) (at level 60, right associativity).
 
-Inductive Tm : Ty -> Type :=
-    | K : forall {a b : Ty}, Tm (a → b → a)
-    | S : forall {a b c : Ty}, Tm ((a → b → c) → (a → b) → a → c)
-    | App : forall {a b : Ty}, Tm (a → b) -> Tm a -> Tm b
-    | zero : Tm TNat
-    | succ : Tm (TNat → TNat)
-    | rec  : forall {a : Ty}, Tm (a → (TNat → a → a) → TNat → a).
+Inductive Tm : Type :=
+    | K : Tm
+    | S : Tm
+    | App : Tm -> Tm -> Tm
+    | zero : Tm
+    | succ : Tm
+    | rec  : Tm.
 
 Notation "M @ N" := (App M N) (at level 50, left associativity).
 
-Inductive red : forall {A : Ty}, Tm A -> Tm A -> Prop :=
+Inductive hasType : Tm -> Ty -> Prop :=
+    | hasType_K :
+        forall a b : Ty, hasType K (a → b → a)
+    | hasType_S :
+        forall a b c : Ty,
+          hasType S ((a → b → c) → (a → b) → a → c)
+    | hasType_App :
+        forall (a b : Ty) (f x : Tm),
+          hasType f (a → b) -> hasType x a ->
+            hasType (App f x) b
+    | hasType_zero :
+        hasType zero TNat
+    | hasType_succ :
+        hasType succ (TNat → TNat)
+    | hasType_rec :
+        forall a : Ty,
+          hasType rec (a → (TNat → a → a) → TNat → a).
+
+Inductive red : Tm -> Tm -> Prop :=
     | red_K :
-        forall {A B : Ty} (f : Tm (A → B → A)) (a : Tm A) (b : Tm B),
-          red (K @ a @ b) a
+        forall x y : Tm,
+          red (K @ x @ y) x
     | red_S :
-        forall {A B C : Ty} (f : Tm (A → B → C)) (g : Tm (A → B)) (a : Tm A),
-          red (S @ f @ g @ a) (f @ a @ (g @ a))
+        forall x y z : Tm,
+          red (S @ x @ y @ z) (x @ z @ (y @ z))
     | red_rec_zero :
-        forall {A : Ty} (z : Tm A) (s : Tm (TNat → A → A)),
+        forall z s : Tm,
           red (rec @ z @ s @ zero) z
     | red_rec_succ :
-        forall {A : Ty} (z : Tm A) (s : Tm (TNat → A → A)) (n : Tm TNat),
+        forall z s n : Tm,
           red (rec @ z @ s @ (succ @ n)) (s @ n @ (rec @ z @ s @ n))
     | red_AppL :
-        forall {A B : Ty} (f f' : Tm (A → B)) (a : Tm A),
-          red f f' -> red (f @ a) (f @ a)
+        forall t1 t1' t2 : Tm,
+          red t1 t1' -> red (t1 @ t2) (t1' @ t2)
     | red_AppR :
-        forall {A B : Ty} (f : Tm (A → B)) (a a' : Tm A),
-          red a a' -> red (f @ a) (f @ a').
+        forall t1 t2 t2' : Tm,
+          red t2 t2' -> red (t1 @ t2) (t1 @ t2').
 
 Notation "A ~> B" := (red A B) (at level 60).
 
-#[global] Hint Constructors Ty Tm red rtc : core.
+#[global] Hint Constructors Ty Tm hasType red rtc : core.
 
-Definition reds {A : Ty} (t1 t2 : Tm A) : Prop := rtc (@red A) t1 t2.
+Definition reds := rtc red.
 
-Notation "A ~> B" := (red A B) (at level 60).
+#[global] Hint Unfold reds : core.
 
-Definition isNormal {A : Ty} (a : Tm A) : Prop :=
-  forall a' : Tm A, ~ a ~> a'.
+Infix "~>*" := reds (at level 50).
 
-Inductive Nf : forall {A : Ty}, Tm A -> Prop :=
-    | Nf_K0    : forall {A B : Ty}, Nf (@K A B)
-    | Nf_K1    : forall {A B : Ty} (a : Tm A), Nf a -> Nf (@K A B @ a)
-    | Nf_S0    : forall {A B C : Ty}, Nf (@S A B C)
-    | Nf_S1    : forall {A B C : Ty} (f : Tm (A → B → C)), Nf f -> Nf (S @ f)
-    | Nf_S2    : forall {A B C : Ty} (f : Tm (A → B → C)) (g : Tm (A → B)), Nf f -> Nf g -> Nf (S @ f @ g)
+Definition isNormal (t : Tm) : Prop :=
+  forall t' : Tm, ~ red t t'.
+
+Inductive Nf : Tm -> Prop :=
+    | Nf_K0    : Nf K
+    | Nf_K1    : forall t : Tm, Nf t -> Nf (K @ t)
+    | Nf_S0    : Nf S
+    | Nf_S1    : forall t : Tm, Nf t -> Nf (S @ t)
+    | Nf_S2    : forall t1 t2 : Tm, Nf t1 -> Nf t2 -> Nf (S @ t1 @ t2)
     | Nf_zero  : Nf zero
     | Nf_succ0 : Nf succ
-    | Nf_succ1 : forall n : Tm TNat, Nf n -> Nf (succ @ n)
-    | Nf_rec0  : forall {A : Ty}, Nf (@rec A)
-    | Nf_rec1  : forall {A : Ty} (z : Tm A), Nf z -> Nf (rec @ z)
-    | Nf_rec2  : forall {A : Ty} (z : Tm A) (s : Tm (TNat → A → A)), Nf z -> Nf s -> Nf (rec @ z @ s).
+    | Nf_succ1 : forall t : Tm, Nf t -> Nf (succ @ t)
+    | Nf_rec0  : Nf rec
+    | Nf_rec1  : forall t : Tm, Nf t -> Nf (rec @ t)
+    | Nf_rec2  : forall t1 t2 : Tm, Nf t1 -> Nf t2 -> Nf (rec @ t1 @ t2)
+    | Nf_Ne    : forall t : Tm, Ne t -> Nf t
 
-#[global] Hint Constructors Nf : core.
+with Ne : Tm -> Prop :=
+    | Ne_App : forall t1 t2 : Tm, Ne t1 -> Nf t2 -> Ne (t1 @ t2)
+    | Ne_rec : forall t1 t2 t3 : Tm, Nf t1 -> Nf t2 -> Ne t3 -> Ne (rec @ t1 @ t2 @ t3).
+
+Inductive Nf' : Tm -> Prop :=
+    | Nf'K0   : Nf' K
+    | Nf'K1   : forall t : Tm, Nf' t -> Nf' (K @ t)
+    | Nf'S0   : Nf' S
+    | Nf'S1   : forall t : Tm, Nf' t -> Nf' (S @ t)
+    | Nf'S2   : forall t1 t2 : Tm, Nf' t1 -> Nf' t2 -> Nf' (S @ t1 @ t2)
+    | Nf'rec0 : Nf' rec
+    | Nf'rec1 : forall t : Tm, Nf' t -> Nf' (rec @ t)
+    | Nf'rec2 : forall t1 t2 : Tm, Nf' t1 -> Nf' t2 -> Nf' (rec @ t1 @ t2)
+    | Nf'Ne'  : forall t : Tm, Ne' t -> Nf' t
+
+with      Ne' : Tm -> Prop :=
+    | Ne'zero : Ne' zero
+    | Ne'succ : Ne' succ
+    | Ne'App  : forall t1 t2 : Tm, Ne' t1 -> Nf' t2 -> Ne' (t1 @ t2).
+
+Inductive Nf3 : Tm -> Prop :=
+    | Nf3K1   : forall t : Tm, Nf3 t -> Nf3 (K @ t)
+    | Nf3S0   : Nf3 S
+    | Nf3S1   : forall t : Tm, Nf3 t -> Nf3 (S @ t)
+    | Nf3S2   : forall t1 t2 : Tm, Nf3 t1 -> Nf3 t2 -> Nf3 (S @ t1 @ t2)
+    | Nf3rec0 : Nf3 rec
+    | Nf3rec1 : forall t : Tm, Nf3 t -> Nf3 (rec @ t)
+    | Nf3rec2 : forall t1 t2 : Tm, Nf3 t1 -> Nf3 t2 -> Nf3 (rec @ t1 @ t2)
+    | Nf3Ne'  : forall t : Tm, Ne3 t -> Nf3 t
+
+     with Ne3 : Tm -> Prop :=
+    | Ne3K0   : Ne3 K
+    | Ne3zero : Ne3 zero
+    | Ne3succ : Ne3 succ
+    | Ne3App  : forall t1 t2 : Tm, Ne3 t1 -> Nf3 t2 -> Ne3 (t1 @ t2).
+
+#[global] Hint Constructors Nf Ne Nf' Ne' Nf3 Ne3 : core.
 
 Ltac wut :=
 repeat match goal with
@@ -83,22 +139,33 @@ repeat match goal with
     | H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
     | |- isNormal _ => do 2 intro
     | H : exists _, _   |- _ => decompose [ex and] H; clear H
-(*     | H : Ne ?x          |- _ => is_var x + inv H *)
-(*     | H : Ne' ?x          |- _ => is_var x + inv H *)
+    | H : Ne ?x          |- _ => is_var x + inv H
+    | H : Ne' ?x          |- _ => is_var x + inv H
     | _ => auto
 end.
 
-Lemma Nf_isNormal :
-  forall {A : Ty} {a : Tm A},
-    Nf a -> isNormal a.
-Proof.
-  unfold isNormal.
-  induction 1.
-    wut.
-    do 2 intro. inv H0.
-Abort.
+Fixpoint Nf_isNormal {t : Tm} (nf : Nf t) {struct nf} : isNormal t
 
-(*
+with     Ne_isNormal {t : Tm} (ne : Ne t) {struct ne} : isNormal t.
+Proof.
+  destruct nf.
+    wut.
+    red. do 2 intro. inv H.
+    1-11: wut; eapply Nf_isNormal;
+      repeat match goal with
+          | |- red _ _ => eauto
+      end; eauto.
+    apply Ne_isNormal. assumption.
+  destruct ne.
+    wut.
+      eapply Ne_isNormal; eauto.
+      eapply Nf_isNormal; eauto.
+    wut.
+      eapply Nf_isNormal. 2: eauto. eauto.
+      eapply Nf_isNormal. 2: eauto. eauto.
+      eapply Ne_isNormal. 2: eauto. eauto.
+Qed.
+
 Fixpoint Nf'_isNormal {t : Tm} (nf : Nf' t) {struct nf} : isNormal t
 
 with     Ne'_isNormal {t : Tm} (ne : Ne' t) {struct ne} : isNormal t.
@@ -179,12 +246,8 @@ Proof.
       inv H0.
       inv H0. inv H4.
         inv H. inv H3. inv H2.
-        inv H. inv H5. inv H4.
-  inv H0; inv H3.
-    inv H1.
-    inv H1.
-    inv H. inv H4. inv H3; inv H0. inv H. inv H8. inv H8.
-    
+        inv H.
+Abort.
   
 Lemma isNormal_Nf' :
   forall {t : Tm} {a : Ty}, hasType t a -> isNormal t -> Nf' t.
@@ -220,37 +283,7 @@ Proof.
                   inv H0.
                   inv H0.
                   inv H. inv H10. inv H8.
-                    inv H0. inv H0. inv 
-
- inv H2. inv H8; inv H.
-                exfalso. eapply H1. eauto.
-                
-
-
-
-
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    inv H2.
-      admit.
-      constructor.
-        constructor.
-      assert (Nf' (S @ x0)).
-        admit.
-        inv H.
-          repeat constructor. inv H6. econstructor. auto.
-      constructor. auto.
-        assert (Nf'
-        constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto. constructor.
-  destruct f. all: cycle 3.
-    constructor; auto. apply IHt2. wut. eapply H. eauto.
-    constructor; auto. apply IHt2. wut. eapply H. eauto.
-    constructor; auto. apply IHt2. wut. eapply H. eauto.
-    constructor; auto. apply IHt2. wut. eapply H. eauto.
-    constructor; auto. apply IHt2. wut. eapply H. eauto.
-    destruct t1_1. all: cycle 3.
-      repeat constructor. constructor. auto.
+                    inv H0.
 Abort.
 
 Definition hasNormal (t : Tm) : Prop :=
@@ -364,4 +397,3 @@ Proof.
         exists x. wut.
         wut. destruct a; cbn.
 Abort.
-*)
