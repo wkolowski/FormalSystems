@@ -2,18 +2,18 @@ From FormalSystems Require Export Imp.Syntax.
 From FormalSystems Require Import Imp.Denotational.
 
 Inductive AEval (s : State) : AExp -> AExp -> Prop :=
-    | AEval_Var :
-        forall x : Loc, AEval s (Var x) (AConst (s x))
-    | AEval_ABinOp_L :
-        forall (f : nat -> nat -> nat) (a1 a1' a2 : AExp),
-          AEval s a1 a1' -> AEval s (ABinOp f a1 a2) (ABinOp f a1' a2)
-    | AEval_ABinOp_R :
-        forall (f : nat -> nat -> nat) (n : nat) (a2 a2' : AExp),
-          AEval s a2 a2' ->
-            AEval s (ABinOp f (AConst n) a2) (ABinOp f (AConst n) a2')
-    | AEval_ABinOp :
-        forall (f : nat -> nat -> nat) (n1 n2 : nat),
-          AEval s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
+| AEval_Var :
+    forall x : Loc, AEval s (Var x) (AConst (s x))
+| AEval_ABinOp_L :
+    forall (f : nat -> nat -> nat) (a1 a1' a2 : AExp),
+      AEval s a1 a1' -> AEval s (ABinOp f a1 a2) (ABinOp f a1' a2)
+| AEval_ABinOp_R :
+    forall (f : nat -> nat -> nat) (n : nat) (a2 a2' : AExp),
+      AEval s a2 a2' ->
+        AEval s (ABinOp f (AConst n) a2) (ABinOp f (AConst n) a2')
+| AEval_ABinOp :
+    forall (f : nat -> nat -> nat) (n1 n2 : nat),
+      AEval s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 
 #[global] Hint Constructors AEval : core.
 
@@ -24,26 +24,26 @@ Proof.
   intros s a a1 a2 H. revert a2.
   induction H; intros; repeat
   match goal with
-      | H : AEval _ (?f _) _ |- _ => inv H
-      | |- ?f _ _ = ?f _ _ => f_equal
+  | H : AEval _ (?f _) _ |- _ => inv H
+  | |- ?f _ _ = ?f _ _ => f_equal
   end; auto.
 Qed.
 
 Ltac adet := repeat
 match goal with
-    | H1 : AEval ?s ?a ?a1, H2 : AEval ?s ?a ?a2 |- _ =>
-        assert (a1 = a2) by (eapply AEval_det; eauto); subst; clear H2
+| H1 : AEval ?s ?a ?a1, H2 : AEval ?s ?a ?a2 |- _ =>
+    assert (a1 = a2) by (eapply AEval_det; eauto); subst; clear H2
 end.
 
 Inductive AEvals (s : State) : AExp -> AExp -> Prop :=
-    | AEvals_step :
-        forall a1 a2 : AExp,
-          AEval s a1 a2 -> AEvals s a1 a2
-    | AEvals_refl :
-        forall a : AExp, AEvals s a a
-    | AEvals_trans :
-        forall a1 a2 a3 : AExp,
-          AEvals s a1 a2 -> AEvals s a2 a3 -> AEvals s a1 a3.
+| AEvals_step :
+    forall a1 a2 : AExp,
+      AEval s a1 a2 -> AEvals s a1 a2
+| AEvals_refl :
+    forall a : AExp, AEvals s a a
+| AEvals_trans :
+    forall a1 a2 a3 : AExp,
+      AEvals s a1 a2 -> AEvals s a2 a3 -> AEvals s a1 a3.
 
 #[global] Hint Constructors AEvals : core.
 
@@ -89,37 +89,37 @@ Proof.
   unfold acompatible.
   induction 1; cbn in *; intros; repeat
   match goal with
-      | H : AEval _ (?f _) _ |- _ => inv H
-      | |- ?f _ _ = ?f _ _ => f_equal
+  | H : AEval _ (?f _) _ |- _ => inv H
+  | |- ?f _ _ = ?f _ _ => f_equal
   end; eauto.
 Qed.
 
 Inductive BEval (s : State) : BExp -> BExp -> Prop :=
-    | BEval_BRelOp_L :
-        forall (f : nat -> nat -> bool) (a1 a1' a2 : AExp),
-          AEval s a1 a1' -> BEval s (BRelOp f a1 a2) (BRelOp f a1' a2)
-    | BEval_BRelOp_R :
-        forall (f : nat -> nat -> bool) (n : nat) (a2 a2' : AExp),
-          AEval s a2 a2' ->
-            BEval s (BRelOp f (AConst n) a2) (BRelOp f (AConst n) a2')
-    | BEval_BRelOp :
-        forall (f : nat -> nat -> bool) (n1 n2 : nat),
-          BEval s (BRelOp f (AConst n1) (AConst n2)) (BConst (f n1 n2))
-    | BEval_Not_Step :
-        forall e e' : BExp,
-          BEval s e e' -> BEval s (Not e) (Not e')
-    | BEval_Not :
-        forall b : bool, BEval s (Not (BConst b)) (BConst (negb b))
-    | BEval_BBinOp_L :
-        forall (f : bool -> bool -> bool) (e1 e1' e2 : BExp),
-          BEval s e1 e1' -> BEval s (BBinOp f e1 e2) (BBinOp f e1' e2)
-    | BEval_BBinOp_R :
-        forall (f : bool -> bool -> bool) (b : bool) (e2 e2' : BExp),
-          BEval s e2 e2' ->
-            BEval s (BBinOp f (BConst b) e2) (BBinOp f (BConst b) e2')
-    | BEval_BBinOp :
-        forall (f : bool -> bool -> bool) (b1 b2 : bool),
-          BEval s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
+| BEval_BRelOp_L :
+    forall (f : nat -> nat -> bool) (a1 a1' a2 : AExp),
+      AEval s a1 a1' -> BEval s (BRelOp f a1 a2) (BRelOp f a1' a2)
+| BEval_BRelOp_R :
+    forall (f : nat -> nat -> bool) (n : nat) (a2 a2' : AExp),
+      AEval s a2 a2' ->
+        BEval s (BRelOp f (AConst n) a2) (BRelOp f (AConst n) a2')
+| BEval_BRelOp :
+    forall (f : nat -> nat -> bool) (n1 n2 : nat),
+      BEval s (BRelOp f (AConst n1) (AConst n2)) (BConst (f n1 n2))
+| BEval_Not_Step :
+    forall e e' : BExp,
+      BEval s e e' -> BEval s (Not e) (Not e')
+| BEval_Not :
+    forall b : bool, BEval s (Not (BConst b)) (BConst (negb b))
+| BEval_BBinOp_L :
+    forall (f : bool -> bool -> bool) (e1 e1' e2 : BExp),
+      BEval s e1 e1' -> BEval s (BBinOp f e1 e2) (BBinOp f e1' e2)
+| BEval_BBinOp_R :
+    forall (f : bool -> bool -> bool) (b : bool) (e2 e2' : BExp),
+      BEval s e2 e2' ->
+        BEval s (BBinOp f (BConst b) e2) (BBinOp f (BConst b) e2')
+| BEval_BBinOp :
+    forall (f : bool -> bool -> bool) (b1 b2 : bool),
+      BEval s (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 
 #[global] Hint Constructors BEval : core.
 
@@ -131,17 +131,17 @@ Lemma BEval_det :
 Proof.
   induction 1; intros; repeat
   match goal with
-      | H : AEval _ (?f _) _ |- _ => inv H
-      | H : BEval _ (?f _) _ |- _ => inv H
-      | |- ?f _ = ?f _ => f_equal
-      | |- ?f _ _ = ?f _ _ => f_equal
+  | H : AEval _ (?f _) _ |- _ => inv H
+  | H : BEval _ (?f _) _ |- _ => inv H
+  | |- ?f _ = ?f _ => f_equal
+  | |- ?f _ _ = ?f _ _ => f_equal
   end; eauto.
 Qed.
 
 Ltac bdet := repeat
 match goal with
-    | H1 : BEval ?s ?e ?e1, H2 : BEval ?s ?e ?e2 |- _ =>
-        assert (e1 = e2) by (eapply BEval_det; eauto); subst; clear H2
+| H1 : BEval ?s ?e ?e1, H2 : BEval ?s ?e ?e2 |- _ =>
+    assert (e1 = e2) by (eapply BEval_det; eauto); subst; clear H2
 end.
 
 Definition BEvals (s : State) (e1 e2 : BExp) : Prop :=
@@ -219,39 +219,39 @@ Proof.
   unfold bcompatible.
   induction 1; cbn in *; intros; repeat
   match goal with
-      | H : AEval _ (?f _) _ |- _ => inv H
-      | H : BEval _ (?f _) _ |- _ => inv H
-      | |- ?f _ = ?f _ => f_equal
-      | |- ?f _ _ = ?f _ _ => f_equal
+  | H : AEval _ (?f _) _ |- _ => inv H
+  | H : BEval _ (?f _) _ |- _ => inv H
+  | |- ?f _ = ?f _ => f_equal
+  | |- ?f _ _ = ?f _ _ => f_equal
   end; eauto 6.
 Qed.
 
 Inductive CEval : Com * State -> Com * State -> Prop :=
-    | CEval_Asgn_Step :
-        forall (s : State) (a a' : AExp) (x : Loc),
-          AEval s a a' -> CEval (Asgn x a, s) (Asgn x a', s)
-    | CEval_Asgn_Val :
-        forall (s : State) (n : nat) (x : Loc),
-          CEval (Asgn x (AConst n), s) (Skip, changeState s x n)
-    | CEval_Seq_L :
-        forall (c1 c1' c2 : Com) (s s' : State),
-          CEval (c1, s) (c1', s') ->
-            CEval (Seq c1 c2, s) (Seq c1' c2, s')
-    | CEval_Seq_R :
-        forall (c : Com) (s : State),
-          CEval (Seq Skip c, s) (c, s)
-    | CEval_If_Step :
-        forall (b b' : BExp) (c1 c2 : Com) (s : State),
-          BEval s b b' -> CEval (If b c1 c2, s) (If b' c1 c2, s)
-    | CEval_If_True :
-        forall (s : State) (c1 c2 : Com),
-          CEval (If (BConst true) c1 c2, s) (c1, s)
-    | CEval_If_False :
-        forall (s : State) (c1 c2 : Com),
-          CEval (If (BConst false) c1 c2, s) (c2, s)
-    | CEval_While :
-        forall (b : BExp) (c : Com) (s : State),
-          CEval (While b c, s) (If b (Seq c (While b c)) Skip, s).
+| CEval_Asgn_Step :
+    forall (s : State) (a a' : AExp) (x : Loc),
+      AEval s a a' -> CEval (Asgn x a, s) (Asgn x a', s)
+| CEval_Asgn_Val :
+    forall (s : State) (n : nat) (x : Loc),
+      CEval (Asgn x (AConst n), s) (Skip, changeState s x n)
+| CEval_Seq_L :
+    forall (c1 c1' c2 : Com) (s s' : State),
+      CEval (c1, s) (c1', s') ->
+        CEval (Seq c1 c2, s) (Seq c1' c2, s')
+| CEval_Seq_R :
+    forall (c : Com) (s : State),
+      CEval (Seq Skip c, s) (c, s)
+| CEval_If_Step :
+    forall (b b' : BExp) (c1 c2 : Com) (s : State),
+      BEval s b b' -> CEval (If b c1 c2, s) (If b' c1 c2, s)
+| CEval_If_True :
+    forall (s : State) (c1 c2 : Com),
+      CEval (If (BConst true) c1 c2, s) (c1, s)
+| CEval_If_False :
+    forall (s : State) (c1 c2 : Com),
+      CEval (If (BConst false) c1 c2, s) (c2, s)
+| CEval_While :
+    forall (b : BExp) (c : Com) (s : State),
+      CEval (While b c, s) (If b (Seq c (While b c)) Skip, s).
 
 #[global] Hint Constructors CEval : core.
 
@@ -273,19 +273,19 @@ Lemma CEval_det :
 Proof.
   induction 1; intros; repeat
   match goal with
-      | H : AEval _ ?x _ |- _ => tryif is_var x then fail else inv H
-      | H : BEval _ ?x _ |- _ => tryif is_var x then fail else inv H
-      | H : CEval (?x, _) _ |- _ => tryif is_var x then fail else inv H
-      | IH : forall _, CEval _ _ -> _, H : CEval _ _ |- _ =>
-          let H' := fresh "H" in
-            pose (H' := IH _ H); inv H'; clear H
-      | _ => adet; bdet; auto
+  | H : AEval _ ?x _ |- _ => tryif is_var x then fail else inv H
+  | H : BEval _ ?x _ |- _ => tryif is_var x then fail else inv H
+  | H : CEval (?x, _) _ |- _ => tryif is_var x then fail else inv H
+  | IH : forall _, CEval _ _ -> _, H : CEval _ _ |- _ =>
+      let H' := fresh "H" in
+        pose (H' := IH _ H); inv H'; clear H
+  | _ => adet; bdet; auto
   end.
 Qed.
 
 Ltac cdet := repeat
 match goal with
-    | H1 : CEval ?cs ?cs1, H2 : CEval ?cs ?cs2 |- _ =>
+| H1 : CEval ?cs ?cs1, H2 : CEval ?cs ?cs2 |- _ =>
         assert (cs1 = cs2) by (eapply CEval_det; eauto); subst; clear H2
 end.
 

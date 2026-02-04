@@ -9,13 +9,13 @@ Parameter dec_spec :
 Notation "x =? y" := (dec x y) (at level 70).
 
 Inductive Formula : Type :=
-    | Var : V -> Formula
-    | FFalse : Formula
-    | FTrue : Formula
-    | Not : Formula -> Formula
-    | Impl : Formula -> Formula -> Formula
-    | Or : Formula -> Formula -> Formula
-    | And : Formula -> Formula -> Formula.
+| Var : V -> Formula
+| FFalse : Formula
+| FTrue : Formula
+| Not : Formula -> Formula
+| Impl : Formula -> Formula -> Formula
+| Or : Formula -> Formula -> Formula
+| And : Formula -> Formula -> Formula.
 
 Definition Iff (P Q : Formula) : Formula :=
   And (Impl P Q) (Impl Q P).
@@ -24,13 +24,13 @@ Definition Valuation : Type := V -> bool.
 
 Fixpoint value (f : Valuation) (F : Formula) : bool :=
 match F with
-    | Var x => f x
-    | FFalse => false
-    | FTrue => true
-    | Not F' => negb (value f F')
-    | Impl F1 F2 => orb (negb (value f F1)) (value f F2)
-    | Or F1 F2 => orb (value f F1) (value f F2)
-    | And F1 F2 => andb (value f F1) (value f F2)
+| Var x => f x
+| FFalse => false
+| FTrue => true
+| Not F' => negb (value f F')
+| Impl F1 F2 => orb (negb (value f F1)) (value f F2)
+| Or F1 F2 => orb (value f F1) (value f F2)
+| And F1 F2 => andb (value f F1) (value f F2)
 end.
 
 Definition valid (v : Valuation) (F : Formula) : Prop :=

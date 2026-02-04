@@ -13,66 +13,65 @@ Parameter dec_spec :
 Notation "x =? y" := (dec x y) (at level 70).
 
 Inductive type : Type :=
-    | TBool : type
-    | TArr : type -> type -> type.
+| TBool : type
+| TArr : type -> type -> type.
 
 Inductive tm : Type :=
-    | TVar : V -> tm
-    | TApp : tm -> tm -> tm
-    | TLam : V -> tm -> tm
-    | TTrue : tm
-    | TFalse : tm
-    | TIf : tm -> tm -> tm -> tm.
+| TVar : V -> tm
+| TApp : tm -> tm -> tm
+| TLam : V -> tm -> tm
+| TTrue : tm
+| TFalse : tm
+| TIf : tm -> tm -> tm -> tm.
 
 Definition Ctx : Type := V -> option type.
 
 Inductive has_type : Ctx -> tm -> type -> Prop :=
-    | ht_Var :
-        forall (G : Ctx) (x : V) (A : type),
-          G x = Some A -> has_type G (TVar x) A
-    | ht_App :
-        forall (G : Ctx) (t1 t2 : tm) (A B : type),
-          has_type G t1 (TArr A B) -> has_type G t2 A ->
-            has_type G (TApp t1 t2) B
-    | ht_Abs :
-        forall (G : Ctx) (x : V) (t : tm) (A B : type),
-          has_type (fun v : V => if x =? v then Some A else G v) t B ->
-            has_type G (TLam x t) (TArr A B)
-    | ht_True :
-        forall G : Ctx, has_type G TTrue TBool
-    | ht_False :
-        forall G : Ctx, has_type G TFalse TBool
-    | ht_If :
-        forall (G : Ctx) (t1 t2 t3 : tm) (A : type),
-          has_type G t1 TBool -> has_type G t2 A -> has_type G t3 A ->
-            has_type G (TIf t1 t2 t3) A.
+| ht_Var :
+    forall (G : Ctx) (x : V) (A : type),
+      G x = Some A -> has_type G (TVar x) A
+| ht_App :
+    forall (G : Ctx) (t1 t2 : tm) (A B : type),
+      has_type G t1 (TArr A B) -> has_type G t2 A ->
+        has_type G (TApp t1 t2) B
+| ht_Abs :
+    forall (G : Ctx) (x : V) (t : tm) (A B : type),
+      has_type (fun v : V => if x =? v then Some A else G v) t B ->
+        has_type G (TLam x t) (TArr A B)
+| ht_True :
+    forall G : Ctx, has_type G TTrue TBool
+| ht_False :
+    forall G : Ctx, has_type G TFalse TBool
+| ht_If :
+    forall (G : Ctx) (t1 t2 t3 : tm) (A : type),
+      has_type G t1 TBool -> has_type G t2 A -> has_type G t3 A ->
+        has_type G (TIf t1 t2 t3) A.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
-    | TBool, TBool => true
-    | TArr t11 t12, TArr t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | _, _ => false
+| TBool, TBool => true
+| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| _, _ => false
 end.
 
 Fixpoint infer (G : Ctx) (t : tm) : option type :=
 match t with
-    | TVar x => G x
-    | TApp t1 t2 =>
-        match infer G t1, infer G t2 with
-            | Some (TArr A B), Some A' =>
-                if type_eq_dec A A' then Some B else None
-            | _, _ => None
-        end
-    | TLam x t' => None
-    | TTrue => Some TBool
-    | TFalse => Some TBool
-    | TIf t1 t2 t3 =>
-        match infer G t1, infer G t2, infer G t3 with
-            | Some TBool, Some A, Some A' =>
-                if type_eq_dec A A' then Some A else None
-            | _, _, _ => None
-        end
+| TVar x => G x
+| TApp t1 t2 =>
+    match infer G t1, infer G t2 with
+    | Some (TArr A B), Some A' =>
+            if type_eq_dec A A' then Some B else None
+    | _, _ => None
+    end
+| TLam x t' => None
+| TTrue => Some TBool
+| TFalse => Some TBool
+| TIf t1 t2 t3 =>
+    match infer G t1, infer G t2, infer G t3 with
+    | Some TBool, Some A, Some A' =>
+            if type_eq_dec A A' then Some A else None
+    | _, _, _ => None
+    end
 end.
 
 Lemma type_eq_dec_refl :
@@ -110,98 +109,95 @@ Parameter dec_spec :
 Notation "x =? y" := (dec x y) (at level 70).
 
 Inductive type : Type :=
-    | TBool : type
-    | TArr : type -> type -> type.
+| TBool : type
+| TArr : type -> type -> type.
 
 Inductive tm : Type :=
-    | TVar : V -> tm
-    | TApp : tm -> tm -> tm
-    | TLam : V -> tm -> tm
-    | TTrue : tm
-    | TFalse : tm
-    | TIf : tm -> tm -> tm -> tm
-    | TAnn : tm -> type -> tm.
+| TVar : V -> tm
+| TApp : tm -> tm -> tm
+| TLam : V -> tm -> tm
+| TTrue : tm
+| TFalse : tm
+| TIf : tm -> tm -> tm -> tm
+| TAnn : tm -> type -> tm.
 
 Definition Ctx : Type := V -> option type.
 
 Inductive infer_type : Ctx -> tm -> type -> Prop :=
-    | infer_Var :
-        forall (G : Ctx) (x : V) (A : type),
-          G x = Some A -> infer_type G (TVar x) A
-    | infer_App :
-        forall (G : Ctx) (t1 t2 : tm) (A B : type),
-          infer_type G t1 (TArr A B) -> check_type G t2 A ->
-            infer_type G (TApp t1 t2) B
-    | infer_True :
-        forall G : Ctx, infer_type G TTrue TBool
-    | infer_False :
-        forall G : Ctx, infer_type G TFalse TBool
-    | infer_Ann :
-        forall (G : Ctx) (t : tm) (A : type),
-          check_type G t A -> infer_type G (TAnn t A) A
+| infer_Var :
+    forall (G : Ctx) (x : V) (A : type),
+      G x = Some A -> infer_type G (TVar x) A
+| infer_App :
+    forall (G : Ctx) (t1 t2 : tm) (A B : type),
+      infer_type G t1 (TArr A B) -> check_type G t2 A ->
+        infer_type G (TApp t1 t2) B
+| infer_True :
+    forall G : Ctx, infer_type G TTrue TBool
+| infer_False :
+    forall G : Ctx, infer_type G TFalse TBool
+| infer_Ann :
+    forall (G : Ctx) (t : tm) (A : type),
+      check_type G t A -> infer_type G (TAnn t A) A
 
 with check_type : Ctx -> tm -> type -> Prop :=
-    | check_Lam :
-        forall (G : Ctx) (x : V) (t : tm) (A B : type),
-          check_type (fun v : V => if x =? v then Some A else G v) t B ->
-            check_type G (TLam x t) (TArr A B)
-    | check_If :
-        forall (G : Ctx) (t1 t2 t3 : tm) (A : type),
-          check_type G t1 TBool -> check_type G t2 A -> check_type G t3 A ->
-            check_type G (TIf t1 t2 t3) A
-    | check_infer :
-        forall (G : Ctx) (t : tm) (A : type),
-          infer_type G t A -> check_type G t A.
+| check_Lam :
+    forall (G : Ctx) (x : V) (t : tm) (A B : type),
+      check_type (fun v : V => if x =? v then Some A else G v) t B ->
+        check_type G (TLam x t) (TArr A B)
+| check_If :
+    forall (G : Ctx) (t1 t2 t3 : tm) (A : type),
+      check_type G t1 TBool -> check_type G t2 A -> check_type G t3 A ->
+        check_type G (TIf t1 t2 t3) A
+| check_infer :
+    forall (G : Ctx) (t : tm) (A : type),
+      infer_type G t A -> check_type G t A.
 
 #[global] Hint Constructors infer_type : core.
 #[global] Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
-    | TBool, TBool => true
-    | TArr t11 t12, TArr t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | _, _ => false
+| TBool, TBool => true
+| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| _, _ => false
 end.
 
 Fixpoint infer (G : Ctx) (t : tm) : option type :=
 match t with
-    | TVar x => G x
-    | TApp t1 t2 =>
+| TVar x => G x
+| TApp t1 t2 =>
         match infer G t1 with
-            | Some (TArr A B) => if check G t2 A then Some B else None
-            | _ => None
+        | Some (TArr A B) => if check G t2 A then Some B else None
+        | _ => None
         end
-    | TTrue => Some TBool
-    | TFalse => Some TBool
-    | TAnn t A => if check G t A then Some A else None
-    | _ => None
+| TTrue => Some TBool
+| TFalse => Some TBool
+| TAnn t A => if check G t A then Some A else None
+| _ => None
 end
 
 with check (G : Ctx) (t : tm) (A : type) : bool :=
 match t with
-    | TLam x t =>
-        match A with
-            | TArr X Y =>
-                check (fun v : V => if x =? v then Some X else G v) t Y
-            | _ => false
-        end
-    | TIf t1 t2 t3 =>
-        check G t1 TBool && check G t2 A && check G t3 A
+| TLam x t =>
+    match A with
+    | TArr X Y => check (fun v : V => if x =? v then Some X else G v) t Y
+    | _ => false
+    end
+| TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
 (* Not very pretty, but it works. *)
-    | TVar x =>
-        match G x with
-            | Some B => type_eq_dec A B
-            | _ => false
-        end
-    | TApp t1 t2 =>
-        match infer G t1 with
-            | Some (TArr X Y) => check G t2 X && type_eq_dec Y A
-            | _ => false
-        end
-    | TTrue => type_eq_dec TBool A
-    | TFalse => type_eq_dec TBool A
-    | TAnn t' A' => check G t' A' && type_eq_dec A A'
+| TVar x =>
+    match G x with
+    | Some B => type_eq_dec A B
+    | _ => false
+    end
+| TApp t1 t2 =>
+    match infer G t1 with
+    | Some (TArr X Y) => check G t2 X && type_eq_dec Y A
+    | _ => false
+    end
+| TTrue => type_eq_dec TBool A
+| TFalse => type_eq_dec TBool A
+| TAnn t' A' => check G t' A' && type_eq_dec A A'
 end.
 
 Lemma type_eq_dec_refl :
@@ -311,91 +307,89 @@ Parameter dec_spec :
 Notation "x =? y" := (dec x y) (at level 70).
 
 Inductive type : Type :=
-    | TBool : type
-    | TArr : type -> type -> type.
+| TBool : type
+| TArr : type -> type -> type.
 
 Inductive tmEx : Type :=
-    | TVar : V -> tmEx
-    | TApp : tmEx -> tmIn -> tmEx
-    | TTrue : tmEx
-    | TFalse : tmEx
-    | TAnn : tmIn -> type -> tmEx
+| TVar : V -> tmEx
+| TApp : tmEx -> tmIn -> tmEx
+| TTrue : tmEx
+| TFalse : tmEx
+| TAnn : tmIn -> type -> tmEx
 
 with tmIn : Type :=
-    | TLam : V -> tmIn -> tmIn
-    | TIf : tmIn -> tmIn -> tmIn -> tmIn
-    | TEx : tmEx -> tmIn.
+| TLam : V -> tmIn -> tmIn
+| TIf : tmIn -> tmIn -> tmIn -> tmIn
+| TEx : tmEx -> tmIn.
 
 Definition Ctx : Type := V -> option type.
 
 Inductive infer_type : Ctx -> tmEx -> type -> Prop :=
-    | infer_Var :
-        forall (G : Ctx) (x : V) (A : type),
-          G x = Some A -> infer_type G (TVar x) A
-    | infer_App :
-        forall (G : Ctx) (t1 : tmEx) (t2 : tmIn) (A B : type),
-          infer_type G t1 (TArr A B) -> check_type G t2 A ->
-            infer_type G (TApp t1 t2) B
-    | infer_True :
-        forall G : Ctx, infer_type G TTrue TBool
-    | infer_False :
-        forall G : Ctx, infer_type G TFalse TBool
-    | infer_Ann :
-        forall (G : Ctx) (t : tmIn) (A : type),
-          check_type G t A -> infer_type G (TAnn t A) A
+| infer_Var :
+    forall (G : Ctx) (x : V) (A : type),
+      G x = Some A -> infer_type G (TVar x) A
+| infer_App :
+    forall (G : Ctx) (t1 : tmEx) (t2 : tmIn) (A B : type),
+      infer_type G t1 (TArr A B) -> check_type G t2 A ->
+        infer_type G (TApp t1 t2) B
+| infer_True :
+    forall G : Ctx, infer_type G TTrue TBool
+| infer_False :
+    forall G : Ctx, infer_type G TFalse TBool
+| infer_Ann :
+    forall (G : Ctx) (t : tmIn) (A : type),
+      check_type G t A -> infer_type G (TAnn t A) A
 
 with check_type : Ctx -> tmIn -> type -> Prop :=
-    | check_Lam :
-        forall (G : Ctx) (x : V) (t : tmIn) (A B : type),
-          check_type (fun v : V => if x =? v then Some A else G v) t B ->
-            check_type G (TLam x t) (TArr A B)
-    | check_If :
-        forall (G : Ctx) (t1 t2 t3 : tmIn) (A : type),
-          check_type G t1 TBool -> check_type G t2 A -> check_type G t3 A ->
-            check_type G (TIf t1 t2 t3) A
-    | check_Ex :
-        forall (G : Ctx) (t : tmEx) (A : type),
-          infer_type G t A -> check_type G (TEx t) A.
+| check_Lam :
+    forall (G : Ctx) (x : V) (t : tmIn) (A B : type),
+      check_type (fun v : V => if x =? v then Some A else G v) t B ->
+        check_type G (TLam x t) (TArr A B)
+| check_If :
+    forall (G : Ctx) (t1 t2 t3 : tmIn) (A : type),
+      check_type G t1 TBool -> check_type G t2 A -> check_type G t3 A ->
+        check_type G (TIf t1 t2 t3) A
+| check_Ex :
+    forall (G : Ctx) (t : tmEx) (A : type),
+      infer_type G t A -> check_type G (TEx t) A.
 
 #[global] Hint Constructors infer_type : core.
 #[global] Hint Constructors check_type : core.
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
-    | TBool, TBool => true
-    | TArr t11 t12, TArr t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | _, _ => false
+| TBool, TBool => true
+| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| _, _ => false
 end.
 
 Fixpoint infer (G : Ctx) (t : tmEx) : option type :=
 match t with
-    | TVar x => G x
-    | TApp t1 t2 =>
+| TVar x => G x
+| TApp t1 t2 =>
         match infer G t1 with
-            | Some (TArr A B) => if check G t2 A then Some B else None
-            | _ => None
+        | Some (TArr A B) => if check G t2 A then Some B else None
+        | _ => None
         end
-    | TTrue => Some TBool
-    | TFalse => Some TBool
-    | TAnn t A => if check G t A then Some A else None
+| TTrue => Some TBool
+| TFalse => Some TBool
+| TAnn t A => if check G t A then Some A else None
 end
 
 with check (G : Ctx) (t : tmIn) (A : type) : bool :=
 match t with
-    | TLam x t =>
-        match A with
-            | TArr X Y =>
-                check (fun v : V => if x =? v then Some X else G v) t Y
-            | _ => false
-        end
-    | TIf t1 t2 t3 =>
-        check G t1 TBool && check G t2 A && check G t3 A
-    | TEx t' =>
-        match infer G t' with
-            | Some B => type_eq_dec A B
-            | _ => false
-        end
+| TLam x t =>
+    match A with
+    | TArr X Y =>
+            check (fun v : V => if x =? v then Some X else G v) t Y
+    | _ => false
+    end
+| TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
+| TEx t' =>
+    match infer G t' with
+    | Some B => type_eq_dec A B
+    | _ => false
+    end
 end.
 
 Lemma type_eq_dec_refl :
@@ -484,101 +478,101 @@ Parameter dec_spec :
 Notation "x =? y" := (dec x y) (at level 70).
 
 Inductive type : Type :=
-    | TArr : type -> type -> type
-    | TEmpty : type
-    | TUnit : type
-    | TBool : type
-    | TProd : type -> type -> type
-    | TSum : type -> type -> type.
+| TArr : type -> type -> type
+| TEmpty : type
+| TUnit : type
+| TBool : type
+| TProd : type -> type -> type
+| TSum : type -> type -> type.
 
 Inductive tmEx : Type :=
-    | TVar : V -> tmEx
-    | TAnn : tmIn -> type -> tmEx
+| TVar : V -> tmEx
+| TAnn : tmIn -> type -> tmEx
 
-    | TApp : tmEx -> tmIn -> tmEx
+| TApp : tmEx -> tmIn -> tmEx
 
-    | TStar : tmEx
+| TStar : tmEx
 
-    | TTrue : tmEx
-    | TFalse : tmEx
-    | TIf : tmIn -> tmEx -> tmEx -> tmEx
+| TTrue : tmEx
+| TFalse : tmEx
+| TIf : tmIn -> tmEx -> tmEx -> tmEx
 
-    | TPair : tmEx -> tmEx -> tmEx
-    | TOutl : tmEx -> tmEx
-    | TOutr : tmEx -> tmEx
+| TPair : tmEx -> tmEx -> tmEx
+| TOutl : tmEx -> tmEx
+| TOutr : tmEx -> tmEx
 
-    | TCase : tmEx -> tmEx -> tmEx -> tmEx
+| TCase : tmEx -> tmEx -> tmEx -> tmEx
 
 with tmIn : Type :=
-    | TEx : tmEx -> tmIn
-    | TLam : V -> tmIn -> tmIn
-    | TExfalso : tmIn -> tmIn
-(*    | TExfalso : tmIn -> type -> tmIn *)
+| TEx : tmEx -> tmIn
+| TLam : V -> tmIn -> tmIn
+| TExfalso : tmIn -> tmIn
+(*| TExfalso : tmIn -> type -> tmIn *)
 
-    | TInl : tmIn -> tmIn
-    | TInr : tmIn -> tmIn.
+| TInl : tmIn -> tmIn
+| TInr : tmIn -> tmIn.
 
 (*  | TCase *)
 
 Definition Ctx : Type := V -> option type.
 
 Inductive infer_type : Ctx -> tmEx -> type -> Prop :=
-    | infer_Var :
-        forall (G : Ctx) (x : V) (A : type),
-          G x = Some A -> infer_type G (TVar x) A
-    | infer_Ann :
-        forall (G : Ctx) (t : tmIn) (A : type),
-          check_type G t A -> infer_type G (TAnn t A) A
-    | infer_App :
-        forall (G : Ctx) (t1 : tmEx) (t2 : tmIn) (A B : type),
-          infer_type G t1 (TArr A B) -> check_type G t2 A ->
-            infer_type G (TApp t1 t2) B
-    | infer_Star :
-        forall G : Ctx, infer_type G TStar TUnit
-    | infer_True :
-        forall G : Ctx, infer_type G TTrue TBool
-    | infer_False :
-        forall G : Ctx, infer_type G TFalse TBool
-    | infer_If :
-        forall (G : Ctx) (t1 : tmIn) (t2 t3 : tmEx) (A : type),
-          check_type G t1 TBool ->
-          infer_type G t2 A -> infer_type G t3 A ->
-            infer_type G (TIf t1 t2 t3) A
-    | infer_Pair :
-        forall (G : Ctx) (t1 t2 : tmEx) (A B : type),
-          infer_type G t1 A -> infer_type G t2 B ->
-            infer_type G (TPair t1 t2) (TProd A B)
-    | infer_Outl :
-        forall (G : Ctx) (t : tmEx) (A B : type),
-          infer_type G t (TProd A B) -> infer_type G (TOutl t) A
-    | infer_Outr :
-        forall (G : Ctx) (t : tmEx) (A B : type),
-          infer_type G t (TProd A B) -> infer_type G (TOutr t) B
-    | infer_Case :
-        forall (G : Ctx) (t1 t2 t3 : tmEx) (A B C : type),
-          infer_type G t1 (TSum A B) ->
-          infer_type G t2 (TArr A C) ->
-          infer_type G t3 (TArr B C) ->
-            infer_type G (TCase t1 t2 t3) C
+| infer_Var :
+    forall (G : Ctx) (x : V) (A : type),
+      G x = Some A -> infer_type G (TVar x) A
+| infer_Ann :
+    forall (G : Ctx) (t : tmIn) (A : type),
+      check_type G t A -> infer_type G (TAnn t A) A
+| infer_App :
+    forall (G : Ctx) (t1 : tmEx) (t2 : tmIn) (A B : type),
+      infer_type G t1 (TArr A B) -> check_type G t2 A ->
+        infer_type G (TApp t1 t2) B
+| infer_Star :
+    forall G : Ctx, infer_type G TStar TUnit
+| infer_True :
+    forall G : Ctx, infer_type G TTrue TBool
+| infer_False :
+    forall G : Ctx, infer_type G TFalse TBool
+| infer_If :
+    forall (G : Ctx) (t1 : tmIn) (t2 t3 : tmEx) (A : type),
+      check_type G t1 TBool ->
+      infer_type G t2 A -> infer_type G t3 A ->
+        infer_type G (TIf t1 t2 t3) A
+| infer_Pair :
+    forall (G : Ctx) (t1 t2 : tmEx) (A B : type),
+      infer_type G t1 A -> infer_type G t2 B ->
+        infer_type G (TPair t1 t2) (TProd A B)
+| infer_Outl :
+    forall (G : Ctx) (t : tmEx) (A B : type),
+      infer_type G t (TProd A B) -> infer_type G (TOutl t) A
+| infer_Outr :
+    forall (G : Ctx) (t : tmEx) (A B : type),
+      infer_type G t (TProd A B) -> infer_type G (TOutr t) B
+| infer_Case :
+    forall (G : Ctx) (t1 t2 t3 : tmEx) (A B C : type),
+      infer_type G t1 (TSum A B) ->
+      infer_type G t2 (TArr A C) ->
+      infer_type G t3 (TArr B C) ->
+        infer_type G (TCase t1 t2 t3) C
 
 with check_type : Ctx -> tmIn -> type -> Prop :=
-    | check_Ex :
+| check_Ex :
         forall (G : Ctx) (t : tmEx) (A : type),
           infer_type G t A -> check_type G (TEx t) A
-    | check_Lam :
+| check_Lam :
         forall (G : Ctx) (x : V) (t : tmIn) (A B : type),
           check_type (fun v : V => if x =? v then Some A else G v) t B ->
             check_type G (TLam x t) (TArr A B)
-(*    | check_Exfalso :
+(*| check_Exfalso :
         forall (G : Ctx) (t : tmIn) (A : type),
           check_type G t TEmpty -> check_type G (TExfalso t A) A *)
-    | check_Exfalso :
+| check_Exfalso :
         forall (G : Ctx) (t : tmIn) (A : type),
           check_type G t TEmpty -> check_type G (TExfalso t) A
-    | check_Inl :
+| check_Inl :
         forall (G : Ctx) (t : tmIn) (A B : type),
           check_type G t A -> check_type G (TInl t) (TSum A B)
-    | check_Inr :
+| check_Inr :
         forall (G : Ctx) (t : tmIn) (A B : type),
           check_type G t B -> check_type G (TInr t) (TSum A B).
 
@@ -587,16 +581,13 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
 
 Fixpoint type_eq_dec (t1 t2 : type) : bool :=
 match t1, t2 with
-    | TArr t11 t12, TArr t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | TEmpty, TEmpty => true
-    | TUnit, TUnit => true
-    | TBool, TBool => true
-    | TProd t11 t12, TProd t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | TSum t11 t12, TSum t21 t22 =>
-        type_eq_dec t11 t21 && type_eq_dec t12 t22
-    | _, _ => false
+| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| TEmpty, TEmpty => true
+| TUnit, TUnit => true
+| TBool, TBool => true
+| TProd t11 t12, TProd t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| TSum t11 t12, TSum t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
+| _, _ => false
 end.
 
 Lemma type_eq_dec_spec :
@@ -611,75 +602,76 @@ Qed.
 
 Fixpoint infer (G : Ctx) (t : tmEx) : option type :=
 match t with
-    | TVar x => G x
-    | TAnn t A => if check G t A then Some A else None
-    | TApp t1 t2 =>
-        match infer G t1 with
-            | Some (TArr A B) => if check G t2 A then Some B else None
-            | _ => None
-        end
-    | TStar => Some TUnit
-    | TTrue => Some TBool
-    | TFalse => Some TBool
-    | TIf t1 t2 t3 =>
-        match infer G t2, infer G t3 with
-            | Some A, Some B =>
-                if check G t1 TBool && type_eq_dec A B then Some A else None
-            | _, _ => None
-        end
-    | TPair t1 t2 =>
-        match infer G t1, infer G t2 with
-            | Some A, Some B => Some (TProd A B)
-            | _, _ => None
-        end
-    | TOutl t' =>
-        match infer G t' with
-            | Some (TProd A B) => Some A
-            | _ => None
-        end
-    | TOutr t' =>
-        match infer G t' with
-            | Some (TProd A B) => Some B
-            | _ => None
-        end
-    | TCase t1 t2 t3 =>
-        match infer G t1, infer G t2, infer G t3 with
-            | Some (TSum A B), Some (TArr A' C), Some (TArr B' C') =>
-                if
-                  type_eq_dec A A' &&
-                  type_eq_dec B B' &&
-                  type_eq_dec C C'
-                then
-                  Some C
-                else None
-            | _, _, _ => None
-        end
+| TVar x => G x
+| TAnn t A => if check G t A then Some A else None
+| TApp t1 t2 =>
+    match infer G t1 with
+    | Some (TArr A B) => if check G t2 A then Some B else None
+    | _ => None
+    end
+| TStar => Some TUnit
+| TTrue => Some TBool
+| TFalse => Some TBool
+| TIf t1 t2 t3 =>
+    match infer G t2, infer G t3 with
+    | Some A, Some B =>
+            if check G t1 TBool && type_eq_dec A B then Some A else None
+    | _, _ => None
+    end
+| TPair t1 t2 =>
+    match infer G t1, infer G t2 with
+    | Some A, Some B => Some (TProd A B)
+    | _, _ => None
+    end
+| TOutl t' =>
+    match infer G t' with
+    | Some (TProd A B) => Some A
+    | _ => None
+    end
+| TOutr t' =>
+    match infer G t' with
+    | Some (TProd A B) => Some B
+    | _ => None
+    end
+| TCase t1 t2 t3 =>
+    match infer G t1, infer G t2, infer G t3 with
+    | Some (TSum A B), Some (TArr A' C), Some (TArr B' C') =>
+        if
+          type_eq_dec A A' &&
+          type_eq_dec B B' &&
+          type_eq_dec C C'
+        then
+          Some C
+        else
+          None
+    | _, _, _ => None
+    end
 end
 
 with check (G : Ctx) (t : tmIn) (A : type) : bool :=
 match t with
-    | TEx t' =>
+| TEx t' =>
         match infer G t' with
-            | Some B => type_eq_dec A B
-            | _ => false
+        | Some B => type_eq_dec A B
+        | _ => false
         end
-    | TLam x t =>
+| TLam x t =>
         match A with
-            | TArr X Y =>
+        | TArr X Y =>
                 check (fun v : V => if x =? v then Some X else G v) t Y
-            | _ => false
+        | _ => false
         end
-(*    | TExfalso t' B => check G t' TEmpty && type_eq_dec A B *)
-    | TExfalso t' => check G t' TEmpty
-    | TInl t' =>
+(*| TExfalso t' B => check G t' TEmpty && type_eq_dec A B *)
+| TExfalso t' => check G t' TEmpty
+| TInl t' =>
         match A with
-            | TSum B C => check G t' B
-            | _ => false
+        | TSum B C => check G t' B
+        | _ => false
         end
-    | TInr t' =>
+| TInr t' =>
         match A with
-            | TSum B C => check G t' C
-            | _ => false
+        | TSum B C => check G t' C
+        | _ => false
         end
 end.
 

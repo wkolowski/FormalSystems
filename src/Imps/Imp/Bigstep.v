@@ -2,15 +2,15 @@ From FormalSystems Require Export Imp.Syntax.
 From FormalSystems Require Import Imp.Denotational.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
-    | EvalAConst :
-        forall (n : nat) (s : State), AEval (AConst n) s n
-    | EvalVar :
-        forall (v : Loc) (s : State), AEval (Var v) s (s v)
-    | EvalABinOp :
-        forall (f : nat -> nat -> nat)
-               (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 ->
-            AEval (ABinOp f a1 a2) s (f n1 n2).
+| EvalAConst :
+    forall (n : nat) (s : State), AEval (AConst n) s n
+| EvalVar :
+    forall (v : Loc) (s : State), AEval (Var v) s (s v)
+| EvalABinOp :
+    forall (f : nat -> nat -> nat)
+           (a1 a2 : AExp) (s : State) (n1 n2 : nat),
+      AEval a1 s n1 -> AEval a2 s n2 ->
+        AEval (ABinOp f a1 a2) s (f n1 n2).
 
 #[global] Hint Constructors AEval : core.
 
@@ -51,21 +51,21 @@ Proof.
 Qed.
 
 Inductive BEval : BExp -> State -> bool -> Prop :=
-    | EvalBConst :
-        forall (s : State) (b : bool), BEval (BConst b) s b
-    | BEval_BRelOp :
-        forall (f : nat -> nat -> bool)
-               (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 ->
-            BEval (BRelOp f a1 a2) s (f n1 n2)
-    | EvalNot :
-        forall (e : BExp) (s : State) (b : bool),
-          BEval e s b -> BEval (Not e) s (negb b)
-    | BEval_BBinOp :
-        forall (f : bool -> bool -> bool)
-               (e1 e2 : BExp) (s : State) (b1 b2 : bool),
-          BEval e1 s b1 -> BEval e2 s b2 ->
-            BEval (BBinOp f e1 e2) s (f b1 b2).
+| EvalBConst :
+    forall (s : State) (b : bool), BEval (BConst b) s b
+| BEval_BRelOp :
+    forall (f : nat -> nat -> bool)
+           (a1 a2 : AExp) (s : State) (n1 n2 : nat),
+      AEval a1 s n1 -> AEval a2 s n2 ->
+        BEval (BRelOp f a1 a2) s (f n1 n2)
+| EvalNot :
+    forall (e : BExp) (s : State) (b : bool),
+      BEval e s b -> BEval (Not e) s (negb b)
+| BEval_BBinOp :
+    forall (f : bool -> bool -> bool)
+           (e1 e2 : BExp) (s : State) (b1 b2 : bool),
+      BEval e1 s b1 -> BEval e2 s b2 ->
+        BEval (BBinOp f e1 e2) s (f b1 b2).
 
 #[global] Hint Constructors BEval : core.
 
@@ -105,28 +105,28 @@ Proof.
 Qed.
 
 Inductive CEval : Com -> State -> State -> Prop :=
-    | EvalSkip :
-        forall s : State, CEval Skip s s
-    | EvalAsgn :
-        forall (v : Loc) (a : AExp) (s : State) (n : nat),
-          AEval a s n -> CEval (Asgn v a) s (changeState s v n)
-    | EvalSeq :
-        forall (c1 c2 : Com) (s1 s2 s3 : State),
-          CEval c1 s1 s2 -> CEval c2 s2 s3 -> CEval (Seq c1 c2) s1 s3
-    | EvalIfFalse :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 false -> CEval c2 s1 s2 -> CEval (If b c1 c2) s1 s2
-    | EvalIfTrue :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 true -> CEval c1 s1 s2 -> CEval (If b c1 c2) s1 s2
-    | EvalWhileFalse :
-        forall (b : BExp) (c : Com) (s : State),
-          BEval b s false -> CEval (While b c) s s
-    | EvalWhileTrue :
-        forall (b : BExp) (c : Com) (s1 s2 s3 : State),
-          BEval b s1 true ->
-          CEval c s1 s2 -> CEval (While b c) s2 s3 ->
-            CEval (While b c) s1 s3.
+| EvalSkip :
+    forall s : State, CEval Skip s s
+| EvalAsgn :
+    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+      AEval a s n -> CEval (Asgn v a) s (changeState s v n)
+| EvalSeq :
+    forall (c1 c2 : Com) (s1 s2 s3 : State),
+      CEval c1 s1 s2 -> CEval c2 s2 s3 -> CEval (Seq c1 c2) s1 s3
+| EvalIfFalse :
+    forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
+      BEval b s1 false -> CEval c2 s1 s2 -> CEval (If b c1 c2) s1 s2
+| EvalIfTrue :
+    forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
+      BEval b s1 true -> CEval c1 s1 s2 -> CEval (If b c1 c2) s1 s2
+| EvalWhileFalse :
+    forall (b : BExp) (c : Com) (s : State),
+      BEval b s false -> CEval (While b c) s s
+| EvalWhileTrue :
+    forall (b : BExp) (c : Com) (s1 s2 s3 : State),
+      BEval b s1 true ->
+      CEval c s1 s2 -> CEval (While b c) s2 s3 ->
+        CEval (While b c) s1 s3.
 
 #[global] Hint Constructors CEval : core.
 
@@ -148,15 +148,15 @@ Lemma CEval_det :
 Proof.
   induction 1; intros;
   match goal with
-      | H : CEval ?c _ _ |- _ => is_var c + inv H
+  | H : CEval ?c _ _ |- _ => is_var c + inv H
   end;
   repeat match goal with
-      | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
-          let H' := fresh "H" in
-            assert (H' := IH _ H); clear H; rename H' into H; subst
-      | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
-          let H'' := fresh "H" in
-            assert (H'' := BEval_det H H'); clear H H'
+  | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
+      let H' := fresh "H" in
+        assert (H' := IH _ H); clear H; rename H' into H; subst
+  | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
+      let H'' := fresh "H" in
+        assert (H'' := BEval_det H H'); clear H H'
   end; eauto; try congruence.
 Qed.
 

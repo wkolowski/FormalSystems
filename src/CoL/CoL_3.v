@@ -17,43 +17,43 @@ Import ListNotations.
 Axiom LEM : forall P : Prop, P \/ ~ P.
 
 Inductive Player : Type :=
-    | Machine : Player
-    | Nature : Player.
+| Machine : Player
+| Nature : Player.
 
 CoInductive ConstantGame : Type :=
 {
-    winner : Player;
-    Labmove : Type;
-    who : Labmove -> Player;
-    next : Labmove -> ConstantGame;
+  winner : Player;
+  Labmove : Type;
+  who : Labmove -> Player;
+  next : Labmove -> ConstantGame;
 }.
 
 Definition Win : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := Machine;
     Labmove := Empty_set;
     who l := match l with end;
     next l := match l with end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint Lose : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := Nature;
     Labmove := Empty_set;
     who l := match l with end;
     next l := match l with end;
-|}.
+  |}.
 Defined.
 
 Definition swap (p : Player) : Player :=
 match p with
-    | Machine => Nature
-    | Nature => Machine
+| Machine => Nature
+| Nature => Machine
 end.
 
 Definition transport
@@ -63,9 +63,8 @@ Proof.
 Defined.
 
 Lemma transport_cat :
-  forall
-    (A : Type) (P : A -> Type) (x y z : A) (p : x = y) (q : y = z) (u : P x),
-      transport P q (transport P p u) = transport P (eq_trans p q) u.
+  forall (A : Type) (P : A -> Type) (x y z : A) (p : x = y) (q : y = z) (u : P x),
+    transport P q (transport P p u) = transport P (eq_trans p q) u.
 Proof.
   destruct p, q. cbn. reflexivity.
 Defined.
@@ -79,15 +78,15 @@ Defined.
 
 CoInductive sim (g1 g2 : ConstantGame) : Prop :=
 {
-    winners : winner g1 = winner g2;
-    Labmoves : Labmove g1 = Labmove g2;
-    whos :
-      forall move : Labmove g1,
-        who g1 move = who g2 (@transport _ id _ _ Labmoves move);
-    nexts :
-      forall move : Labmove g1,
-        sim (next g1 move)
-          (next g2 (@transport _ id _ _ Labmoves move))
+  winners : winner g1 = winner g2;
+  Labmoves : Labmove g1 = Labmove g2;
+  whos :
+    forall move : Labmove g1,
+      who g1 move = who g2 (@transport _ id _ _ Labmoves move);
+  nexts :
+    forall move : Labmove g1,
+      sim (next g1 move)
+        (next g2 (@transport _ id _ _ Labmoves move))
 }.
 
 Axiom sim_eq :
@@ -154,323 +153,320 @@ Defined.
 
 #[global] Hint Extern 1 =>
 match goal with
-    | |- exists p : Player, _ => exists Machine; cbn
+| |- exists p : Player, _ => exists Machine; cbn
 end : CoL.
 
 #[global] Hint Extern 1 =>
 match goal with
-    | |- exists p : Player, _ => exists Nature; cbn
+| |- exists p : Player, _ => exists Nature; cbn
 end : CoL.
 
 (** Connectives *)
 
 CoFixpoint Not (g : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := swap (winner g);
     Labmove := Labmove g;
     who move := swap (who g move);
     next move := Not (next g move);
-|}.
+  |}.
 Defined.
 
 Definition chor (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
   refine
   {|
-      winner := Nature;
-      Labmove := bool;
-      who move := Machine;
-      next move := if move then g1 else g2;
+    winner := Nature;
+    Labmove := bool;
+    who move := Machine;
+    next move := if move then g1 else g2;
   |}.
 Defined.
 
 Definition chand (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := Machine;
     Labmove := bool;
     who move := Nature;
     next move := if move then g1 else g2;
-|}.
+  |}.
 Defined.
 
 Definition chexists {A : Type} (f : A -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := Nature;
     Labmove := A;
     who move := Machine;
     next move := f move;
-|}.
+  |}.
 Defined.
 
 Definition chall {A : Type} (f : A -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := Machine;
     Labmove := A;
     who move := Nature;
     next move := f move;
-|}.
+  |}.
 Defined.
 
 CoFixpoint por (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner :=
       match winner g1, winner g2 with
-          | Nature, Nature => Nature
-          | _, _ => Machine
+      | Nature, Nature => Nature
+      | _, _ => Machine
       end;
     Labmove := Labmove g1 + Labmove g2;
     who move :=
       match move with
-          | inl move' => who g1 move'
-          | inr move' => who g2 move'
+      | inl move' => who g1 move'
+      | inr move' => who g2 move'
       end;
     next move :=
       match move with
-          | inl move' => por (next g1 move') g2
-          | inr move' => por g1 (next g2 move')
-      end
-|}.
+      | inl move' => por (next g1 move') g2
+      | inr move' => por g1 (next g2 move')
+      end;
+  |}.
 Defined.
 
 CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner :=
       match winner g1, winner g2 with
-          | Machine, Machine => Machine
-          | _, _ => Nature
+      | Machine, Machine => Machine
+      | _, _ => Nature
       end;
     Labmove := Labmove g1 + Labmove g2;
     who move :=
       match move with
-          | inl move' => who g1 move'
-          | inr move' => who g2 move'
+      | inl move' => who g1 move'
+      | inr move' => who g2 move'
       end;
     next move :=
       match move with
-          | inl move' => pand (next g1 move') g2
-          | inr move' => pand g1 (next g2 move')
-      end
-|}.
+      | inl move' => pand (next g1 move') g2
+      | inr move' => pand g1 (next g2 move')
+      end;
+  |}.
 Defined.
 
 Axiom LEM' : forall A : Type, A + (A -> False).
 
 CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
-    winner :=
-      if LEM' (exists n : nat, winner (f n) = Machine)
-      then Machine
-      else Nature;
-    Labmove := {n : nat & Labmove (f n)};
-    who move :=
-      match move with
-          | existT _ n move => who (f n) move
-      end;
-    next move :=
-      match move with
-          | existT _ n move =>
-              pexists (fun m : nat => if n =? m then next (f n) move else f m)
-      end
-|}.
+  refine
+  {|
+      winner :=
+        if LEM' (exists n : nat, winner (f n) = Machine)
+        then Machine
+        else Nature;
+      Labmove := {n : nat & Labmove (f n)};
+      who move :=
+        match move with
+        | existT _ n move => who (f n) move
+        end;
+      next move :=
+        match move with
+        | existT _ n move => pexists (fun m : nat => if n =? m then next (f n) move else f m)
+        end;
+  |}.
 Defined.
 
 CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
-    winner :=
-      if LEM' (forall n : nat, winner (f n) = Machine)
-      then Machine
-      else Nature;
-    Labmove := {n : nat & Labmove (f n)};
-    who move :=
-      match move with
-          | existT _ n move => who (f n) move
-      end;
-    next move :=
-      match move with
-          | existT _ n move =>
-              pall (fun m : nat => if n =? m then next (f n) move else f m)
-      end
-|}.
+  refine
+  {|
+      winner :=
+        if LEM' (forall n : nat, winner (f n) = Machine)
+        then Machine
+        else Nature;
+      Labmove := {n : nat & Labmove (f n)};
+      who move :=
+        match move with
+        | existT _ n move => who (f n) move
+        end;
+      next move :=
+        match move with
+        | existT _ n move => pall (fun m : nat => if n =? m then next (f n) move else f m)
+        end
+  |}.
 Defined.
 
 CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner g1;
     Labmove := option (Labmove g1);
     who move :=
       match move with
-          | None => Machine
-          | Some move' => who g1 move'
+      | None => Machine
+      | Some move' => who g1 move'
       end;
     next move :=
       match move with
-          | None => g2
-          | Some move' => sor (next g1 move') g2
+      | None => g2
+      | Some move' => sor (next g1 move') g2
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint sand (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner g1;
     Labmove := option (Labmove g1);
     who move :=
       match move with
-          | None => Nature
-          | Some move' => who g1 move'
+      | None => Nature
+      | Some move' => who g1 move'
       end;
     next move :=
       match move with
-          | None => g2
-          | Some move' => sand (next g1 move') g2
+      | None => g2
+      | Some move' => sand (next g1 move') g2
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint sexists (f : nat -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner (f 0);
     Labmove := option (Labmove (f 0));
     who move :=
       match move with
-          | None => Machine
-          | Some move' => who (f 0) move'
+      | None => Machine
+      | Some move' => who (f 0) move'
       end;
     next move :=
       match move with
-          | None => sexists (fun n : nat => f (S n))
-          | Some move' =>
-              sexists (fun n : nat =>
-                      match n with
-                          | 0 => next (f 0) move'
-                          | S n' => f (S n')
-                      end) 
+      | None => sexists (fun n : nat => f (S n))
+      | Some move' =>
+          sexists (fun n : nat =>
+            match n with
+            | 0 => next (f 0) move'
+            | S n' => f (S n')
+            end)
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint sall (f : nat -> ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner (f 0);
     Labmove := option (Labmove (f 0));
     who move :=
       match move with
-          | None => Nature
-          | Some move' => who (f 0) move'
+      | None => Nature
+      | Some move' => who (f 0) move'
       end;
     next move :=
       match move with
-          | None => sall (fun n : nat => f (S n))
-          | Some move' =>
-              sall (fun n : nat =>
-                      match n with
-                          | 0 => next (f 0) move'
-                          | S n' => f (S n')
-                      end) 
+      | None => sall (fun n : nat => f (S n))
+      | Some move' =>
+          sall (fun n : nat =>
+            match n with
+            | 0 => next (f 0) move'
+            | S n' => f (S n')
+            end)
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint tor (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
-    winner := winner g1;
-    Labmove := option (Labmove g1);
-    who move :=
-      match move with
-          | None => Machine
-          | Some move' => who g1 move'
-      end;
-    next move :=
-      match move with
-          | None => tor g2 g1
-          | Some move' => tor (next g1 move') g2
-      end;
-|}.
+  refine
+  {|
+      winner := winner g1;
+      Labmove := option (Labmove g1);
+      who move :=
+        match move with
+        | None => Machine
+        | Some move' => who g1 move'
+        end;
+      next move :=
+        match move with
+        | None => tor g2 g1
+        | Some move' => tor (next g1 move') g2
+        end;
+  |}.
 Defined.
 
 CoFixpoint tand (g1 g2 : ConstantGame) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner g1;
     Labmove := option (Labmove g1);
     who move :=
       match move with
-          | None => Nature
-          | Some move' => who g1 move'
+      | None => Nature
+      | Some move' => who g1 move'
       end;
     next move :=
       match move with
-          | None => tand g2 g1
-          | Some move' => tand (next g1 move') g2
+      | None => tand g2 g1
+      | Some move' => tand (next g1 move') g2
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint texists' (f : nat -> ConstantGame) (n : nat) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner (f n);
     Labmove := Labmove (f n) + nat;
     who move :=
       match move with
-          | inl move' => who (f n) move'
-          | inr _ => Machine
+      | inl move' => who (f n) move'
+      | inr _ => Machine
       end;
     next move :=
       match move with
-          | inl move' => texists'
-              (fun m : nat => if n =? m then next (f n) move' else f m) n
-          | inr m => texists' f m
+      | inl move' => texists' (fun m : nat => if n =? m then next (f n) move' else f m) n
+      | inr m => texists' f m
       end;
-|}.
+  |}.
 Defined.
 
 CoFixpoint tall' (f : nat -> ConstantGame) (n : nat) : ConstantGame.
 Proof.
-refine
-{|
+  refine
+  {|
     winner := winner (f n);
     Labmove := Labmove (f n) + nat;
     who move :=
       match move with
-          | inl move' => who (f n) move'
-          | inr _ => Nature
+      | inl move' => who (f n) move'
+      | inr _ => Nature
       end;
     next move :=
       match move with
-          | inl move' => tall'
+      | inl move' => tall'
               (fun m : nat => if n =? m then next (f n) move' else f m) n
-          | inr m => tall' f m
+      | inr m => tall' f m
       end;
-|}.
+  |}.
 Defined.
 
 Definition texists (f : nat -> ConstantGame) : ConstantGame :=

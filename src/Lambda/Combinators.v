@@ -6,34 +6,34 @@ From FormalSystems Require Import Base.
 (** * Syntax of terms *)
 
 Inductive Term : Type :=
-    | K : Term
-    | S : Term
-    | App : Term -> Term -> Term.
+| K : Term
+| S : Term
+| App : Term -> Term -> Term.
 
 Notation "M @ N" := (App M N) (at level 50, left associativity).
 
 (** * Reduction relation *)
 
 Inductive red : Term -> Term -> Prop :=
-    | red_K :
-        forall A B : Term, red (K @ A @ B) A
-    | red_S :
-        forall A B C : Term,
-          red (S @ A @ B @ C) (A @ C @ (B @ C))
-    | red_AppL :
-        forall A A' B : Term,
-          red A A' -> red (App A B) (App A' B)
-    | red_AppR :
-        forall A B B' : Term,
-          red B B' -> red (App A B) (App A B').
+| red_K :
+    forall A B : Term, red (K @ A @ B) A
+| red_S :
+    forall A B C : Term,
+      red (S @ A @ B @ C) (A @ C @ (B @ C))
+| red_AppL :
+    forall A A' B : Term,
+      red A A' -> red (App A B) (App A' B)
+| red_AppR :
+    forall A B B' : Term,
+      red B B' -> red (App A B) (App A B').
 
 Notation "A ~> B" := (red A B) (at level 60).
 
 Inductive reds : Term -> Term -> Prop :=
-    | reds_refl :
-        forall A : Term, reds A A
-    | reds_trans :
-        forall A B C : Term, red A B -> reds B C -> reds A C.
+| reds_refl :
+    forall A : Term, reds A A
+| reds_trans :
+    forall A B C : Term, red A B -> reds B C -> reds A C.
 
 Notation "A ~>* B" := (reds A B) (at level 60).
 
@@ -100,7 +100,8 @@ Qed.
 Definition I : Term := S @ K @ K.
 
 Lemma red_I :
-  forall A : Term, I @ A ~>* A.
+  forall A : Term,
+    I @ A ~>* A.
 Proof.
   intros. unfold I. eauto.
 Defined.
@@ -110,15 +111,15 @@ Defined.
 (** * Normal forms *)
 
 Inductive Nf : Term -> Prop :=
-    | Nf_K   : Nf K
-    | Nf_S   : Nf S
-    | Nf_Kt  : forall t : Term, Nf t -> Nf (K @ t)
-    | Nf_St  : forall t : Term, Nf t -> Nf (S @ t)
-    | Nf_Stt : forall t1 t2 : Term, Nf t1 -> Nf t2 -> Nf (S @ t1 @ t2)
-    | Nf_Ne  : forall t : Term, Ne t -> Nf t
+| Nf_K   : Nf K
+| Nf_S   : Nf S
+| Nf_Kt  : forall t : Term, Nf t -> Nf (K @ t)
+| Nf_St  : forall t : Term, Nf t -> Nf (S @ t)
+| Nf_Stt : forall t1 t2 : Term, Nf t1 -> Nf t2 -> Nf (S @ t1 @ t2)
+| Nf_Ne  : forall t : Term, Ne t -> Nf t
 
 with Ne : Term -> Prop :=
-    | Ne_App : forall t1 t2 : Term, Ne t1 -> Nf t2 -> Ne (App t1 t2).
+| Ne_App : forall t1 t2 : Term, Ne t1 -> Nf t2 -> Ne (App t1 t2).
 
 #[global] Hint Constructors Nf Ne : core.
 
@@ -184,18 +185,18 @@ Qed.
 
 Ltac wut :=
 repeat match goal with
-    | |- forall _, _ => intro
-    | |- ~ _ => intro
-    | |- _ /\ _ => split
-    | H : _ /\ _ |- _ => destruct H
-    | H : red (_ @ _) _ |- _ => inv H
-    | H : red K       _ |- _ => inv H
-    | H : red S       _ |- _ => inv H
-    | H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
-    | |- isNormal _ => do 2 intro
-    | H : exists _, _   |- _ => decompose [ex and] H; clear H
-    | H : Ne ?x          |- _ => is_var x + inv H
-    | _ => auto
+| |- forall _, _ => intro
+| |- ~ _ => intro
+| |- _ /\ _ => split
+| H : _ /\ _ |- _ => destruct H
+| H : red (_ @ _) _ |- _ => inv H
+| H : red K       _ |- _ => inv H
+| H : red S       _ |- _ => inv H
+| H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
+| |- isNormal _ => do 2 intro
+| H : exists _, _   |- _ => decompose [ex and] H; clear H
+| H : Ne ?x      |- _ => is_var x + inv H
+| _ => auto
 end.
 
 Fixpoint Nf_isNormal {t : Term} (nf : Nf t) {struct nf} : isNormal t
@@ -205,7 +206,7 @@ Proof.
   destruct nf.
     1-5: wut; eapply Nf_isNormal;
       repeat match goal with
-          | |- red _ _ => eauto
+      | |- red _ _ => eauto
       end; eauto.
     apply Ne_isNormal. assumption.
   destruct ne. wut.
@@ -265,19 +266,19 @@ Qed.
 *)
 
 Inductive parallel : Term -> Term -> Prop :=
-    | parallel_K :
+| parallel_K :
         forall t1 t2 : Term,
           parallel (K @ t1 @ t2) t1
-    | parallel_S :
+| parallel_S :
         forall t1 t2 t3 : Term,
           parallel (S @ t1 @ t2 @ t3) (t1 @ t3 @ (t2 @ t3))
-    | parallel_AppL :
+| parallel_AppL :
         forall t1 t1' t2 : Term,
           parallel t1 t1' -> parallel (t1 @ t2) (t1' @ t2)
-    | parallel_AppR :
+| parallel_AppR :
         forall t1 t2 t2' : Term,
           parallel t2 t2' -> parallel (t1 @ t2) (t1 @ t2')
-    | parallel_App :
+| parallel_App :
         forall t1 t1' t2 t2' : Term,
           parallel t1 t1' -> parallel t2 t2' -> parallel (t1 @ t2) (t1' @ t2').
 
@@ -323,7 +324,7 @@ Qed.
 
 #[global] Hint Extern 0 =>
   match goal with
-    | |- parallels (K @ _ @ _) _ => try apply parallels_K
+  | |- parallels (K @ _ @ _) _ => try apply parallels_K
   end
   : core.
 
@@ -365,12 +366,11 @@ Proof.
   revert c Hpc.
   induction Hpb; intros; unfold parallels in *;
   repeat match goal with
-      | H : parallel K       _ |- _ => inv H
-      | H : parallel S       _ |- _ => inv H
-      | H : parallel (_ @ _) _ |- _ => inv H
-      | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] =>
-          exists (a @ c @ (b @ c)); split; eauto
-      | |- context [rtc parallel (_ @ _) _] => eauto 7
+  | H : parallel K       _ |- _ => inv H
+  | H : parallel S       _ |- _ => inv H
+  | H : parallel (_ @ _) _ |- _ => inv H
+  | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] => exists (a @ c @ (b @ c)); split; eauto
+  | |- context [rtc parallel (_ @ _) _] => eauto 7
   end;
   pose parallels_AppL;
   pose parallels_AppR;
@@ -385,24 +385,22 @@ Proof.
     decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3). eauto.
 Qed.
 
-
-
 (* (** * Lambdas *)
 
 Fixpoint lam (x : V) (A : Term) : Term :=
 match A with
-    | Var y => if x =? y then I else K @ Var y
-    | K => K @ K
-    | S => K @ S
-    | App A1 A2 => S @ lam x A1 @ lam x A2
+| Var y => if x =? y then I else K @ Var y
+| K => K @ K
+| S => K @ S
+| App A1 A2 => S @ lam x A1 @ lam x A2
 end.
 
 Fixpoint subst (x : V) (A B : Term) : Term :=
 match A with
-    | Var y => if x =? y then B else Var y
-    | K => K
-    | S => S
-    | A1 @ A2 => subst x A1 B @ subst x A2 B
+| Var y => if x =? y then B else Var y
+| K => K
+| S => S
+| A1 @ A2 => subst x A1 B @ subst x A2 B
 end.
 
 Lemma lam_reds :

@@ -6,39 +6,39 @@ From FormalSystems Require Imp.Smallstep.
 (** * Structural operational semantics for IMP using (evaluation) contexts *)
 
 Inductive AStep (s : State) : AExp -> AExp -> Prop :=
-    | AStep_Var :
-        forall x : Loc, AStep s (Var x) (AConst (s x))
-    | AStep_ABinOp :
-        forall (f : nat -> nat -> nat) (n1 n2 : nat),
-          AStep s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
+| AStep_Var :
+    forall x : Loc, AStep s (Var x) (AConst (s x))
+| AStep_ABinOp :
+    forall (f : nat -> nat -> nat) (n1 n2 : nat),
+      AStep s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).
 
 Inductive AContext : Type :=
-    | AC_Var : AContext
-    | AC_L : (nat -> nat -> nat) -> AContext -> AExp -> AContext
-    | AC_R : (nat -> nat -> nat) -> nat -> AContext -> AContext.
+| AC_Var : AContext
+| AC_L : (nat -> nat -> nat) -> AContext -> AExp -> AContext
+| AC_R : (nat -> nat -> nat) -> nat -> AContext -> AContext.
 
 Fixpoint aput (G : AContext) (a : AExp) : AExp :=
 match G with
-    | AC_Var => a
-    | AC_L f G' a' => ABinOp f (aput G' a) a'
-    | AC_R f n G' => ABinOp f (AConst n) (aput G' a)
+| AC_Var => a
+| AC_L f G' a' => ABinOp f (aput G' a) a'
+| AC_R f n G' => ABinOp f (AConst n) (aput G' a)
 end.
 
 Inductive AEval (s : State) : AExp -> AExp -> Prop :=
-    | AEval_aput :
-        forall (a1 a2 : AExp) (G : AContext),
-          AStep s a1 a2 -> AEval s (aput G a1) (aput G a2).
+| AEval_aput :
+    forall (a1 a2 : AExp) (G : AContext),
+      AStep s a1 a2 -> AEval s (aput G a1) (aput G a2).
 
 #[global] Hint Constructors AStep AEval : core.
 
 (*
 Function AExp_to_AContext (a : AExp) : AContext * AExp :=
 match a with
-    | AConst n => (AC_Var, AConst n)
-    | Var x => (AC_Var, Var x)
-    | ABinOp f (AConst n) a2 =>
+| AConst n => (AC_Var, AConst n)
+| Var x => (AC_Var, Var x)
+| ABinOp f (AConst n) a2 =>
         let '(G, a) := AExp_to_AContext a2 in (AC_R f n G, a)
-    | ABinOp f a1 a2 =>
+| ABinOp f a1 a2 =>
         let '(G, a) := AExp_to_AContext a1 in (AC_L f G a2, a)
 end.
 
@@ -92,41 +92,41 @@ Proof.
 Qed.
 
 Inductive BStep : BExp -> BExp -> Prop :=
-    | BStep_BRelOp :
-        forall (f : nat -> nat -> bool) (n1 n2 : nat),
-          BStep (BRelOp f (AConst n1) (AConst n2)) (BConst (f n1 n2))
-    | BStep_Not :
-        forall b : bool, BStep (Not (BConst b)) (BConst (negb b))
-    | BStep_BBinOp :
-        forall (f : bool -> bool -> bool) (b1 b2 : bool),
-          BStep (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
+| BStep_BRelOp :
+    forall (f : nat -> nat -> bool) (n1 n2 : nat),
+      BStep (BRelOp f (AConst n1) (AConst n2)) (BConst (f n1 n2))
+| BStep_Not :
+    forall b : bool, BStep (Not (BConst b)) (BConst (negb b))
+| BStep_BBinOp :
+    forall (f : bool -> bool -> bool) (b1 b2 : bool),
+      BStep (BBinOp f (BConst b1) (BConst b2)) (BConst (f b1 b2)).
 
 Inductive BContext : Type :=
-    | BC_Hole : BContext
+| BC_Hole : BContext
 (*
-    | BC_BRelOp_L : (nat -> nat -> bool) -> BContext -> AExp -> BContext
-    | BC_BRelOp_R : (nat -> nat -> bool) -> nat -> BContext -> BContext
+| BC_BRelOp_L : (nat -> nat -> bool) -> BContext -> AExp -> BContext
+| BC_BRelOp_R : (nat -> nat -> bool) -> nat -> BContext -> BContext
 *)
-    | BC_Not : BContext -> BContext
-    | BC_BBinOp_L : (bool -> bool -> bool) -> BContext -> BExp -> BContext
-    | BC_BBinOp_R : (bool -> bool -> bool) -> bool -> BContext -> BContext.
+| BC_Not : BContext -> BContext
+| BC_BBinOp_L : (bool -> bool -> bool) -> BContext -> BExp -> BContext
+| BC_BBinOp_R : (bool -> bool -> bool) -> bool -> BContext -> BContext.
 
 Fixpoint bput (G : BContext) (e : BExp) : BExp :=
 match G with
-    | BC_Hole => e
+| BC_Hole => e
 (*
-    | BC_BRelOp_L f G' a => BRelOp f (bput G' e) a
-    | BC_BRelOp_R f n G' => BRelOp f (AConst n) (bput G' e)
+| BC_BRelOp_L f G' a => BRelOp f (bput G' e) a
+| BC_BRelOp_R f n G' => BRelOp f (AConst n) (bput G' e)
 *)
-    | BC_Not G' => Not (bput G' e)
-    | BC_BBinOp_L f G' e' => BBinOp f (bput G' e) e'
-    | BC_BBinOp_R f b G' => BBinOp f (BConst b) (bput G' e)
+| BC_Not G' => Not (bput G' e)
+| BC_BBinOp_L f G' e' => BBinOp f (bput G' e) e'
+| BC_BBinOp_R f b G' => BBinOp f (BConst b) (bput G' e)
 end.
 
 Inductive BEval : BExp -> BExp -> Prop :=
-    | BEval_bput :
-        forall (G : BContext) (b1 b2 : BExp),
-          BStep b1 b2 -> BEval (bput G b1) (bput G b2).
+| BEval_bput :
+    forall (G : BContext) (b1 b2 : BExp),
+      BStep b1 b2 -> BEval (bput G b1) (bput G b2).
 
 Lemma BEval_Smallstep_BEval :
   forall (s : State) (b1 b2 : BExp),

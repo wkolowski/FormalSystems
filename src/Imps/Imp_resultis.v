@@ -3,28 +3,28 @@ From Stdlib Require Import Recdef.
 From FormalSystems Require Import Base.
 
 Inductive AExp : Type :=
-    | AConst : nat -> AExp
-    | Var : Loc -> AExp
-    | Add : AExp -> AExp -> AExp
-    | Sub : AExp -> AExp -> AExp
-    | Mul : AExp -> AExp -> AExp
-    | ResultIs : Com -> AExp -> AExp
+| AConst : nat -> AExp
+| Var : Loc -> AExp
+| Add : AExp -> AExp -> AExp
+| Sub : AExp -> AExp -> AExp
+| Mul : AExp -> AExp -> AExp
+| ResultIs : Com -> AExp -> AExp
 
 with BExp : Type :=
-    | BTrue : BExp
-    | BFalse : BExp
-    | Eq : AExp -> AExp -> BExp
-    | Le : AExp -> AExp -> BExp
-    | Not : BExp -> BExp
-    | And : BExp -> BExp -> BExp
-    | Or : BExp -> BExp -> BExp
+| BTrue : BExp
+| BFalse : BExp
+| Eq : AExp -> AExp -> BExp
+| Le : AExp -> AExp -> BExp
+| Not : BExp -> BExp
+| And : BExp -> BExp -> BExp
+| Or : BExp -> BExp -> BExp
 
 with Com : Type :=
-    | Skip : Com
-    | Asgn : Loc -> AExp -> Com
-    | Seq : Com -> Com -> Com
-    | If : BExp -> Com -> Com -> Com
-    | While : BExp -> Com -> Com.
+| Skip : Com
+| Asgn : Loc -> AExp -> Com
+| Seq : Com -> Com -> Com
+| If : BExp -> Com -> Com -> Com
+| While : BExp -> Com -> Com.
 
 Definition State : Type := Loc -> nat.
 
@@ -34,67 +34,67 @@ Definition changeState (s : State) (x : Loc) (n : nat) : State :=
   fun y : Loc => if x =? y then n else s y.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
-    | EvalAConst :
-        forall (n : nat) (s : State), AEval (AConst n) s n
-    | EvalVar :
-        forall (v : Loc) (s : State), AEval (Var v) s (s v)
-    | EvalAdd :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
-    | EvalSub :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Sub a1 a2) s (n1 - n2)
-    | EvalMul :
-        forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
-          AEval a1 s n1 -> AEval a2 s n2 -> AEval (Mul a1 a2) s (n1 * n2)
-    | EvalResultIs :
-        forall (c : Com) (a : AExp) (s1 s2 : State) (n : nat),
-          CEval c s1 s2 -> AEval a s2 n -> AEval (ResultIs c a) s1 n
+| EvalAConst :
+    forall (n : nat) (s : State), AEval (AConst n) s n
+| EvalVar :
+    forall (v : Loc) (s : State), AEval (Var v) s (s v)
+| EvalAdd :
+    forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
+      AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
+| EvalSub :
+    forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
+      AEval a1 s n1 -> AEval a2 s n2 -> AEval (Sub a1 a2) s (n1 - n2)
+| EvalMul :
+    forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
+      AEval a1 s n1 -> AEval a2 s n2 -> AEval (Mul a1 a2) s (n1 * n2)
+| EvalResultIs :
+    forall (c : Com) (a : AExp) (s1 s2 : State) (n : nat),
+      CEval c s1 s2 -> AEval a s2 n -> AEval (ResultIs c a) s1 n
 
 with BEval : BExp -> State -> bool -> Prop :=
-    | EvalTrue :
-        forall s : State, BEval BTrue s true
-    | EvalFalse :
-        forall s : State, BEval BFalse s false
-    | EvalEq :
-        forall (a1 a2 : AExp) (s : State) (n m : nat),
-          AEval a1 s n -> AEval a2 s m -> BEval (Eq a1 a2) s (Nat.eqb n m)
-    | EvalLe :
-        forall (a1 a2 : AExp) (s : State) (n m : nat),
-          AEval a1 s n -> AEval a2 s m -> BEval (Le a1 a2) s (Nat.leb n m)
-    | EvalNot :
-        forall (e : BExp) (s : State) (b : bool),
-          BEval e s b -> BEval (Not e) s (negb b)
-    | EvalAnd :
-        forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
-          BEval e1 s b1 -> BEval e2 s b2 -> BEval (And e1 e2) s (andb b1 b2)
-    | EvalOr :
-        forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
-          BEval e1 s b1 -> BEval e2 s b2 -> BEval (Or e1 e2) s (orb b1 b2)
+| EvalTrue :
+    forall s : State, BEval BTrue s true
+| EvalFalse :
+    forall s : State, BEval BFalse s false
+| EvalEq :
+    forall (a1 a2 : AExp) (s : State) (n m : nat),
+      AEval a1 s n -> AEval a2 s m -> BEval (Eq a1 a2) s (Nat.eqb n m)
+| EvalLe :
+    forall (a1 a2 : AExp) (s : State) (n m : nat),
+      AEval a1 s n -> AEval a2 s m -> BEval (Le a1 a2) s (Nat.leb n m)
+| EvalNot :
+    forall (e : BExp) (s : State) (b : bool),
+      BEval e s b -> BEval (Not e) s (negb b)
+| EvalAnd :
+    forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
+      BEval e1 s b1 -> BEval e2 s b2 -> BEval (And e1 e2) s (andb b1 b2)
+| EvalOr :
+    forall (e1 e2 : BExp) (s : State) (b1 b2 : bool),
+      BEval e1 s b1 -> BEval e2 s b2 -> BEval (Or e1 e2) s (orb b1 b2)
 
 with CEval : Com -> State -> State -> Prop :=
-    | EvalSkip :
-        forall s : State, CEval Skip s s
-    | EvalAsgn :
-        forall (v : Loc) (a : AExp) (s : State) (n : nat),
-          AEval a s n -> CEval (Asgn v a) s (changeState s v n)
-    | EvalSeq :
-        forall (c1 c2 : Com) (s1 s2 s3 : State),
-          CEval c1 s1 s2 -> CEval c2 s2 s3 -> CEval (Seq c1 c2) s1 s3
-    | EvalIfFalse :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 false -> CEval c2 s1 s2 -> CEval (If b c1 c2) s1 s2
-    | EvalIfTrue :
-        forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
-          BEval b s1 true -> CEval c1 s1 s2 -> CEval (If b c1 c2) s1 s2
-    | EvalWhileFalse :
-        forall (b : BExp) (c : Com) (s : State),
-          BEval b s false -> CEval (While b c) s s
-    | EvalWhileTrue :
-        forall (b : BExp) (c : Com) (s1 s2 s3 : State),
-          BEval b s1 true ->
-          CEval c s1 s2 -> CEval (While b c) s2 s3 ->
-            CEval (While b c) s1 s3.
+| EvalSkip :
+    forall s : State, CEval Skip s s
+| EvalAsgn :
+    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+      AEval a s n -> CEval (Asgn v a) s (changeState s v n)
+| EvalSeq :
+    forall (c1 c2 : Com) (s1 s2 s3 : State),
+      CEval c1 s1 s2 -> CEval c2 s2 s3 -> CEval (Seq c1 c2) s1 s3
+| EvalIfFalse :
+    forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
+      BEval b s1 false -> CEval c2 s1 s2 -> CEval (If b c1 c2) s1 s2
+| EvalIfTrue :
+    forall (b : BExp) (c1 c2 : Com) (s1 s2 : State),
+      BEval b s1 true -> CEval c1 s1 s2 -> CEval (If b c1 c2) s1 s2
+| EvalWhileFalse :
+    forall (b : BExp) (c : Com) (s : State),
+      BEval b s false -> CEval (While b c) s s
+| EvalWhileTrue :
+    forall (b : BExp) (c : Com) (s1 s2 s3 : State),
+      BEval b s1 true ->
+      CEval c s1 s2 -> CEval (While b c) s2 s3 ->
+        CEval (While b c) s1 s3.
 
 #[global] Hint Constructors AEval BEval CEval : core.
 
@@ -141,58 +141,58 @@ Set Warnings "-funind-cannot-define-graph".
 Set Warnings "-funind-cannot-build-inversion".
 Function aeval (n : nat) (a : AExp) (s : State) : option nat := 
 match n with
-  | 0 => None
-  | S n' =>
-      match a with
-        | AConst n => Some n
-        | Var v => Some (s v)
-        | Add a1 a2 => liftM2 plus (aeval n' a1 s) (aeval n' a2 s)
-        | Sub a1 a2 => liftM2 minus (aeval n' a1 s) (aeval n' a2 s)
-        | Mul a1 a2 => liftM2 mult (aeval n' a1 s) (aeval n' a2 s)
-        | ResultIs c a' =>
-            match ceval n' c s with
-                | None => None
-                | Some s' => aeval n' a' s'
-            end
-      end
+| 0 => None
+| S n' =>
+  match a with
+  | AConst n => Some n
+  | Var v => Some (s v)
+  | Add a1 a2 => liftM2 plus (aeval n' a1 s) (aeval n' a2 s)
+  | Sub a1 a2 => liftM2 minus (aeval n' a1 s) (aeval n' a2 s)
+  | Mul a1 a2 => liftM2 mult (aeval n' a1 s) (aeval n' a2 s)
+  | ResultIs c a' =>
+    match ceval n' c s with
+    | None => None
+    | Some s' => aeval n' a' s'
+    end
+  end
 end
 
 with beval (n : nat) (e : BExp) (s : State) : option bool :=
 match n with
-  | 0 => None
-  | S n' =>
-      match e with
-        | BTrue => Some true
-        | BFalse => Some false
-        | Eq a1 a2 => liftM2 Nat.eqb (aeval n' a1 s) (aeval n' a2 s)
-        | Le a1 a2 => liftM2 Nat.leb (aeval n' a1 s) (aeval n' a2 s)
-        | Not e' => omap negb (beval n' e' s)
-        | And e1 e2 => liftM2 andb (beval n' e1 s) (beval n' e2 s)
-        | Or e1 e2 => liftM2 orb (beval n' e1 s) (beval n' e2 s)
-      end
+| 0 => None
+| S n' =>
+  match e with
+  | BTrue => Some true
+  | BFalse => Some false
+  | Eq a1 a2 => liftM2 Nat.eqb (aeval n' a1 s) (aeval n' a2 s)
+  | Le a1 a2 => liftM2 Nat.leb (aeval n' a1 s) (aeval n' a2 s)
+  | Not e' => omap negb (beval n' e' s)
+  | And e1 e2 => liftM2 andb (beval n' e1 s) (beval n' e2 s)
+  | Or e1 e2 => liftM2 orb (beval n' e1 s) (beval n' e2 s)
+  end
 end
 
 with ceval (n : nat) (c : Com) (s : State) : option State :=
 match n with
-  | 0 => None
-  | S n' =>
-      match c with
-        | Skip => Some s
-        | Asgn x a => omap (changeState s x) (aeval n' a s)
-        | Seq c1 c2 => obind (ceval n' c1 s) (ceval n' c2)
-        | If b c1 c2 =>
-            match beval n' b s with
-                | None => None
-                | Some true => ceval n' c1 s
-                | Some false => ceval n' c2 s
-            end
-        | While b c =>
-            match beval n' b s with
-                | None => None
-                | Some true => obind (ceval n' c s) (ceval n' (While b c))
-                | Some false => Some s
-            end
-      end
+| 0 => None
+| S n' =>
+  match c with
+  | Skip => Some s
+  | Asgn x a => omap (changeState s x) (aeval n' a s)
+  | Seq c1 c2 => obind (ceval n' c1 s) (ceval n' c2)
+  | If b c1 c2 =>
+    match beval n' b s with
+    | None => None
+    | Some true => ceval n' c1 s
+    | Some false => ceval n' c2 s
+    end
+  | While b c =>
+    match beval n' b s with
+    | None => None
+    | Some true => obind (ceval n' c s) (ceval n' (While b c))
+    | Some false => Some s
+    end
+  end
 end.
 Set Warnings "funind-cannot-define-graph".
 Set Warnings "funind-cannot-build-inversion".

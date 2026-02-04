@@ -95,21 +95,21 @@ Defined.
 (* TODO: for loop *)
 
 Inductive Context : Type :=
-    | CContext : Context
-    | CSeqL : Context -> Com -> Context
-    | CSeqR : Com -> Context -> Context
-    | CIfL : BExp -> Context -> Com -> Context
-    | CIfR : BExp -> Com -> Context -> Context
-    | CWhile : BExp -> Context -> Context.
+| CContext : Context
+| CSeqL : Context -> Com -> Context
+| CSeqR : Com -> Context -> Context
+| CIfL : BExp -> Context -> Com -> Context
+| CIfR : BExp -> Com -> Context -> Context
+| CWhile : BExp -> Context -> Context.
 
 Fixpoint put (G : Context) (c : Com) : Com :=
 match G with
-    | CContext => c
-    | CSeqL G' c' => Seq (put G' c) c'
-    | CSeqR c' G' => Seq c' (put G' c)
-    | CIfL b G' c' => If b (put G' c) c'
-    | CIfR b c' G' => If b c' (put G' c)
-    | CWhile b G' => While b (put G' c)
+| CContext => c
+| CSeqL G' c' => Seq (put G' c) c'
+| CSeqR c' G' => Seq c' (put G' c)
+| CIfL b G' c' => If b (put G' c) c'
+| CIfR b c' G' => If b c' (put G' c)
+| CWhile b G' => While b (put G' c)
 end.
 
 Lemma equivalent_in_Context :
@@ -120,11 +120,11 @@ Proof.
   induction G; cbn; intros; eauto;
   unfold equivalent in *; split; intros;
   match goal with
-      | H : CEval ?c _ _ |- _ =>
-          let c' := fresh "c" in
-          let Heqc' := fresh "Heq" c' in
-            remember c as c'; revert Heqc';
-            induction H; intros; inv Heqc'
+  | H : CEval ?c _ _ |- _ =>
+    let c' := fresh "c" in
+    let Heqc' := fresh "Heq" c' in
+      remember c as c'; revert Heqc';
+      induction H; intros; inv Heqc'
   end; eauto.
     5-6: apply EvalIfTrue; rewrite 1?IHG; eauto; firstorder.
     all: econstructor; rewrite 1?IHG; eauto; firstorder.
@@ -216,25 +216,25 @@ Definition oequiv {A : Type} (c1 c2 : Com) : Prop :=
 (** * Nontermination *)
 
 CoInductive NonTerm : Com -> State -> Prop :=
-    | NT_SeqL :
-        forall (c1 c2 : Com) (s : State),
-          NonTerm c1 s -> NonTerm (Seq c1 c2) s
-    | NT_SeqR :
-        forall (c1 c2 : Com) (s1 s2 : State),
-          CEval c1 s1 s2 -> NonTerm c2 s2 -> NonTerm (Seq c1 c2) s1
-    | NT_IfTrue :
-        forall (b : BExp) (c1 c2 : Com) (s : State),
-          BEval b s true -> NonTerm c1 s -> NonTerm (If b c1 c2) s
-    | NT_IfFalse :
-        forall (b : BExp) (c1 c2 : Com) (s : State),
-          BEval b s false -> NonTerm c2 s -> NonTerm (If b c1 c2) s
-    | NT_WhileBody :
-        forall (b : BExp) (c : Com) (s : State),
-          BEval b s true -> NonTerm c s -> NonTerm (While b c) s
-    | NT_WhileSelf :
-        forall (b : BExp) (c : Com) (s1 s2 : State),
-          BEval b s1 true -> CEval c s1 s2 -> NonTerm (While b c) s2 ->
-            NonTerm (While b c) s1.
+| NT_SeqL :
+    forall (c1 c2 : Com) (s : State),
+      NonTerm c1 s -> NonTerm (Seq c1 c2) s
+| NT_SeqR :
+    forall (c1 c2 : Com) (s1 s2 : State),
+      CEval c1 s1 s2 -> NonTerm c2 s2 -> NonTerm (Seq c1 c2) s1
+| NT_IfTrue :
+    forall (b : BExp) (c1 c2 : Com) (s : State),
+      BEval b s true -> NonTerm c1 s -> NonTerm (If b c1 c2) s
+| NT_IfFalse :
+    forall (b : BExp) (c1 c2 : Com) (s : State),
+      BEval b s false -> NonTerm c2 s -> NonTerm (If b c1 c2) s
+| NT_WhileBody :
+    forall (b : BExp) (c : Com) (s : State),
+      BEval b s true -> NonTerm c s -> NonTerm (While b c) s
+| NT_WhileSelf :
+    forall (b : BExp) (c : Com) (s1 s2 : State),
+      BEval b s1 true -> CEval c s1 s2 -> NonTerm (While b c) s2 ->
+        NonTerm (While b c) s1.
 
 Lemma NT_While_true_do_Skip :
   forall s : State,

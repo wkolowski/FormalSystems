@@ -2,42 +2,41 @@ From FormalSystems Require Export Imp.Syntax.
 
 Fixpoint aeval (s : State) (a : AExp) : nat :=
 match a with
-    | AConst n => n
-    | Var v => s v
-    | ABinOp f a1 a2 => f (aeval s a1) (aeval s a2)
+| AConst n => n
+| Var v => s v
+| ABinOp f a1 a2 => f (aeval s a1) (aeval s a2)
 end.
 
 Fixpoint beval (s : State) (e : BExp) : bool :=
 match e with
-    | BConst b => b
-    | BRelOp f a1 a2 => f (aeval s a1) (aeval s a2)
-    | Not e' => negb (beval s e')
-    | BBinOp f e1 e2 => f (beval s e1) (beval s e2)
+| BConst b => b
+| BRelOp f a1 a2 => f (aeval s a1) (aeval s a2)
+| Not e' => negb (beval s e')
+| BBinOp f e1 e2 => f (beval s e1) (beval s e2)
 end.
 
 Function ceval (n : nat) (c : Com) (s : State) : option State :=
 match n with
-    | 0 => None
-    | S n' =>
-        match c with
-            | Skip => Some s
-            | Asgn x a => Some (changeState s x (aeval s a))
-            | Seq c1 c2 =>
-                match ceval n' c1 s with
-                    | None => None
-                    | Some s' => ceval n' c2 s'
-                end
-            | If b c1 c2 =>
-                if beval s b then ceval n' c1 s else ceval n' c2 s
-            | While b c =>
-                if beval s b
-                then
-                  match ceval n' c s with
-                      | None => None
-                      | Some s' => ceval n' (While b c) s'
-                  end
-                else Some s
-        end
+| 0 => None
+| S n' =>
+  match c with
+  | Skip => Some s
+  | Asgn x a => Some (changeState s x (aeval s a))
+  | Seq c1 c2 =>
+    match ceval n' c1 s with
+    | None => None
+    | Some s' => ceval n' c2 s'
+    end
+  | If b c1 c2 => if beval s b then ceval n' c1 s else ceval n' c2 s
+  | While b c =>
+    if beval s b
+    then
+      match ceval n' c s with
+      | None => None
+      | Some s' => ceval n' (While b c) s'
+      end
+    else Some s
+  end
 end.
 
 Lemma ceval_plus :
