@@ -46,7 +46,7 @@ Instance red_reds_L :
   forall A : Term,
     Proper (red ==> reds) (App A).
 Proof.
-  unfold Proper, respectful. intros A B B' HB. eauto.
+  now intros A B B' Hs; eauto.
 Qed.
 
 #[export]
@@ -54,44 +54,44 @@ Instance red_reds_R :
   forall A : Term,
     Proper (red ==> reds) (fun B => App B A).
 Proof.
-  unfold Proper, respectful. intros A B B' HB. eauto.
+  now intros A B B' Hs; eauto.
 Qed.
 
 #[export]
 Instance red_reds :
   Proper (red ==> red ==> reds) App.
 Proof.
-  unfold Proper, respectful. intros A A' HA B B' HB. eauto.
+  now intros A A' HA B B' HB; eauto.
 Qed.
 
 Lemma reds_trans' :
   forall {A B C : Term},
     A ~>* B -> B ~>* C -> A ~>* C.
 Proof.
-  induction 1; eauto.
+  now induction 1; eauto.
 Qed.
 
 Lemma reds_AppL :
   forall {A A' B : Term},
     A ~>* A' -> A @ B ~>* A' @ B.
 Proof.
-  induction 1; eauto.
+  now induction 1; eauto.
 Qed.
 
 Lemma reds_AppR :
   forall {A B B' : Term},
     B ~>* B' -> A @ B ~>* A @ B'.
 Proof.
-  induction 1; eauto.
+  now induction 1; eauto.
 Qed.
 
 Lemma reds_App :
   forall {A A' B B' : Term},
     A ~>* A' -> B ~>* B' -> A @ B ~>* A' @ B'.
 Proof.
-  induction 1; intro.
-    induction H; eauto.
-    eauto.
+  induction 1; intros Hs.
+  - now apply reds_AppR.
+  - now induction H; eauto.
 Qed.
 
 (** * Derived combinators *)
@@ -103,8 +103,8 @@ Lemma red_I :
   forall A : Term,
     I @ A ~>* A.
 Proof.
-  intros. unfold I. eauto.
-Defined.
+  now unfold I; eauto.
+Qed.
 
 #[global] Hint Resolve red_I : core.
 
@@ -203,15 +203,15 @@ Fixpoint Nf_isNormal {t : Term} (nf : Nf t) {struct nf} : isNormal t
 
 with     Ne_isNormal {t : Term} (ne : Ne t) {struct ne} : isNormal t.
 Proof.
-  destruct nf.
-    1-5: wut; eapply Nf_isNormal;
+  - destruct nf;
+      only 1-5: (now wut; eapply Nf_isNormal;
       repeat match goal with
       | |- red _ _ => eauto
-      end; eauto.
-    apply Ne_isNormal. assumption.
-  destruct ne. wut.
-    eapply Ne_isNormal; eauto.
-    eapply Nf_isNormal; eauto.
+      end; eauto).
+    now apply Ne_isNormal.
+  - destruct ne. wut.
+    + now eapply Ne_isNormal; eauto.
+    + now eapply Nf_isNormal; eauto.
 Qed.
 
 (*
@@ -267,20 +267,20 @@ Qed.
 
 Inductive parallel : Term -> Term -> Prop :=
 | parallel_K :
-        forall t1 t2 : Term,
-          parallel (K @ t1 @ t2) t1
+    forall t1 t2 : Term,
+      parallel (K @ t1 @ t2) t1
 | parallel_S :
-        forall t1 t2 t3 : Term,
-          parallel (S @ t1 @ t2 @ t3) (t1 @ t3 @ (t2 @ t3))
+    forall t1 t2 t3 : Term,
+      parallel (S @ t1 @ t2 @ t3) (t1 @ t3 @ (t2 @ t3))
 | parallel_AppL :
-        forall t1 t1' t2 : Term,
-          parallel t1 t1' -> parallel (t1 @ t2) (t1' @ t2)
+    forall t1 t1' t2 : Term,
+      parallel t1 t1' -> parallel (t1 @ t2) (t1' @ t2)
 | parallel_AppR :
-        forall t1 t2 t2' : Term,
-          parallel t2 t2' -> parallel (t1 @ t2) (t1 @ t2')
+    forall t1 t2 t2' : Term,
+      parallel t2 t2' -> parallel (t1 @ t2) (t1 @ t2')
 | parallel_App :
-        forall t1 t1' t2 t2' : Term,
-          parallel t1 t1' -> parallel t2 t2' -> parallel (t1 @ t2) (t1' @ t2').
+    forall t1 t1' t2 t2' : Term,
+      parallel t1 t1' -> parallel t2 t2' -> parallel (t1 @ t2) (t1' @ t2').
 
 #[global] Hint Constructors parallel : core.
 
@@ -292,14 +292,14 @@ Lemma parallels_K :
   forall t1 t2 : Term,
     parallels (K @ t1 @ t2) t1.
 Proof.
-  do 2 constructor.
+  now do 2 constructor.
 Qed.
 
 Lemma parallels_S :
   forall t1 t2 t3 : Term,
     parallels (S @ t1 @ t2 @ t3) (t1 @ t3 @ (t2 @ t3)).
 Proof.
-  do 2 constructor.
+  now do 2 constructor.
 Qed.
 
 Lemma parallels_AppL :
@@ -307,8 +307,8 @@ Lemma parallels_AppL :
     parallels t1 t1' -> parallels (t1 @ t2) (t1' @ t2).
 Proof.
   unfold parallels.
-  intros until 1. revert t2.
-  induction H; eauto.
+  intros * Hp; revert t2.
+  now induction Hp; eauto.
 Qed.
 
 Lemma parallels_AppR :
@@ -316,8 +316,8 @@ Lemma parallels_AppR :
     parallels t2 t2' -> parallels (t1 @ t2) (t1 @ t2').
 Proof.
   unfold parallels.
-  intros until 1. revert t1.
-  induction H; eauto.
+  intros * Hp; revert t1.
+  now induction Hp; eauto.
 Qed.
 
 #[global] Hint Resolve parallels_K parallels_S parallels_AppL parallels_AppR : core.
@@ -334,27 +334,27 @@ Lemma parallels_App :
       parallels (t1 @ t2) (t1' @ t2').
 Proof.
   unfold parallels.
-  intros until 1. revert t2 t2'.
-  induction H; intros.
-    econstructor 3.
-      do 2 constructor; eauto.
-      induction H0; eauto.
-    apply parallels_AppR. assumption.
-    eapply rtc_trans.
-      apply IHrtc1. eassumption.
-      apply IHrtc2. constructor 2.
+  intros * Hp1 Hp2; revert t2 t2' Hp2.
+  induction Hp1; intros.
+  - econstructor 3.
+    + now do 2 constructor; eauto.
+    + now induction Hp2; eauto.
+  - now apply parallels_AppR.
+  - eapply rtc_trans.
+    + now apply IHHp1_1.
+    + now apply IHHp1_2.
 Qed.
 
 Lemma parallel_not_K0 :
   forall r : Term, ~ parallel K r.
 Proof.
-  do 2 intro. inv H.
+  now inversion 1.
 Qed.
 
 Lemma parallel_not_S0 :
   forall r : Term, ~ parallel S r.
 Proof.
-  do 2 intro. inv H.
+  now inversion 1.
 Qed.
 
 Lemma parallel_confluent''' :
@@ -376,17 +376,18 @@ Proof.
   pose parallels_AppR;
   pose parallels_App;
   unfold parallels in *.
-    decompose [ex and] (IHHpb _ H2). eauto 6.
-    decompose [ex and] (IHHpb _ H1). eauto 6.
-    decompose [ex and] (IHHpb _ H2). eauto 6.
-    decompose [ex and] (IHHpb _ H3). eauto 6.
-    decompose [ex and] (IHHpb1 _ H2). eauto 6.
-    decompose [ex and] (IHHpb2 _ H2). eauto 6.
-    decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3). eauto.
+  - now decompose [ex and] (IHHpb _ H2); eauto 6.
+  - now decompose [ex and] (IHHpb _ H1); eauto 6.
+  - now decompose [ex and] (IHHpb _ H2); eauto 6.
+  - now decompose [ex and] (IHHpb _ H3); eauto 6.
+  - now decompose [ex and] (IHHpb1 _ H2); eauto 6.
+  - now decompose [ex and] (IHHpb2 _ H2); eauto 6.
+  - now decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3); eauto.
 Qed.
 
-(* (** * Lambdas *)
+(** * Lambdas *)
 
+(*
 Fixpoint lam (x : V) (A : Term) : Term :=
 match A with
 | Var y => if x =? y then I else K @ Var y
@@ -425,4 +426,5 @@ Proof.
     eapply reds_trans.
       apply red_S.
       apply reds_App; auto.
-Qed. *)
+Qed.
+*)
