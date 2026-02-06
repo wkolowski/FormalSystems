@@ -146,6 +146,13 @@ match b with
 | BCond b1 b2 b3 => Or (And b1 b2) (And (Not b1) b3)
 end.
 
+Ltac wut :=
+repeat match goal with
+| IH : forall _ _ , AEval _ _ _ -> _, H : AEval _ _ _ |- _ => specialize (IH _ _ H)
+| H : match ?x with _ => _ end |- _ => destruct x
+| H : AEval (desugara _) _ _, H' : desugara _ = _ |- _ => rewrite H' in H; inv H; auto
+end.
+
 Lemma AEval_desugara :
   forall (a : AExp) (s : State) (n : nat),
     AEval a s n -> AEval (desugara a) s n
@@ -154,40 +161,4 @@ with BEval_desugarb :
   forall (e : BExp) (s : State) (b : bool),
     BEval e s b -> BEval (desugarb e) s b.
 Proof.
-  intro a. functional induction desugara a; cbn; intros.
-    1-2: assumption.
-    inv H. specialize (IHa0 _ _ H2). rewrite e0 in IHa0. admit.
-    inv H.
-    Ltac wut :=
-    repeat match goal with
-    | IH : forall _ _ , AEval _ _ _ -> _, H : AEval _ _ _ |- _ => specialize (IH _ _ H)
-    | H : match ?x with _ => _ end |- _ => destruct x
-    | H : AEval (desugara _) _ _, H' : desugara _ = _ |- _ => rewrite H' in H; inv H; auto
-    end.
-    wut.
-    inv H. wut.
-    inv H.
-    1-2: assumption.
-    inv H; auto.
-  intro e. functional induction desugarb e; cbn; intros; auto.
-    inv H.
-    apply AEval_desugara in H2. rewrite e0 in H2.
-      apply AEval_desugara in H5. rewrite e1 in H5.
-      inv H2; inv H5; auto.
-    admit.
-    admit.
-    inv H. auto.
-    inv H. auto.
-    inv H. auto.
-    inv H. auto.
-    inv H. destruct b; auto.
-
-    repeat match goal with
-    | H : forall _ _ _ , AEval _ _ _ -> _, H' : AEval ?a _ _ |- _ =>
-        idtac H; idtac H';
-        is_var a; let H'' := fresh "H" in pose (H'' := H _ _ _ H');
-        clearbody H''; clear H'
-    | H : AEval ?a _ _, H' : ?a = _ |- _ =>
-        rewrite H' in H; clear H'; inv H; auto
-    end.
 Abort.

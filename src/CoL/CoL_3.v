@@ -28,27 +28,21 @@ CoInductive ConstantGame : Type :=
   next : Labmove -> ConstantGame;
 }.
 
-Definition Win : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Machine;
-    Labmove := Empty_set;
-    who l := match l with end;
-    next l := match l with end;
-  |}.
-Defined.
+Definition Win : ConstantGame :=
+{|
+  winner := Machine;
+  Labmove := Empty_set;
+  who l := match l with end;
+  next l := match l with end;
+|}.
 
-CoFixpoint Lose : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Nature;
-    Labmove := Empty_set;
-    who l := match l with end;
-    next l := match l with end;
-  |}.
-Defined.
+Definition Lose : ConstantGame :=
+{|
+  winner := Nature;
+  Labmove := Empty_set;
+  who l := match l with end;
+  next l := match l with end;
+|}.
 
 Definition swap (p : Player) : Player :=
 match p with
@@ -56,15 +50,14 @@ match p with
 | Nature => Machine
 end.
 
-Definition transport
-  {A : Type} (P : A -> Type) {x y : A} (p : x = y) : P x -> P y.
-Proof.
-  destruct p. intro. assumption.
-Defined.
+Definition transport {A : Type} {P : A -> Type} {x y : A} (p : x = y) (u : P x) : P y :=
+match p with
+| eq_refl => u
+end.
 
 Lemma transport_cat :
   forall (A : Type) (P : A -> Type) (x y z : A) (p : x = y) (q : y = z) (u : P x),
-    transport P q (transport P p u) = transport P (eq_trans p q) u.
+    transport q (transport p u) = transport (eq_trans p q) u.
 Proof.
   destruct p, q. cbn. reflexivity.
 Defined.
@@ -100,10 +93,11 @@ Lemma sim_refl :
   forall g : ConstantGame, sim g g.
 Proof.
   cofix CH.
-  econstructor; cbn; intros. Unshelve.
-    1, 4: reflexivity.
-    reflexivity.
-    apply CH.
+  unshelve econstructor; cbn; intros.
+  - easy.
+  - easy.
+  - easy.
+  - now cbn; apply CH.
 Qed.
 
 Lemma sim_sym :
@@ -111,15 +105,15 @@ Lemma sim_sym :
     sim g1 g2 -> sim g2 g1.
 Proof.
   cofix CH.
-  destruct 1 as [w p whos nexts].
-  econstructor. Unshelve.
-    4: auto.
-    auto.
-    intro. rewrite whos, transport_cat, cat_inv. cbn. reflexivity.
-    intro. apply CH.
-      specialize (nexts (@transport _ id _ _ (eq_sym p) move)).
-      rewrite transport_cat, cat_inv in *. cbn in *.
-        assumption.
+  intros g1 g2 [w p whos nexts].
+  unshelve econstructor.
+  - easy.
+  - easy.
+  - now intros; rewrite whos, transport_cat, cat_inv; cbn.
+  - intros.
+    apply CH.
+    specialize (nexts (@transport _ id _ _ (eq_sym p) move)).
+    now rewrite transport_cat, cat_inv in nexts; cbn in nexts.
 Qed.
 
 Lemma sim_trans :
@@ -127,24 +121,24 @@ Lemma sim_trans :
     sim g1 g2 -> sim g2 g3 -> sim g1 g3.
 Proof.
   cofix CH.
-  destruct 1 as [w1 p1 whos1 nexts1],
-           1 as [w2 p2 whos2 nexts2].
-  econstructor. Unshelve.
-    4: exact (eq_trans p1 p2).
-    rewrite w1. assumption.
-    intro. rewrite whos1, whos2, transport_cat. reflexivity.
-    intro. apply (CH _ (next g2 (transport id p1 move))).
-      apply nexts1.
-      rewrite <- transport_cat. apply nexts2.
+  intros g1 g2 g3 [w1 p1 whos1 nexts1] [w2 p2 whos2 nexts2].
+  unshelve econstructor.
+  - exact (eq_trans p1 p2).
+  - exact (eq_trans w1 w2).
+  - now intros; rewrite whos1, whos2, transport_cat.
+  - intros.
+    apply (CH _ (next g2 (@transport _ id _ _ p1 move))).
+    + now apply nexts1.
+    + now rewrite <- transport_cat.
 Qed.
 
 #[export]
 Instance Equivalence_sim : Equivalence sim.
 Proof.
   split; red.
-    apply sim_refl.
-    apply sim_sym.
-    apply sim_trans.
+  - now apply sim_refl.
+  - now apply sim_sym.
+  - now apply sim_trans.
 Defined.
 
 (** Tactics *)
@@ -152,322 +146,258 @@ Defined.
 #[global] Hint Constructors Player : CoL.
 
 #[global] Hint Extern 1 =>
-match goal with
-| |- exists p : Player, _ => exists Machine; cbn
-end : CoL.
+  match goal with
+  | |- exists p : Player, _ => exists Machine; cbn
+  end : CoL.
 
 #[global] Hint Extern 1 =>
-match goal with
-| |- exists p : Player, _ => exists Nature; cbn
-end : CoL.
+  match goal with
+  | |- exists p : Player, _ => exists Nature; cbn
+  end : CoL.
 
 (** Connectives *)
 
-CoFixpoint Not (g : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := swap (winner g);
-    Labmove := Labmove g;
-    who move := swap (who g move);
-    next move := Not (next g move);
-  |}.
-Defined.
+CoFixpoint Not (g : ConstantGame) : ConstantGame :=
+{|
+  winner := swap (winner g);
+  Labmove := Labmove g;
+  who move := swap (who g move);
+  next move := Not (next g move);
+|}.
 
-Definition chor (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Nature;
-    Labmove := bool;
-    who move := Machine;
-    next move := if move then g1 else g2;
-  |}.
-Defined.
+Definition chor (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := Nature;
+  Labmove := bool;
+  who move := Machine;
+  next move := if move then g1 else g2;
+|}.
 
-Definition chand (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Machine;
-    Labmove := bool;
-    who move := Nature;
-    next move := if move then g1 else g2;
-  |}.
-Defined.
+Definition chand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := Machine;
+  Labmove := bool;
+  who move := Nature;
+  next move := if move then g1 else g2;
+|}.
 
-Definition chexists {A : Type} (f : A -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Nature;
-    Labmove := A;
-    who move := Machine;
-    next move := f move;
-  |}.
-Defined.
+Definition chexists {A : Type} (f : A -> ConstantGame) : ConstantGame :=
+{|
+  winner := Nature;
+  Labmove := A;
+  who move := Machine;
+  next move := f move;
+|}.
 
-Definition chall {A : Type} (f : A -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := Machine;
-    Labmove := A;
-    who move := Nature;
-    next move := f move;
-  |}.
-Defined.
+Definition chall {A : Type} (f : A -> ConstantGame) : ConstantGame :=
+{|
+  winner := Machine;
+  Labmove := A;
+  who move := Nature;
+  next move := f move;
+|}.
 
-CoFixpoint por (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner :=
-      match winner g1, winner g2 with
-      | Nature, Nature => Nature
-      | _, _ => Machine
-      end;
-    Labmove := Labmove g1 + Labmove g2;
-    who move :=
-      match move with
-      | inl move' => who g1 move'
-      | inr move' => who g2 move'
-      end;
-    next move :=
-      match move with
-      | inl move' => por (next g1 move') g2
-      | inr move' => por g1 (next g2 move')
-      end;
-  |}.
-Defined.
+CoFixpoint por (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner :=
+    match winner g1, winner g2 with
+    | Nature, Nature => Nature
+    | _, _ => Machine
+    end;
+  Labmove := Labmove g1 + Labmove g2;
+  who move :=
+    match move with
+    | inl move' => who g1 move'
+    | inr move' => who g2 move'
+    end;
+  next move :=
+    match move with
+    | inl move' => por (next g1 move') g2
+    | inr move' => por g1 (next g2 move')
+    end;
+|}.
 
-CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner :=
-      match winner g1, winner g2 with
-      | Machine, Machine => Machine
-      | _, _ => Nature
-      end;
-    Labmove := Labmove g1 + Labmove g2;
-    who move :=
-      match move with
-      | inl move' => who g1 move'
-      | inr move' => who g2 move'
-      end;
-    next move :=
-      match move with
-      | inl move' => pand (next g1 move') g2
-      | inr move' => pand g1 (next g2 move')
-      end;
-  |}.
-Defined.
+CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner :=
+    match winner g1, winner g2 with
+    | Machine, Machine => Machine
+    | _, _ => Nature
+    end;
+  Labmove := Labmove g1 + Labmove g2;
+  who move :=
+    match move with
+    | inl move' => who g1 move'
+    | inr move' => who g2 move'
+    end;
+  next move :=
+    match move with
+    | inl move' => pand (next g1 move') g2
+    | inr move' => pand g1 (next g2 move')
+    end;
+|}.
 
 Axiom LEM' : forall A : Type, A + (A -> False).
 
-CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-      winner :=
-        if LEM' (exists n : nat, winner (f n) = Machine)
-        then Machine
-        else Nature;
-      Labmove := {n : nat & Labmove (f n)};
-      who move :=
-        match move with
-        | existT _ n move => who (f n) move
-        end;
-      next move :=
-        match move with
-        | existT _ n move => pexists (fun m : nat => if n =? m then next (f n) move else f m)
-        end;
-  |}.
-Defined.
+CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner :=
+    if LEM' (exists n : nat, winner (f n) = Machine)
+    then Machine
+    else Nature;
+  Labmove := {n : nat & Labmove (f n)};
+  who '(existT _ n move) := who (f n) move;
+  next '(existT _ n move) := pexists (fun m : nat => if n =? m then next (f n) move else f m);
+|}.
 
-CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-      winner :=
-        if LEM' (forall n : nat, winner (f n) = Machine)
-        then Machine
-        else Nature;
-      Labmove := {n : nat & Labmove (f n)};
-      who move :=
-        match move with
-        | existT _ n move => who (f n) move
-        end;
-      next move :=
-        match move with
-        | existT _ n move => pall (fun m : nat => if n =? m then next (f n) move else f m)
-        end
-  |}.
-Defined.
+CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner :=
+    if LEM' (forall n : nat, winner (f n) = Machine)
+    then Machine
+    else Nature;
+  Labmove := {n : nat & Labmove (f n)};
+  who '(existT _ n move) := who (f n) move;
+  next '(existT _ n move) := pall (fun m : nat => if n =? m then next (f n) move else f m);
+|}.
 
-CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner g1;
-    Labmove := option (Labmove g1);
-    who move :=
-      match move with
-      | None => Machine
-      | Some move' => who g1 move'
-      end;
-    next move :=
-      match move with
-      | None => g2
-      | Some move' => sor (next g1 move') g2
-      end;
-  |}.
-Defined.
+CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := winner g1;
+  Labmove := option (Labmove g1);
+  who move :=
+    match move with
+    | None => Machine
+    | Some move' => who g1 move'
+    end;
+  next move :=
+    match move with
+    | None => g2
+    | Some move' => sor (next g1 move') g2
+    end;
+|}.
 
-CoFixpoint sand (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner g1;
-    Labmove := option (Labmove g1);
-    who move :=
-      match move with
-      | None => Nature
-      | Some move' => who g1 move'
-      end;
-    next move :=
-      match move with
-      | None => g2
-      | Some move' => sand (next g1 move') g2
-      end;
-  |}.
-Defined.
+CoFixpoint sand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := winner g1;
+  Labmove := option (Labmove g1);
+  who move :=
+    match move with
+    | None => Nature
+    | Some move' => who g1 move'
+    end;
+  next move :=
+    match move with
+    | None => g2
+    | Some move' => sand (next g1 move') g2
+    end;
+|}.
 
-CoFixpoint sexists (f : nat -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner (f 0);
-    Labmove := option (Labmove (f 0));
-    who move :=
-      match move with
-      | None => Machine
-      | Some move' => who (f 0) move'
-      end;
-    next move :=
-      match move with
-      | None => sexists (fun n : nat => f (S n))
-      | Some move' =>
-          sexists (fun n : nat =>
-            match n with
-            | 0 => next (f 0) move'
-            | S n' => f (S n')
-            end)
-      end;
-  |}.
-Defined.
+CoFixpoint sexists (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner := winner (f 0);
+  Labmove := option (Labmove (f 0));
+  who move :=
+    match move with
+    | None => Machine
+    | Some move' => who (f 0) move'
+    end;
+  next move :=
+    match move with
+    | None => sexists (fun n : nat => f (S n))
+    | Some move' =>
+        sexists (fun n : nat =>
+          match n with
+          | 0 => next (f 0) move'
+          | S n' => f (S n')
+          end)
+    end;
+|}.
 
-CoFixpoint sall (f : nat -> ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner (f 0);
-    Labmove := option (Labmove (f 0));
-    who move :=
-      match move with
-      | None => Nature
-      | Some move' => who (f 0) move'
-      end;
-    next move :=
-      match move with
-      | None => sall (fun n : nat => f (S n))
-      | Some move' =>
-          sall (fun n : nat =>
-            match n with
-            | 0 => next (f 0) move'
-            | S n' => f (S n')
-            end)
-      end;
-  |}.
-Defined.
+CoFixpoint sall (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner := winner (f 0);
+  Labmove := option (Labmove (f 0));
+  who move :=
+    match move with
+    | None => Nature
+    | Some move' => who (f 0) move'
+    end;
+  next move :=
+    match move with
+    | None => sall (fun n : nat => f (S n))
+    | Some move' =>
+        sall (fun n : nat =>
+          match n with
+          | 0 => next (f 0) move'
+          | S n' => f (S n')
+          end)
+    end;
+|}.
 
-CoFixpoint tor (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-      winner := winner g1;
-      Labmove := option (Labmove g1);
-      who move :=
-        match move with
-        | None => Machine
-        | Some move' => who g1 move'
-        end;
-      next move :=
-        match move with
-        | None => tor g2 g1
-        | Some move' => tor (next g1 move') g2
-        end;
-  |}.
-Defined.
+CoFixpoint tor (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := winner g1;
+  Labmove := option (Labmove g1);
+  who move :=
+    match move with
+    | None => Machine
+    | Some move' => who g1 move'
+    end;
+  next move :=
+    match move with
+    | None => tor g2 g1
+    | Some move' => tor (next g1 move') g2
+    end;
+|}.
 
-CoFixpoint tand (g1 g2 : ConstantGame) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner g1;
-    Labmove := option (Labmove g1);
-    who move :=
-      match move with
-      | None => Nature
-      | Some move' => who g1 move'
-      end;
-    next move :=
-      match move with
-      | None => tand g2 g1
-      | Some move' => tand (next g1 move') g2
-      end;
-  |}.
-Defined.
+CoFixpoint tand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner := winner g1;
+  Labmove := option (Labmove g1);
+  who move :=
+    match move with
+    | None => Nature
+    | Some move' => who g1 move'
+    end;
+  next move :=
+    match move with
+    | None => tand g2 g1
+    | Some move' => tand (next g1 move') g2
+    end;
+|}.
 
-CoFixpoint texists' (f : nat -> ConstantGame) (n : nat) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner (f n);
-    Labmove := Labmove (f n) + nat;
-    who move :=
-      match move with
-      | inl move' => who (f n) move'
-      | inr _ => Machine
-      end;
-    next move :=
-      match move with
-      | inl move' => texists' (fun m : nat => if n =? m then next (f n) move' else f m) n
-      | inr m => texists' f m
-      end;
-  |}.
-Defined.
+CoFixpoint texists' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
+{|
+  winner := winner (f n);
+  Labmove := Labmove (f n) + nat;
+  who move :=
+    match move with
+    | inl move' => who (f n) move'
+    | inr _ => Machine
+    end;
+  next move :=
+    match move with
+    | inl move' => texists' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inr m => texists' f m
+    end;
+|}.
 
-CoFixpoint tall' (f : nat -> ConstantGame) (n : nat) : ConstantGame.
-Proof.
-  refine
-  {|
-    winner := winner (f n);
-    Labmove := Labmove (f n) + nat;
-    who move :=
-      match move with
-      | inl move' => who (f n) move'
-      | inr _ => Nature
-      end;
-    next move :=
-      match move with
-      | inl move' => tall'
-              (fun m : nat => if n =? m then next (f n) move' else f m) n
-      | inr m => tall' f m
-      end;
-  |}.
-Defined.
+CoFixpoint tall' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
+{|
+  winner := winner (f n);
+  Labmove := Labmove (f n) + nat;
+  who move :=
+    match move with
+    | inl move' => who (f n) move'
+    | inr _ => Nature
+    end;
+  next move :=
+    match move with
+    | inl move' => tall' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inr m => tall' f m
+    end;
+|}.
 
 Definition texists (f : nat -> ConstantGame) : ConstantGame :=
   texists' f 0.
@@ -482,52 +412,41 @@ Lemma Not_Not :
     sim (Not (Not g)) g.
 Proof.
   cofix CH.
-  econstructor; cbn; intros. Unshelve.
-    4: cbn; reflexivity.
-    destruct (winner g); reflexivity.
-    cbn. destruct (who g move); cbn; reflexivity.
-    apply CH.
+  unshelve econstructor; cbn; intros.
+  - easy.
+  - now destruct (winner g).
+  - now cbn; destruct (who g move); cbn.
+  - now apply CH.
 Qed.
 
 Lemma Not_chor :
   forall g1 g2 : ConstantGame,
     sim (Not (chor g1 g2)) (chand (Not g1) (Not g2)).
 Proof.
-  cofix CH.
-  econstructor; cbn; intros. Unshelve.
-    4: cbn; reflexivity.
-    1-2: reflexivity.
-    cbn. destruct move; apply sim_refl.
+  unshelve econstructor; cbn; intros; [easy.. |].
+  now destruct move; cbn.
 Qed.
 
 Lemma Not_chand :
   forall g1 g2 : ConstantGame,
     sim (Not (chand g1 g2)) (chor (Not g1) (Not g2)).
 Proof.
-  cofix CH.
-  econstructor; cbn; intros. Unshelve.
-    all: cbn; try reflexivity.
-    cbn. destruct move; apply sim_refl.
+  unshelve econstructor; cbn; intros; [easy.. |].
+  now destruct move; cbn.
 Qed.
 
 Lemma Not_chexists :
   forall (A : Type) (f : A -> ConstantGame),
     sim (Not (chexists f)) (chall (fun x : A => Not (f x))).
 Proof.
-  cofix CH.
-  econstructor. Unshelve.
-    all: cbn; try reflexivity.
-    intro. apply sim_refl.
+  now unshelve econstructor; cbn.
 Qed.
 
 Lemma Not_chall :
   forall (A : Type) (f : A -> ConstantGame),
     sim (Not (chall f)) (chexists (fun x : A => Not (f x))).
 Proof.
-  cofix CH.
-  econstructor. Unshelve.
-    all: cbn; try reflexivity.
-    intro. apply sim_refl.
+  now unshelve econstructor.
 Qed.
 
 Lemma Not_por :
@@ -535,46 +454,42 @@ Lemma Not_por :
     sim (Not (por g1 g2)) (pand (Not g1) (Not g2)).
 Proof.
   cofix CH.
-  econstructor. Unshelve.
-    all: cbn; try reflexivity.
-    destruct (winner g1), (winner g2); cbn; reflexivity.
-    destruct move; reflexivity.
-    destruct move; apply CH.
+  unshelve econstructor; cbn; only 1: easy.
+  - now destruct (winner g1), (winner g2); cbn.
+  - now destruct move; cbn.
+  - now destruct move; cbn; apply CH.
 Qed.
 
-(*
 Lemma Not_pand :
   forall g1 g2 : ConstantGame,
     sim (Not (pand g1 g2)) (por (Not g1) (Not g2)).
 Proof.
   cofix CH.
-  econstructor. Unshelve.
-    4: cbn; reflexivity.
-    all: cbn; intros.
-      destruct p; firstorder.
-      destruct move; reflexivity.
-      destruct move; apply CH.
+  unshelve econstructor; cbn; intros; only 1: easy.
+  - now destruct g1, g2, winner0, winner1; cbn.
+  - now destruct move; cbn.
+  - now destruct move; apply CH.
 Qed.
-*)
 
 Lemma Not_pexists :
   forall f : nat -> ConstantGame,
     sim (Not (pexists f)) (pall (fun n : nat => Not (f n))).
 Proof.
   cofix CH.
-  econstructor. Unshelve.
-    all: cbn; try reflexivity.
-      destruct (LEM' _), (LEM' _); cbn; try reflexivity.
-        destruct e. specialize (e0 x). rewrite H in e0. inversion e0.
-        cut False.
-          destruct 1.
-          apply f1. intro. case_eq (winner (f n)); cbn; intro.
-            cut False. destruct 1. apply f0. eauto.
-            reflexivity.
-      destruct move. cbn. reflexivity.
-      destruct move as [n move]. cbn.
-        replace (pall _) with (pall
-          (fun m : nat => Not (if n =? m then next (f n) move else f m))).
-          apply CH.
-          f_equal. extensionality m. destruct (n =? m); reflexivity.
+  unshelve econstructor; cbn; intros; only 1: easy.
+  - destruct (LEM' _) as [[n Hw] |], (LEM' _) as [Hw' |]; cbn; [| easy.. |].
+    + specialize (Hw' n).
+      now rewrite Hw in Hw'; cbn in *.
+    + cut False; [easy |].
+      apply f1; intros n.
+      destruct (winner (f n)) eqn: Hw; cbn; [| easy].
+      now firstorder.
+  - now destruct move; cbn.
+  - destruct move as [n move]; cbn.
+    replace (pall _)
+       with (pall (fun m : nat => Not (if n =? m then next (f n) move else f m))).
+    + now apply CH.
+    + f_equal.
+      extensionality m.
+      now destruct (n =? m).
 Qed.

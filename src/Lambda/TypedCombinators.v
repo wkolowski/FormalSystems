@@ -148,86 +148,46 @@ Fixpoint Nf_isNormal {t : Tm} (nf : Nf t) {struct nf} : isNormal t
 
 with     Ne_isNormal {t : Tm} (ne : Ne t) {struct ne} : isNormal t.
 Proof.
-  destruct nf.
-    wut.
-    red. do 2 intro. inv H.
-    1-11: wut; eapply Nf_isNormal;
-      repeat match goal with
-      | |- red _ _ => eauto
-      end; eauto.
+  - destruct nf;
+      only 1-11: (wut; eapply Nf_isNormal;
+        repeat match goal with
+        | |- red _ _ => eauto
+        end; eauto).
     apply Ne_isNormal. assumption.
-  destruct ne.
-    wut.
-      eapply Ne_isNormal; eauto.
-      eapply Nf_isNormal; eauto.
-    wut.
-      eapply Nf_isNormal. 2: eauto. eauto.
-      eapply Nf_isNormal. 2: eauto. eauto.
-      eapply Ne_isNormal. 2: eauto. eauto.
+  - destruct ne.
+    + wut.
+      * eapply Ne_isNormal; eauto.
+      * eapply Nf_isNormal; eauto.
+    + wut.
+     * eapply Nf_isNormal; cycle 1; eauto.
+     * eapply Nf_isNormal; cycle 1; eauto.
+     * eapply Ne_isNormal; cycle 1; eauto.
 Qed.
 
 Fixpoint Nf'_isNormal {t : Tm} (nf : Nf' t) {struct nf} : isNormal t
 
 with     Ne'_isNormal {t : Tm} (ne : Ne' t) {struct ne} : isNormal t.
 Proof.
-  destruct nf; wut.
-    eapply Nf'_isNormal; eauto.
-    eapply Nf'_isNormal; eauto.
-    eapply Nf'_isNormal. 2: eauto. eauto.
-    eapply Nf'_isNormal; eauto.
-    eapply Nf'_isNormal; eauto.
-    eapply Nf'_isNormal. 2: eauto. eauto.
-    eapply Nf'_isNormal; eauto.
-    eapply Ne'_isNormal; eauto.
-  destruct ne; wut.
-    eapply Ne'_isNormal; eauto.
-    eapply Nf'_isNormal; eauto.
+  - now destruct nf; wut;
+      [eapply Nf'_isNormal; cycle 1; eauto.. | eapply Ne'_isNormal; eauto].
+  - destruct ne; wut.
+    + now eapply Ne'_isNormal; eauto.
+    + now eapply Nf'_isNormal; eauto.
 Qed.
+
+Ltac hehe :=
+repeat match goal with
+| H : forall _, ~ _ |- False => eapply H; eauto
+| H : _ -> Nf' _ |- Nf' _ => apply H; do 2 intro
+| |- Nf' (_ @ _) => constructor; auto
+| |- Ne' (_ @ _) => constructor; auto
+| H : Nf' (_ @ _) |- _ => inv H
+| H : Ne' (_ @ _) |- _ => inv H
+end.
 
 Lemma isNormal_Nf' :
   forall {t : Tm}, isNormal t -> Nf' t.
 Proof.
-  Ltac hehe :=
-  repeat match goal with
-  | H : forall _, ~ _ |- False => eapply H; eauto
-  | H : _ -> Nf' _ |- Nf' _ => apply H; do 2 intro
-  | |- Nf' (_ @ _) => constructor; auto
-  | |- Ne' (_ @ _) => constructor; auto
-  | H : Nf' (_ @ _) |- _ => inv H
-  | H : Ne' (_ @ _) |- _ => inv H
-  end.
-
-  unfold isNormal.
-  induction t; intros; auto.
-  destruct t1.
-    1-2, 4-6: hehe.
-    destruct t1_1. all: cycle 3.
-      do 2 constructor.
-        assert (Nf' (zero @ t1_2)).
-          apply IHt1. wut. eapply H. eauto.
-          inv H0.
-        apply IHt2. do 2 intro. eapply H. eauto.
-      do 2 constructor.
-        assert (Nf' (succ @ t1_2)).
-          apply IHt1. wut. eapply H. eauto.
-          inv H0.
-        apply IHt2. do 2 intro. eapply H. eauto.
-      constructor.
-        assert (Nf' (rec @ t1_2)).
-          apply IHt1. wut. eapply H. eauto.
-          inv H0. inv H1.
-        apply IHt2. do 2 intro. eapply H. eauto.
-      specialize (H t1_2). contradict H. eauto.
-      constructor.
-        assert (Nf' (S @ t1_2)).
-          apply IHt1. wut. eapply H. eauto.
-          inv H0. inv H1.
-        apply IHt2. do 2 intro. eapply H. eauto.
-      assert (Nf' (t1_1_1 @ t1_1_2 @ t1_2)).
-        apply IHt1. do 2 intro. eapply H. eauto.
-        inv H0.
-          specialize (H (t1_1_2 @ t2 @ (t1_2 @ t2))). contradict H. eauto.
-          exfalso. eapply H.
 Abort.
 
 Goal
@@ -235,54 +195,11 @@ Goal
     Nf' t -> hasType t TNat -> t = zero \/ exists t' : Tm, t = succ @ t' /\ hasType t' TNat.
 Proof.
   induction 1; intros HT; inv HT.
-    inv H2.
-    inv H2.
-    inv H3. inv H4.
-    inv H2.
-    inv H3. inv H4.
-    revert x a H0 H1 H. induction f; intros.
-      inv H0.
-      inv H0.
-      inv H0. inv H4.
-        inv H. inv H3. inv H2.
-        inv H.
 Abort.
-  
+
 Lemma isNormal_Nf' :
   forall {t : Tm} {a : Ty}, hasType t a -> isNormal t -> Nf' t.
 Proof.
-  unfold isNormal.
-  induction 1; intros; auto.
-  inv H; cycle 3.
-    do 2 constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    constructor; auto. apply IHhasType2. wut. eapply H1. eauto.
-    inv H2. all: cycle 3.
-      constructor.
-        assert (Nf' (rec @ x0)).
-          apply IHhasType1. wut. eapply H1. eauto.
-          inv H. inv H2.
-        apply IHhasType2. wut. eapply H1. eauto.
-      specialize (H1 x0). contradict H1. eauto.
-      constructor; auto.
-        assert (Nf' (S @ x0)).
-          apply IHhasType1. wut. eapply H1. eauto.
-          inv H. inv H2.
-        apply IHhasType2. wut. eapply H1. eauto.
-      assert (Nf' (f @ x1 @ x0)).
-        apply IHhasType1. do 2 intro. eapply H1. eauto.
-        inv H2.
-          specialize (H1 (x1 @ x @ (x0 @ x))). contradict H1. eauto.
-          assert (Nf' x).
-            apply IHhasType2. do 2 intro. eapply H1. eauto.
-            inv H. inv H0; try inv H6; try inv H8; try inv H6.
-              inv H.
-                inv H2.
-                  inv H0.
-                  inv H0.
-                  inv H. inv H10. inv H8.
-                    inv H0.
 Abort.
 
 Definition hasNormal (t : Tm) : Prop :=
@@ -310,12 +227,6 @@ Goal
   forall t ty,
     Reducible t ty <-> WN t ty /\ R' t ty.
 Proof.
-  split.
-    revert t. induction ty; cbn; intros.
-      auto.
-      firstorder. destruct ty2; cbn.
-        trivial.
-        intros. cbn in *. edestruct IHty2.
 Abort.
 
 Lemma reds_AppL :
@@ -323,7 +234,7 @@ Lemma reds_AppL :
     reds t1 t1' -> reds (t1 @ t2) (t1' @ t2).
 Proof.
   unfold reds.
-  induction 1; eauto.
+  now induction 1; eauto.
 Qed.
 
 Lemma reds_AppR :
@@ -331,7 +242,7 @@ Lemma reds_AppR :
     reds t2 t2' -> reds (t1 @ t2) (t1 @ t2').
 Proof.
   unfold reds.
-  induction 1; eauto.
+  now induction 1; eauto.
 Qed.
 
 Lemma reds_App :
@@ -340,59 +251,12 @@ Lemma reds_App :
 Proof.
   intros.
   eapply rtc_trans.
-    apply reds_AppL. eassumption.
-    apply reds_AppR. eassumption.
+  - now apply reds_AppL; eassumption.
+  - now apply reds_AppR.
 Qed.
 
 Lemma hasType_Reducible :
   forall {a : Ty} {t : Tm},
     hasType t a -> Reducible t a.
 Proof.
-  induction 1.
-    cbn. split.
-      red. exists K. repeat split; auto. wut.
-      split; intros.
-        red. destruct a; cbn in *; unfold WN in *.
-          decompose [ex and] H0; clear H0. exists (K @ x). split; eauto. split.
-            apply reds_AppR. assumption.
-            wut.
-          decompose [ex and] H0; clear H0. exists (K @ x). split; eauto. split.
-            apply reds_AppR. assumption.
-            wut.
-        clear -a H0. induction a; cbn in *; unfold WN in *; intros.
-          wut. exists x. wut. constructor 3 with (K @ x @ t'0).
-            apply reds_AppL, reds_AppR. assumption.
-            auto.
-          wut.
-            exists x. wut. constructor 3 with (K @ x @ t'0).
-              apply reds_AppL, reds_AppR. assumption.
-              auto.
-            admit.
-    admit.
-    cbn in *. wut.
-    cbn. wut. red. exists zero. wut.
-    cbn. wut.
-      red. exists succ. wut.
-      unfold WN in *. wut. exists (succ @ x). wut.
-        eauto.
-        apply reds_AppR. assumption.
-    cbn. unfold WN. wut.
-      exists rec. wut.
-      destruct a; cbn in *; unfold WN in *; wut.
-        exists (rec @ x). wut.
-          eauto.
-          apply reds_AppR. assumption.
-        exists (rec @ x). wut.
-          eauto.
-          apply reds_AppR. assumption.
-      destruct a; cbn in *; unfold WN in *; wut.
-        exists (rec @ x0 @ x). wut.
-          eauto.
-          repeat apply reds_App; unfold reds; auto.
-        exists (rec @ x0 @ x). wut.
-          eauto.
-          repeat apply reds_App; unfold reds; auto.
-      edestruct (H5 _ H7).
-        exists x. wut.
-        wut. destruct a; cbn.
 Abort.

@@ -41,11 +41,11 @@ match a with
 | Sub a1 a2 => liftM2 minus (aeval a1 s) (aeval a2 s)
 | Mul a1 a2 => liftM2 mult (aeval a1 s) (aeval a2 s)
 | Div a1 a2 =>
-    match aeval a1 s, aeval a2 s with
-    | _, Some 0 => None
-    | Some n, Some m => Some (n / m)
-    | _, _ => None
-    end
+  match aeval a1 s, aeval a2 s with
+  | _, Some 0 => None
+  | Some n, Some m => Some (n / m)
+  | _, _ => None
+  end
 end.
 
 Fixpoint loca (a : AExp) : list Loc :=
@@ -69,9 +69,7 @@ Lemma aeval_acompatible :
 Proof.
   unfold acompatible.
   induction a; cbn; intros; try f_equal; auto.
-  rewrite (IHa1 s1 s2), (IHa2 s1 s2).
-  destruct (aeval a1 s2), (aeval a2 s2).
-  all: auto.
+  now rewrite (IHa1 s1 s2), (IHa2 s1 s2); auto.
 Qed.
 
 Fixpoint beval (e : BExp) (s : State) : option bool :=
@@ -159,18 +157,16 @@ Lemma CEval_det :
   forall (c : Com) (s : State) (s1 : option State),
     CEval c s s1 -> forall s2 : option State, CEval c s s2 -> s1 = s2.
 Proof.
-  induction 1; intros.
-  Ltac wut :=
-  match goal with
-  | H : CEval ?c _ _ |- _ => is_var c + inv H
-  end;
-  repeat match goal with
-  | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
-    let H' := fresh "H" in
-      assert (H' := IH _ H); clear H; rename H' into H; subst
-  | H : Some _ = Some _ |- _ => inv H
-  end; eauto; try congruence.
-  all: wut.
+  now induction 1; intros;
+    match goal with
+    | H : CEval ?c _ _ |- _ => is_var c + inv H
+    end;
+    repeat match goal with
+    | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
+      let H' := fresh "H" in
+        assert (H' := IH _ H); clear H; rename H' into H; subst
+    | H : Some _ = Some _ |- _ => inv H
+    end; eauto; try congruence.
 Qed.
 
 Inductive E : Type :=
@@ -218,13 +214,10 @@ Lemma ceval_CEval_inr :
 Proof.
   intros n c s1.
   functional induction ceval n c s1; intros; inv H; eauto.
-    specialize (IHs _ H1). econstructor; eauto.
-      destruct (ceval n' c1 s) eqn: Heq.
-        inv H1.
-        contradiction.
-    destruct (ceval n' c0 s).
-      inv H1.
-      contradiction.
+  - specialize (IHs _ H1).
+    econstructor; eauto.
+    now destruct (ceval n' c1 s) eqn: Heq.
+  - now destruct (ceval n' c0 s).
 Qed.
 
 #[global] Hint Resolve ceval_CEval_inr : core.
@@ -242,9 +235,6 @@ Lemma while_true_do_skip :
     ~ CEval (While BTrue Skip) s1 s2.
 Proof.
   intros s1 s2 H.
-  remember (While BTrue Skip) as w. revert Heqw.
-  induction H; intros; inv Heqw.
-    inv H.
-    inv H.
-    inv H0.
+  remember (While BTrue Skip) as w; revert Heqw.
+  now induction H; intros; inv Heqw.
 Qed.

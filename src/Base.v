@@ -59,16 +59,15 @@ Require Export Setoid Classes.RelationClasses.
 #[export]
 Instance Reflexive_rtc' {A : Type} (R : A -> A -> Prop) : Reflexive (rtc' R).
 Proof.
-  red. constructor.
+  now red; constructor.
 Defined.
 
 #[export]
 Instance Transitive_rtc' {A : Type} (R : A -> A -> Prop) : Transitive (rtc' R).
 Proof.
-  red. intros x y z Hxy Hyz. revert z Hyz.
-  induction Hxy; intros.
-    assumption.
-    eauto.
+  red; intros x y z Hxy Hyz; revert z Hyz.
+  induction Hxy; intros; [easy |].
+  now econstructor; [| apply IHHxy].
 Defined.
 
 Definition rtc'_trans := @Transitive_rtc'.
@@ -88,8 +87,6 @@ Proof.
   intros * Hxy Hyz.
   revert z Hyz.
   induction Hxy; intros.
-    econstructor 2; eassumption.
-    econstructor 2.
-      eassumption.
-      apply IHHxy. assumption.
+  - now apply tc_cons with y.
+  - now apply tc_cons with y; auto.
 Qed.

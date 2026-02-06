@@ -62,33 +62,32 @@ match a with
 | Sub a1 a2 => liftM2 minus (aeval a1 s) (aeval a2 s)
 | Mul a1 a2 => liftM2 mult (aeval a1 s) (aeval a2 s)
 | Div a1 a2 =>
-    match aeval a1 s, aeval a2 s with
-    | _, Some 0 => None
-    | Some n, Some m => Some (n / m)
-    | _, _ => None
-    end
+  match aeval a1 s, aeval a2 s with
+  | _, Some 0 => None
+  | Some n, Some m => Some (n / m)
+  | _, _ => None
+  end
 end.
 
 Lemma AEval_aeval :
   forall {a : AExp} {s : State} {n : nat},
     AEval a s n -> aeval a s = Some n.
 Proof.
-  induction 1; cbn; rewrite ?IHAEval1, ?IHAEval2; try reflexivity.
-  destruct n2.
-    contradiction.
-    reflexivity.
+  induction 1; cbn; rewrite ?IHAEval1, ?IHAEval2; [easy.. |].
+  now destruct n2.
 Qed.
 
 Lemma aeval_AEval :
   forall {a : AExp} {s : State} {n : nat},
     aeval a s = Some n -> AEval a s n.
 Proof.
-  induction a; cbn; intros; inv H; auto.
-    1-4: destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1; auto.
-      destruct n1.
-        inv H0.
-        assert (n0 / S n1 = n) by (inv H0; auto). rewrite <- H. auto.
-      destruct n0; inv H0.
+  induction a; cbn; inversion 1; subst;
+    [now constructor | now constructor |
+      destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1..].
+  - destruct n1; [easy |].
+    assert (n0 / S n1 = n) by (inv H; auto).
+    now rewrite <- H0; auto.
+  - now destruct n0.
 Qed.
 
 Lemma AEval_det :
@@ -96,9 +95,8 @@ Lemma AEval_det :
     AEval a s n -> AEval a s m -> n = m.
 Proof.
   intros.
-  apply AEval_aeval in H.
-  apply AEval_aeval in H0.
-  rewrite H0 in H. inv H.
+  apply AEval_aeval in H, H0.
+  now congruence.
 Qed.
 
 Fixpoint loca (a : AExp) : list Loc :=
@@ -134,10 +132,10 @@ Lemma AEval_acompatible_det :
       (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
         n1 = n2.
 Proof.
-  induction 1; cbn; intros;
-  match goal with
-  | H : AEval ?a _ _ |- _ => is_var a + inv H
-  end; eauto 10.
+  now induction 1; cbn; intros;
+    match goal with
+    | H : AEval ?a _ _ |- _ => is_var a + inv H
+    end; eauto 10.
 Qed.
 
 Inductive BEval : BExp -> State -> bool -> Prop :=
@@ -179,10 +177,13 @@ Lemma BEval_beval :
     BEval e s b -> beval e s = Some b.
 Proof.
   induction 1; cbn.
-    1-2: reflexivity.
-    1-2: rewrite (AEval_aeval H), (AEval_aeval H0); reflexivity.
-    rewrite IHBEval. reflexivity.
-    1-2: rewrite IHBEval1, IHBEval2; reflexivity.
+  - easy.
+  - easy.
+  - now rewrite (AEval_aeval H), (AEval_aeval H0).
+  - now rewrite (AEval_aeval H), (AEval_aeval H0).
+  - now rewrite IHBEval.
+  - now rewrite IHBEval1, IHBEval2.
+  - now rewrite IHBEval1, IHBEval2.
 Qed.
 
 #[global] Hint Resolve aeval_AEval : core.
@@ -192,11 +193,11 @@ Lemma beval_BEval :
     beval e s = Some b -> BEval e s b.
 Proof.
   induction e; cbn; intros; inv H; auto.
-    destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
-    destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
-    destruct (beval e s) eqn: He; inv H1; auto.
-    destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
-    destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
+  - destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
+  - destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
+  - destruct (beval e s) eqn: He; inv H1; auto.
+  - destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
+  - destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
 Qed.
 
 Lemma BEval_det :
@@ -204,9 +205,8 @@ Lemma BEval_det :
     BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
 Proof.
   intros.
-  apply BEval_beval in H.
-  apply BEval_beval in H0.
-  rewrite H0 in H. inv H.
+  apply BEval_beval in H, H0.
+  now congruence.
 Qed.
 
 Fixpoint locb (b : BExp) : list Loc :=
@@ -242,9 +242,8 @@ Lemma BEval_bcompatible_det :
       bcompatible e s1 s2 -> b1 = b2.
 Proof.
   intros.
-  assert (BEval e s2 b1).
-    eapply BEval_bcompatible; eauto.
-  eapply BEval_det; eauto.
+  assert (BEval e s2 b1) by (eapply BEval_bcompatible; eauto).
+  now eapply BEval_det; eauto.
 Qed.
 
 Inductive CEval : Com -> State -> State -> Prop :=
@@ -280,20 +279,18 @@ Lemma CEval_det :
   forall (c : Com) (s s1 : State),
     CEval c s s1 -> forall s2 : State, CEval c s s2 -> s1 = s2.
 Proof.
-  induction 1; intros.
-  Ltac wut :=
-  match goal with
-  | H : CEval ?c _ _ |- _ => is_var c + inv H
-  end;
-  repeat match goal with
-  | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
-      let H' := fresh "H" in
-        assert (H' := IH _ H); clear H; rename H' into H; subst
-  | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
-      let H'' := fresh "H" in
-        assert (H'' := BEval_det H H'); clear H H'
-  end; eauto; try congruence.
-  all: wut.
+  induction 1; intros;
+    match goal with
+    | H : CEval ?c _ _ |- _ => is_var c + inv H
+    end;
+    repeat match goal with
+    | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
+        let H' := fresh "H" in
+          assert (H' := IH _ H); clear H; rename H' into H; subst
+    | H : BEval ?b ?s _, H' : BEval ?b ?s _ |- _ =>
+        let H'' := fresh "H" in
+          assert (H'' := BEval_det H H'); clear H H'
+    end; eauto; try congruence.
 Qed.
 
 Function ceval (n : nat) (c : Com) (s : State) : option State :=
@@ -348,8 +345,10 @@ Proof.
 Qed.
 
 Lemma div_0 :
-  forall (a1 a2 : AExp) (s : State) (n2 : nat),
+  forall (a1 a2 : AExp) (s : State),
     AEval a2 s 0 -> forall m : nat, ~ AEval (Div a1 a2) s m.
 Proof.
-  intros; intro. inv H0.
+  inversion 2; subst.
+  cut (n2 = 0); [easy |].
+  now eapply AEval_det; eauto.
 Qed.

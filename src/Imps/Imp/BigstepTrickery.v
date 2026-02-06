@@ -6,22 +6,20 @@ Lemma CEval_not_In_locw_eq :
   forall (c : Com) (s1 s2 : State),
     CEval c s1 s2 -> forall x : Loc, ~ In x (locw c) -> s1 x = s2 x.
 Proof.
-  induction 1; cbn in *; intros; auto.
-    unfold changeState. destruct (dec_spec v x).
-      subst. contradiction H0. left. reflexivity.
-      reflexivity.
-    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto.
+  induction 1; cbn in *; intros;
+    rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto.
+  unfold changeState.
+  now destruct (dec_spec v x); firstorder.
 Qed.
 
 Lemma CEval_not_In_loc_eq :
   forall (c : Com) (s1 s2 : State),
     CEval c s1 s2 -> forall x : Loc, ~ In x (loc c) -> s1 x = s2 x.
 Proof.
-  induction 1; cbn in *; intros; auto.
-    unfold changeState. destruct (dec_spec v x).
-      subst. contradiction H0. left. reflexivity.
-      reflexivity.
-    all: rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; auto 7.
+  induction 1; cbn in *; intros;
+    rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto 7.
+  unfold changeState.
+  now destruct (dec_spec v x); firstorder.
 Qed.
 
 #[global] Hint Unfold bcompatible : core.
@@ -33,45 +31,6 @@ Lemma CEval_ccompatible :
       CEval c s1' s2' ->
         ccompatible c s1 s1' -> ccompatible c s2 s2'.
 Proof.
-  unfold ccompatible.
-  induction 1; cbn; intros.
-    inv H1.
-    inv H0. unfold changeState. inv H2.
-      destruct (dec_spec x x).
-        eapply AEval_acompatible_det; eauto.
-        contradiction.
-      destruct (dec_spec v x).
-        eapply AEval_acompatible_det; eauto.
-        auto.
-(* If *)
-(*
-    2: inv H1.
-      eapply IHCEval; eauto 6.
-*)
-(* Seq *)
-(*
-    inv H1. apply in_app_or in H3. destruct H3.
-      assert (In x (loc c2) \/ ~ In x (loc c2)).
-        admit.
-        destruct H3.
-          assert (ccompatible c1 s2 s4).
-            red. intros. eapply IHCEval1; eauto.
-            red in H4. eapply IHCEval2; eauto. intros.
-              apply H4. assumption.
-*)
-(* While *)
-(*
-    4: {
-      inv H2; cbn in *.
-        assert (false = true); try congruence.
-          eapply BEval_bcompatible_det; eauto. unfold bcompatible.
-            intros. symmetry. auto.
-        assert (s1 x = s1' x).
-          apply H3. assumption.
-          assert (s3 x = s2' x).
-            eapply IHCEval2; eauto. intros. apply in_app_or in H5. inv H5.
-    }
-*)
 Abort.
 
 (* Program equivalence. *)
@@ -86,13 +45,12 @@ Example equivalent_ex1 :
   forall (b : BExp) (c : Com),
     While b c ~ If b (Seq c (While b c)) Skip.
 Proof.
-  unfold equivalent. split; intros.
-    remember (While b c) as w. revert b c Heqw.
-      induction H; intros; inv Heqw; eauto.
-    inv H; inv H6; eauto.
+  unfold equivalent.
+  split; intros.
+  - remember (While b c) as w; revert b c Heqw.
+    induction H; intros; inv Heqw; eauto.
+  - inv H; inv H6; eauto.
 Defined.
-
-(* TODO: for loop *)
 
 Inductive Context : Type :=
 | CContext : Context
@@ -116,16 +74,16 @@ Lemma equivalent_in_Context :
   forall c1 c2 : Com,
     c1 ~ c2 -> forall G : Context, put G c1 ~ put G c2.
 Proof.
-  intros c1 c2 H G. revert c1 c2 H.
+  intros c1 c2 H G; revert c1 c2 H.
   induction G; cbn; intros; eauto;
-  unfold equivalent in *; split; intros;
-  match goal with
-  | H : CEval ?c _ _ |- _ =>
-    let c' := fresh "c" in
-    let Heqc' := fresh "Heq" c' in
-      remember c as c'; revert Heqc';
-      induction H; intros; inv Heqc'
-  end; eauto.
+    unfold equivalent in *; split; intros;
+    match goal with
+    | H : CEval ?c _ _ |- _ =>
+      let c' := fresh "c" in
+      let Heqc' := fresh "Heq" c' in
+        remember c as c'; revert Heqc';
+        induction H; intros; inv Heqc'
+    end.
     5-6: apply EvalIfTrue; rewrite 1?IHG; eauto; firstorder.
     all: econstructor; rewrite 1?IHG; eauto; firstorder.
 Qed.
@@ -136,73 +94,74 @@ Lemma equivalent_Seq_l :
   forall c c1 c2 : Com,
     c1 ~ c2 -> Seq c1 c ~ Seq c2 c.
 Proof.
-  unfold equivalent. split; intros.
-    inv H0. econstructor.
-      rewrite <- H. eassumption.
-      assumption.
-    inv H0. econstructor.
-      rewrite H. eassumption.
-      assumption.
+  unfold equivalent.
+  split; intros.
+  - inv H0. econstructor; [| now eauto].
+    now rewrite <- H.
+  - inv H0. econstructor; [| now eauto].
+    now rewrite H.
 Qed.
 
 Lemma equivalent_Seq_r :
   forall c c1 c2 : Com,
     c1 ~ c2 -> Seq c c1 ~ Seq c c2.
 Proof.
-  unfold equivalent. split; intros.
-    inv H0. econstructor.
-      eassumption.
-      rewrite <- H. eassumption.
-    inv H0. econstructor.
-      eassumption.
-      rewrite H. eassumption.
+  unfold equivalent.
+  split; intros.
+  - inv H0.
+    econstructor; [now eauto |].
+    now rewrite <- H.
+  - inv H0.
+    econstructor; [now eauto |].
+    now rewrite H.
 Qed.
 
 Lemma equivalent_If_l :
   forall (b : BExp) (c c1 c2 : Com),
     c1 ~ c2 -> If b c1 c ~ If b c2 c.
 Proof.
-  unfold equivalent. split; intros.
-    inv H0.
-      apply EvalIfTrue.
-        assumption.
-        rewrite <- H. assumption.
-    inv H0.
-      apply EvalIfTrue.
-        assumption.
-        rewrite H. assumption.
+  unfold equivalent.
+  split; intros.
+  - inv H0.
+    apply EvalIfTrue; [easy |].
+    now rewrite <- H.
+  - inv H0.
+    apply EvalIfTrue; [easy |].
+    now rewrite H.
 Qed.
 
 Lemma equivalent_If_r :
   forall (b : BExp) (c c1 c2 : Com),
     c1 ~ c2 -> If b c c1 ~ If b c c2.
 Proof.
-  unfold equivalent. split; intros.
-    inv H0.
-      constructor.
-        assumption.
-        rewrite <- H. assumption.
-    inv H0.
-      constructor.
-        assumption.
-        rewrite H. assumption.
+  unfold equivalent.
+  split; intros.
+  - inv H0.
+    constructor; [easy |].
+    now rewrite <- H.
+  - inv H0.
+    constructor; [easy |].
+    now rewrite H.
 Qed.
 
 Lemma equivalent_While :
-  forall (b : BExp) (c c1 c2 : Com),
+  forall (b : BExp) (c1 c2 : Com),
     c1 ~ c2 -> While b c1 ~ While b c2.
 Proof.
-  unfold equivalent. split; intros.
-    remember (While b c1) as w. revert Heqw. induction H0; intro; inv Heqw.
-      eapply EvalWhileTrue.
-        assumption.
-        rewrite <- H. eassumption.
-        apply IHCEval2. reflexivity.
-    remember (While b c2) as w. revert Heqw. induction H0; intro; inv Heqw.
-      eapply EvalWhileTrue.
-        assumption.
-        rewrite H. eassumption.
-        apply IHCEval2. reflexivity.
+  unfold equivalent.
+  split; intros.
+  - remember (While b c1) as w; revert Heqw.
+    induction H0; intro; inv Heqw.
+    eapply EvalWhileTrue; [easy | |].
+    + rewrite <- H.
+      now eassumption.
+    + now apply IHCEval2.
+  - remember (While b c2) as w; revert Heqw.
+    induction H0; intro; inv Heqw.
+    eapply EvalWhileTrue; [easy | |].
+    + rewrite H.
+      now eassumption.
+    + now apply IHCEval2.
 Qed.
 
 (** * Observational equivalence *)
@@ -240,8 +199,7 @@ Lemma NT_While_true_do_Skip :
   forall s : State,
     NonTerm (While (BConst true) Skip) s.
 Proof.
-  intro. cofix IH. eapply NT_WhileSelf.
-    auto.
-    auto.
-    assumption.
+  intros s.
+  cofix IH.
+  now eapply NT_WhileSelf.
 Qed.

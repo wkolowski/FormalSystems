@@ -18,40 +18,40 @@ CoInductive ConstantGame : Type :=
   nextN : MoveN -> ConstantGame;
 }.
 
-Definition Win : ConstantGame.
+#[refine]
+Definition Win : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => True
+    | Nature => False
+    end;
+  MoveM := Empty_set;
+  MoveN := Empty_set;
+  nextM move := match move with end;
+  nextN move := match move with end;
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => True
-      | Nature => False
-      end;
-    MoveM := Empty_set;
-    MoveN := Empty_set;
-    nextM move := match move with end;
-    nextN move := match move with end;
-  |}.
-  destruct p, p'; firstorder.
-  exists Machine. trivial.
+  - now destruct p, p'.
+  - now exists Machine.
 Defined.
 
-CoFixpoint Lose : ConstantGame.
+#[refine]
+Definition Lose : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => False
+    | Nature => True
+    end;
+  MoveM := Empty_set;
+  MoveN := Empty_set;
+  nextM move := match move with end;
+  nextN move := match move with end;
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => False
-      | Nature => True
-      end;
-    MoveM := Empty_set;
-    MoveN := Empty_set;
-    nextM move := match move with end;
-    nextN move := match move with end;
-  |}.
-  destruct p, p'; firstorder.
-  exists Nature. trivial.
+  - now destruct p, p'.
+  - now exists Nature.
 Defined.
 
 Definition swap (p : Player) : Player :=
@@ -60,24 +60,23 @@ match p with
 | Nature => Machine
 end.
 
-Definition transport
-  {A : Type} (P : A -> Type) {x y : A} (p : x = y) : P x -> P y.
-Proof.
-  destruct p. intro. assumption.
-Defined.
+Definition transport {A : Type} {P : A -> Type} {x y : A} (p : x = y) (u : P x) : P y :=
+match p with
+| eq_refl => u
+end.
 
 Lemma transport_cat :
   forall (A : Type) (P : A -> Type) (x y z : A) (p : x = y) (q : y = z) (u : P x),
-    transport P q (transport P p u) = transport P (eq_trans p q) u.
+    transport q (transport p u) = transport (eq_trans p q) u.
 Proof.
-  destruct p, q. cbn. reflexivity.
+  now destruct p, q; cbn.
 Defined.
 
 Lemma cat_inv :
   forall (A : Type) (x y : A) (p : x = y),
     eq_trans (eq_sym p) p = eq_refl.
 Proof.
-  destruct p. cbn. reflexivity.
+  now destruct p; cbn.
 Defined.
 
 CoInductive sim (g1 g2 : ConstantGame) : Prop :=
@@ -109,7 +108,7 @@ Lemma sim_refl :
   forall g : ConstantGame, sim g g.
 Proof.
   cofix CH.
-  sim; apply CH.
+  now sim; apply CH.
 Qed.
 
 Lemma sim_sym :
@@ -117,11 +116,11 @@ Lemma sim_sym :
     sim g1 g2 -> sim g2 g1.
 Proof.
   cofix CH.
-  destruct 1. sim; apply CH.
-    specialize (nextMs0 (@transport _ id _ _ (eq_sym MM0) move)).
-      rewrite transport_cat, cat_inv in *. assumption.
-    specialize (nextNs0 (@transport _ id _ _ (eq_sym MN0) move)).
-      rewrite transport_cat, cat_inv in *. assumption.
+  intros g1 g2 []; sim; apply CH.
+  - specialize (nextMs0 (@transport _ id _ _ (eq_sym MM0) move)).
+    now rewrite transport_cat, cat_inv in *.
+  - specialize (nextNs0 (@transport _ id _ _ (eq_sym MN0) move)).
+    now rewrite transport_cat, cat_inv in *.
 Qed.
 
 Lemma sim_trans :
@@ -129,15 +128,12 @@ Lemma sim_trans :
     sim g1 g2 -> sim g2 g3 -> sim g1 g3.
 Proof.
   cofix CH.
-  destruct 1 as [w1 p1 q1 nextMs1 nextNs1],
-           1 as [w2 p2 q2 nextMs2 nextNs2].
+  intros g1 g2 g3 [w1 p1 q1 nextMs1 nextNs1] [w2 p2 q2 nextMs2 nextNs2].
   sim.
-    apply (CH _ (nextM g2 (transport id p1 move))).
-      apply nextMs1.
-      rewrite <- transport_cat. apply nextMs2.
-    apply (CH _ (nextN g2 (transport id q1 move))).
-      apply nextNs1.
-      rewrite <- transport_cat. apply nextNs2.
+  - apply (CH _ (nextM g2 (@transport _ id _ _ p1 move))); [easy |].
+    now rewrite <- transport_cat.
+  - apply (CH _ (nextN g2 (@transport _ id _ _ q1 move))); [easy |].
+    now rewrite <- transport_cat.
 Qed.
 
 (** Tactics *)
@@ -145,14 +141,14 @@ Qed.
 #[global] Hint Constructors Player : CoL.
 
 #[global] Hint Extern 1 =>
-match goal with
-| |- exists p : Player, _ => exists Machine; cbn
-end : CoL.
+  match goal with
+  | |- exists p : Player, _ => exists Machine; cbn
+  end : CoL.
 
 #[global] Hint Extern 1 =>
-match goal with
-| |- exists p : Player, _ => exists Nature; cbn
-end : CoL.
+  match goal with
+  | |- exists p : Player, _ => exists Nature; cbn
+  end : CoL.
 
 (** Connectives *)
 
@@ -167,272 +163,264 @@ Ltac des g :=
   let nextN := fresh "nextN" in
     destruct g as [winner spec1 [p spec2] MoveM MoveN nextM nextN]; cbn in *.
 
-CoFixpoint Not (g : ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint Not (g : ConstantGame) : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => winner g Nature
+    | Nature => winner g Machine
+    end;
+  MoveM := MoveN g;
+  MoveN := MoveM g;
+  nextM move := Not (nextN g move);
+  nextN move := Not (nextM g move);
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => winner g Nature
-      | Nature => winner g Machine
-      end;
-    MoveM := MoveN g;
-    MoveN := MoveM g;
-    nextM move := Not (nextN g move);
-    nextN move := Not (nextM g move);
-  |}.
-  des g.
-  intros.
-  repeat match goal with
-  | H : context [match ?p with _ => _ end] |- _ => destruct p
-  end. auto.
-  all: repeat match goal with
-  | winner : Player -> Prop,
-      spec : forall p1 p2 : Player, ?winner p1 -> ?winner p2 -> p1 = p2,
-      H1 : ?winner Machine,
-      H2 : ?winner Nature |- _ => specialize (spec _ _ H1 H2); congruence
-  end.
-  reflexivity. (* TODO *)
-  des g. exists (swap p). destruct p; cbn; assumption.
+  - des g.
+    intros.
+    now destruct p0, p'; auto.
+  - des g.
+    exists (swap p).
+    now destruct p; cbn.
 Defined.
 
-Definition chor (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+Definition chor (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p := p = Nature;
+  MoveM := bool;
+  MoveN := Empty_set;
+  nextM move := if move then g1 else g2;
+  nextN move := match move with end;
+|}.
 Proof.
-  refine
-  {|
-    winner p := p = Nature;
-    MoveM := bool;
-    MoveN := Empty_set;
-    nextM move := if move then g1 else g2;
-    nextN move := match move with end;
-  |}.
-  destruct p, p'; firstorder.
-  exists Nature. trivial.
+  - now destruct p, p'.
+  - now exists Nature.
 Defined.
 
-Definition chand (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+Definition chand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p := p = Machine;
+  MoveM := Empty_set;
+  MoveN := bool;
+  nextM move := match move with end;
+  nextN move := if move then g1 else g2;
+|}.
 Proof.
-  refine
-  {|
-    winner p := p = Machine;
-    MoveM := Empty_set;
-    MoveN := bool;
-    nextM move := match move with end;
-    nextN move := if move then g1 else g2;
-  |}.
-  destruct p, p'; firstorder.
-  exists Machine. trivial.
+  - now destruct p, p'.
+  - now exists Machine.
 Defined.
 
-Definition chexists (f : nat -> ConstantGame) : ConstantGame.
+#[refine]
+Definition chexists (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner p := p = Nature;
+  MoveM := nat;
+  MoveN := Empty_set;
+  nextM move := f move;
+  nextN move := match move with end;
+|}.
 Proof.
-  refine
-  {|
-    winner p := p = Nature;
-    MoveM := nat;
-    MoveN := Empty_set;
-    nextM move := f move;
-    nextN move := match move with end;
-  |}.
-  destruct p, p'; firstorder.
-  exists Nature. reflexivity.
+  - now destruct p, p'.
+  - now exists Nature.
 Defined.
 
-Definition chall (f : nat -> ConstantGame) : ConstantGame.
+#[refine]
+Definition chall (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner p := p = Machine;
+  MoveM := Empty_set;
+  MoveN := nat;
+  nextM move := match move with end;
+  nextN move := f move;
+|}.
 Proof.
-  refine
-  {|
-    winner p := p = Machine;
-    MoveM := Empty_set;
-    MoveN := nat;
-    nextM move := match move with end;
-    nextN move := f move;
-  |}.
-  destruct p, p'; firstorder.
-  exists Machine. reflexivity.
+  - now destruct p, p'.
+  - now exists Machine.
 Defined.
 
-CoFixpoint por (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint por (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => winner g1 Machine \/ winner g2 Machine
+    | Nature => winner g1 Nature /\ winner g2 Nature
+    end;
+  MoveM := MoveM g1 + MoveM g2;
+  MoveN := MoveN g1 + MoveN g2;
+  nextM move :=
+    match move with
+    | inl move' => por (nextM g1 move') g2
+    | inr move' => por g1 (nextM g2 move')
+    end;
+  nextN move :=
+    match move with
+    | inl move' => por (nextN g1 move') g2
+    | inr move' => por g1 (nextN g2 move')
+    end;
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => winner g1 Machine \/ winner g2 Machine
-      | Nature => winner g1 Nature /\ winner g2 Nature
-      end;
-    MoveM := MoveM g1 + MoveM g2;
-    MoveN := MoveN g1 + MoveN g2;
-    nextM move :=
-      match move with
-      | inl move' => por (nextM g1 move') g2
-      | inr move' => por g1 (nextM g2 move')
-      end;
-    nextN move :=
-      match move with
-      | inl move' => por (nextN g1 move') g2
-      | inr move' => por g1 (nextN g2 move')
-      end;
-  |}.
-  destruct g1, g2, p, p'; firstorder.
-  destruct (LEM (winner g1 Machine)).
-    exists Machine. auto.
-    destruct (LEM (winner g2 Machine)).
-      exists Machine. auto.
-      exists Nature. des g1; des g2. destruct p, p0; auto; contradiction.
+  - now destruct g1, g2, p, p'; cbn; firstorder.
+  - destruct (LEM (winner g1 Machine)); [now exists Machine; auto |].
+    destruct (LEM (winner g2 Machine)); [now exists Machine; auto |].
+    exists Nature.
+    des g1; des g2.
+    now destruct p, p0; cbn in *.
 Defined.
 
-CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint pand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => winner g1 Machine /\ winner g2 Machine
+    | Nature => winner g1 Nature \/ winner g2 Nature
+    end;
+  MoveM := MoveM g1 + MoveM g2;
+  MoveN := MoveN g1 + MoveN g2;
+  nextM move :=
+    match move with
+    | inl move' => pand (nextM g1 move') g2
+    | inr move' => pand g1 (nextM g2 move')
+    end;
+  nextN move :=
+    match move with
+    | inl move' => pand (nextN g1 move') g2
+    | inr move' => pand g1 (nextN g2 move')
+    end;
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => winner g1 Machine /\ winner g2 Machine
-      | Nature => winner g1 Nature \/ winner g2 Nature
-      end;
-    MoveM := MoveM g1 + MoveM g2;
-    MoveN := MoveN g1 + MoveN g2;
-    nextM move :=
-      match move with
-      | inl move' => pand (nextM g1 move') g2
-      | inr move' => pand g1 (nextM g2 move')
-      end;
-    nextN move :=
-      match move with
-      | inl move' => pand (nextN g1 move') g2
-      | inr move' => pand g1 (nextN g2 move')
-      end;
-  |}.
-  destruct g1, g2, p, p'; firstorder.
-  destruct (LEM (winner g1 Nature)).
-    exists Nature. auto.
-    destruct (LEM (winner g2 Nature)).
-      exists Nature. auto.
-      exists Machine. des g1; des g2. destruct p, p0; auto; contradiction.
+  - now destruct g1, g2, p, p'; cbn; firstorder.
+  - destruct (LEM (winner g1 Nature)); [now exists Nature; auto |].
+    destruct (LEM (winner g2 Nature)); [now exists Nature; auto |].
+    exists Machine.
+    des g1; des g2.
+    now destruct p, p0; cbn in *.
 Defined.
 
-CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => exists n : nat, winner (f n) Machine
+    | Nature => forall n : nat, winner (f n) Nature
+    end;
+  MoveM := {n : nat & MoveM (f n)};
+  MoveN := {n : nat & MoveN (f n)};
+  nextM '(existT _ n move) := pexists (fun m => if n =? m then nextM (f n) move else f m);
+  nextN '(existT _ n move) := pexists (fun m => if n =? m then nextN (f n) move else f m);
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => exists n : nat, winner (f n) Machine
-      | Nature => forall n : nat, winner (f n) Nature
-      end;
-    MoveM := {n : nat & MoveM (f n)};
-    MoveN := {n : nat & MoveN (f n)};
-    nextM move :=
-      match move with
-      | existT _ n move => pexists (fun m => if n =? m then nextM (f n) move else f m)
-      end;
-    nextN move :=
-      match move with
-      | existT _ n move => pexists (fun m => if n =? m then nextN (f n) move else f m)
-      end;
-  |}.
-  destruct p, p'; try reflexivity.
-    intros [n H] H'. specialize (H' n). destruct (f n). auto.
-    intros H [n H']. specialize (H n). destruct (f n). auto.
-  destruct (LEM (exists n : nat, winner (f n) Machine)).
-    exists Machine. assumption.
-    exists Nature. intro. destruct (LEM (winner (f n) Nature)).
-      assumption.
-      contradict H. exists n. destruct (LEM (winner (f n) Machine)).
-        assumption.
-        destruct (f n), winner_spec'0 as [[] H']; cbn in *; contradiction.
+  - destruct p, p'; [easy | | | easy].
+    + intros [n H] H'.
+      specialize (H' n).
+      now destruct (f n); cbn in *; auto.
+    + intros H [n H'].
+      specialize (H n).
+      now destruct (f n); cbn in *; auto.
+  - destruct (LEM (exists n : nat, winner (f n) Machine)); [now exists Machine |].
+    exists Nature; intros n.
+    destruct (LEM (winner (f n) Nature)); [easy |].
+    contradict H.
+    exists n.
+    destruct (LEM (winner (f n) Machine)); [easy |].
+    now destruct (f n), winner_spec'0 as [[] H']; cbn in *.
 Defined.
 
-CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner p :=
+    match p with
+    | Machine => forall n : nat, winner (f n) Machine
+    | Nature => exists n : nat, winner (f n) Nature
+    end;
+  MoveM := {n : nat & MoveM (f n)};
+  MoveN := {n : nat & MoveN (f n)};
+  nextM '(existT _ n move) := pall (fun m : nat => if n =? m then nextM (f n) move else f m);
+  nextN '(existT _ n move) := pall (fun m : nat => if n =? m then nextN (f n) move else f m);
+|}.
 Proof.
-  refine
-  {|
-    winner p :=
-      match p with
-      | Machine => forall n : nat, winner (f n) Machine
-      | Nature => exists n : nat, winner (f n) Nature
-      end;
-    MoveM := {n : nat & MoveM (f n)};
-    MoveN := {n : nat & MoveN (f n)};
-    nextM move :=
-      match move with
-      | existT _ n move => pall (fun m : nat => if n =? m then nextM (f n) move else f m)
-      end;
-    nextN move :=
-      match move with
-      | existT _ n move => pall (fun m : nat => if n =? m then nextN (f n) move else f m)
-      end;
-  |}.
-  destruct p, p'; try reflexivity.
-    intros H [n H']. specialize (H n). destruct (f n). auto.
-    intros [n H] H'. specialize (H' n). destruct (f n). auto.
-  destruct (LEM (exists n : nat, winner (f n) Nature)).
-    exists Nature. assumption.
-    exists Machine. intro. destruct (LEM (winner (f n) Machine)).
-      assumption.
-      contradict H. exists n. destruct (LEM (winner (f n) Nature)).
-        assumption.
-        destruct (f n), winner_spec'0 as [[] H']; cbn in *; contradiction.
+  - destruct p, p'; [easy | | | easy].
+    + intros H [n H'].
+      specialize (H n).
+      now destruct (f n); cbn in *; auto.
+    + intros [n H] H'.
+      specialize (H' n).
+      now destruct (f n); cbn in *; auto.
+  - destruct (LEM (exists n : nat, winner (f n) Nature)); [now exists Nature |].
+    exists Machine; intros n.
+    destruct (LEM (winner (f n) Machine)); [easy |].
+    contradict H.
+    exists n.
+    destruct (LEM (winner (f n) Nature)); [easy |].
+    now destruct (f n), winner_spec'0 as [[] H']; cbn in *.
 Defined.
 
-CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p := winner g1 p;
+  MoveM := option (MoveM g1);
+  MoveN := MoveN g1;
+  nextM move :=
+    match move with
+    | None => g2
+    | Some move' => sor (nextM g1 move') g2
+    end;
+  nextN move := sor (nextN g1 move) g2;
+|}.
 Proof.
-  refine
-  {|
-    winner p := winner g1 p;
-    MoveM := option (MoveM g1);
-    MoveN := MoveN g1;
-    nextM move :=
-      match move with
-      | None => g2
-      | Some move' => sor (nextM g1 move') g2
-      end;
-    nextN move := sor (nextN g1 move) g2;
-  |}.
-  all: destruct g1; auto.
+  - now destruct g1; cbn.
+  - now destruct g1; cbn.
 Defined.
 
-CoFixpoint sand (g1 g2 : ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint sand (g1 g2 : ConstantGame) : ConstantGame :=
+{|
+  winner p := winner g1 p;
+  MoveM := MoveM g1;
+  MoveN := option (MoveN g1);
+  nextM move := sand (nextM g1 move) g2;
+  nextN move :=
+    match move with
+    | None => g2
+    | Some move' => sand (nextN g1 move') g2
+    end;
+|}.
 Proof.
-  refine
-  {|
-    winner p := winner g1 p;
-    MoveM := MoveM g1;
-    MoveN := option (MoveN g1);
-    nextM move := sand (nextM g1 move) g2;
-    nextN move :=
-      match move with
-      | None => g2
-      | Some move' => sand (nextN g1 move') g2
-      end;
-  |}.
-  all: destruct g1; auto.
+  - now destruct g1; cbn.
+  - now destruct g1; cbn.
 Defined.
 
-CoFixpoint sexists (f : nat -> ConstantGame) : ConstantGame.
+#[refine]
+CoFixpoint sexists (f : nat -> ConstantGame) : ConstantGame :=
+{|
+  winner p := winner (f 0) p;
+  MoveM := option (MoveM (f 0));
+  MoveN := MoveN (f 0);
+  nextM move :=
+    match move with
+    | None => sexists (fun n : nat => f (S n))
+    | Some move' =>
+        sexists (fun n : nat =>
+          match n with
+          | 0 => nextM (f 0) move'
+          | S n' => f (S n')
+          end)
+    end;
+  nextN move :=
+    sexists (fun n : nat =>
+      match n with
+      | 0 => nextN (f 0) move
+      | S n' => f (S n')
+      end);
+|}.
 Proof.
-  refine
-  {|
-    winner p := winner (f 0) p;
-    MoveM := option (MoveM (f 0));
-    MoveN := MoveN (f 0);
-    nextM move :=
-      match move with
-      | None => sexists (fun n : nat => f (S n))
-      | Some move' =>
-          sexists (fun n : nat =>
-            match n with
-            | 0 => nextM (f 0) move'
-            | S n' => f (S n')
-            end)
-      end;
-    nextN move :=
-      sexists (fun n : nat =>
-        match n with
-        | 0 => nextN (f 0) move
-        | S n' => f (S n')
-        end);
-  |}.
-  all: destruct (f 0); auto.
+  - now destruct (f 0); cbn.
+  - now destruct (f 0); cbn.
 Defined.

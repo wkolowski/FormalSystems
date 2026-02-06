@@ -126,62 +126,10 @@ with Ne : Term -> Prop :=
 Definition isNormal (t : Term) : Prop :=
   forall t' : Term, ~ red t t'.
 
-(* Lemma Nf_spec :
+Lemma Nf_spec :
   forall t : Term, Nf t <-> (forall t' : Term, ~ red t t').
 Proof.
-  split.
-    induction t; intros Hnf t' Hred.
-      inv Hred.
-      inv Hred.
-      inv Hred.
-      inv Hred.
-        inv Hnf. inv H. inv H2. inv H1.
-        inv Hnf. inv H. inv H2. inv H1. inv H2.
-        eapply IHt1.
-          inv Hnf.
-            inv H2.
-            inv H2.
-            constructor. assumption.
-            inv H. constructor. assumption.
-          eassumption.
-        eapply IHt2.
-          inv Hnf; try inv H; assumption.
-          eassumption.
-    induction t; intros.
-      do 2 constructor.
-      constructor.
-      constructor.
-      destruct t1.
-        do 2 constructor.
-          constructor.
-          apply IHt2. do 2 intro. eapply H.
-            apply red_AppR. eassumption.
-        constructor. apply IHt2. do 2 intro. eapply H. eauto.
-        constructor. apply IHt2. do 2 intro. eapply H. eauto.
-      destruct t1_1.
-        do 2 constructor.
-          constructor.
-            constructor.
-            cut (Nf (Var v @ t1_2)).
-              intro. inv H0. inv H1.
-              apply IHt1. do 2 intro. eapply H. eauto.
-          apply IHt2. do 2 intro. eapply H. eauto.
-          specialize (H t1_2). contradict H. constructor.
-          constructor.
-            assert (Nf (S @ t1_2)).
-              apply IHt1. do 2 intro. inv H0.
-                inv H4.
-                eapply H. eauto.
-              inv H0. inv H1.
-            apply IHt2. do 2 intro. eapply H. eauto.
-          do 2 constructor.
-            assert (Nf (t1_1_1 @ t1_1_2 @ t1_2)).
-              apply IHt1. do 2 intro. eapply H. eauto.
-              inv H0. specialize (H (t1_1_2 @ t2 @ (t1_2 @ t2))).
-                contradict H. constructor.
-            apply IHt2. do 2 intro. eapply H. eauto.
-Qed.
- *)
+Abort.
 
 Ltac wut :=
 repeat match goal with
@@ -214,8 +162,6 @@ Proof.
     + now eapply Nf_isNormal; eauto.
 Qed.
 
-(*
-
 Fixpoint isProp_Nf
   (isProp_Term : forall (t1 t2 : Term) (p q : t1 = t2), p = q) (t : Term) {struct t}
     : forall nf1 nf2 : Nf t, nf1 = nf2
@@ -224,46 +170,7 @@ with isProp_Ne
   (isProp_Term : forall (t1 t2 : Term) (p q : t1 = t2), p = q) (t : Term) {struct t}
     : forall ne1 ne2 : Ne t, ne1 = ne2.
 Proof.
-  destruct t; intros.
-    dependent destruction nf1. dependent destruction nf2.
-      f_equal. dependent destruction n. dependent destruction n0. reflexivity.
-    dependent destruction nf1.
-      dependent destruction nf2.
-        reflexivity.
-        inv n.
-      inv n.
-    dependent destruction nf1.
-      dependent destruction nf2.
-        reflexivity.
-        inv n.
-      inv n.
-    dependent destruction nf1.
-      dependent destruction nf2.
-        f_equal. apply isProp_Nf. assumption.
-        exfalso. inv n. inv H1.
-      dependent destruction nf2.
-        f_equal. apply isProp_Nf. assumption.
-        exfalso. inv n. inv H1.
-      dependent destruction nf2.
-        f_equal.
-          apply isProp_Nf. assumption.
-          apply isProp_Nf. assumption.
-        exfalso. inv n. inv H1. inv H3.
-      dependent destruction nf2.
-        exfalso. inv n. inv H1.
-        exfalso. inv n. inv H1.
-        exfalso. inv n. inv H1. inv H3.
-        f_equal. apply isProp_Ne. assumption.
-  destruct t; intros.
-    dependent destruction ne1. dependent destruction ne2.
-      reflexivity.
-    dependent destruction ne1.
-    dependent destruction ne1.
-    dependent destruction ne1. dependent destruction ne2. f_equal.
-      apply isProp_Ne. assumption.
-      apply isProp_Nf. assumption.
-Qed.
-*)
+Abort.
 
 Inductive parallel : Term -> Term -> Prop :=
 | parallel_K :
@@ -365,17 +272,17 @@ Proof.
   intros a b c Hpb Hpc.
   revert c Hpc.
   induction Hpb; intros; unfold parallels in *;
-  repeat match goal with
-  | H : parallel K       _ |- _ => inv H
-  | H : parallel S       _ |- _ => inv H
-  | H : parallel (_ @ _) _ |- _ => inv H
-  | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] => exists (a @ c @ (b @ c)); split; eauto
-  | |- context [rtc parallel (_ @ _) _] => eauto 7
-  end;
-  pose parallels_AppL;
-  pose parallels_AppR;
-  pose parallels_App;
-  unfold parallels in *.
+    repeat match goal with
+    | H : parallel K       _ |- _ => inv H
+    | H : parallel S       _ |- _ => inv H
+    | H : parallel (_ @ _) _ |- _ => inv H
+    | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] => exists (a @ c @ (b @ c)); split; eauto
+    | |- context [rtc parallel (_ @ _) _] => eauto 7
+    end;
+    pose parallels_AppL;
+    pose parallels_AppR;
+    pose parallels_App;
+    unfold parallels in *.
   - now decompose [ex and] (IHHpb _ H2); eauto 6.
   - now decompose [ex and] (IHHpb _ H1); eauto 6.
   - now decompose [ex and] (IHHpb _ H2); eauto 6.
@@ -384,47 +291,3 @@ Proof.
   - now decompose [ex and] (IHHpb2 _ H2); eauto 6.
   - now decompose [ex and] (IHHpb1 _ H1); decompose [ex and] (IHHpb2 _ H3); eauto.
 Qed.
-
-(** * Lambdas *)
-
-(*
-Fixpoint lam (x : V) (A : Term) : Term :=
-match A with
-| Var y => if x =? y then I else K @ Var y
-| K => K @ K
-| S => K @ S
-| App A1 A2 => S @ lam x A1 @ lam x A2
-end.
-
-Fixpoint subst (x : V) (A B : Term) : Term :=
-match A with
-| Var y => if x =? y then B else Var y
-| K => K
-| S => S
-| A1 @ A2 => subst x A1 B @ subst x A2 B
-end.
-
-Lemma lam_reds :
-  forall (x : V) (A : Term),
-    lam x A @ Var x ~>* A.
-Proof.
-  induction A; cbn; intros.
-    destruct (dec_spec x v); subst; eauto.
-    1-2: eauto.
-    eapply reds_trans.
-      apply red_S.
-      apply reds_App; assumption.
-Qed.
-
-Lemma lam_subst :
-  forall (x : V) (A B : Term),
-    lam x A @ B ~>* subst x A B.
-Proof.
-  induction A; cbn; intros.
-    destruct (dec_spec x v); subst; eauto.
-    1-2: eauto.
-    eapply reds_trans.
-      apply red_S.
-      apply reds_App; auto.
-Qed.
-*)
