@@ -24,7 +24,7 @@ Proof.
   intros s a a1 a2 H; revert a2.
   now induction H; intros; repeat
     match goal with
-    | H : AEval _ (?f _) _ |- _ => inv H
+    | H : AEval _ (?f _) _ |- _ => inversion H; subst; clear H
     | |- ?f _ _ = ?f _ _ => f_equal
     end; auto.
 Qed.
@@ -56,7 +56,9 @@ Qed.
 
 Lemma AEvalsVar :
   forall (s : State) (x : Atom), AEvals s (Var x) (AConst (s x)).
-Proof. eauto. Qed.
+Proof.
+  now eauto.
+Qed.
 
 Lemma AEvals_ABinOp_L :
   forall (s : State) (f : nat -> nat -> nat) (a1 a1' a2 : AExp),
@@ -91,7 +93,7 @@ Proof.
   unfold acompatible.
   now induction 1; cbn in *; intros; repeat
     match goal with
-    | H : AEval _ (?f _) _ |- _ => inv H
+    | H : AEval _ (?f _) _ |- _ => inversion H; subst; clear H
     | |- ?f _ _ = ?f _ _ => f_equal
     end; eauto.
 Qed.
@@ -133,8 +135,8 @@ Lemma BEval_det :
 Proof.
   now induction 1; intros; repeat
     match goal with
-    | H : AEval _ (?f _) _ |- _ => inv H
-    | H : BEval _ (?f _) _ |- _ => inv H
+    | H : AEval _ (?f _) _ |- _ => inversion H; subst; clear H
+    | H : BEval _ (?f _) _ |- _ => inversion H; subst; clear H
     | |- ?f _ = ?f _ => f_equal
     | |- ?f _ _ = ?f _ _ => f_equal
     end; eauto.
@@ -227,8 +229,8 @@ Proof.
   unfold bcompatible.
   now induction 1; cbn in *; intros; repeat
     match goal with
-    | H : AEval _ (?f _) _ |- _ => inv H
-    | H : BEval _ (?f _) _ |- _ => inv H
+    | H : AEval _ (?f _) _ |- _ => inversion H; subst; clear H
+    | H : BEval _ (?f _) _ |- _ => inversion H; subst; clear H
     | |- ?f _ = ?f _ => f_equal
     | |- ?f _ _ = ?f _ _ => f_equal
     end; eauto 6.
@@ -271,7 +273,7 @@ Proof.
   remember (While (BConst true) Skip, s1) as cs1.
   remember (Skip, s2) as cs2.
   revert s1 s2 Heqcs1 Heqcs2.
-  now induction H; intros; inv Heqcs1; inv Heqcs2.
+  now induction H; intros.
 Qed.
 
 Lemma CEval_det :
@@ -281,12 +283,12 @@ Lemma CEval_det :
 Proof.
   now induction 1; intros; repeat
     match goal with
-    | H : AEval _ ?x _ |- _ => tryif is_var x then fail else inv H
-    | H : BEval _ ?x _ |- _ => tryif is_var x then fail else inv H
-    | H : CEval (?x, _) _ |- _ => tryif is_var x then fail else inv H
+    | H : AEval _ ?x _ |- _ => tryif is_var x then fail else (inversion H; subst; clear H)
+    | H : BEval _ ?x _ |- _ => tryif is_var x then fail else (inversion H; subst; clear H)
+    | H : CEval (?x, _) _ |- _ => tryif is_var x then fail else (inversion H; subst; clear H)
     | IH : forall _, CEval _ _ -> _, H : CEval _ _ |- _ =>
         let H' := fresh "H" in
-          pose (H' := IH _ H); inv H'; clear H
+          pose (H' := IH _ H); inversion H'; subst; clear H'; clear H
     | _ => adet; bdet; auto
     end.
 Qed.
@@ -327,8 +329,7 @@ Proof.
   revert c1 s c1' s' Heqcs1 Heqcs1'.
   induction H; intros; subst.
   - now do 2 constructor.
-  - inversion Heqcs1'; subst.
-    now constructor.
+  - now inversion Heqcs1'; subst; constructor.
   - destruct y.
     specialize (IHrtc1 _ _ _ _ eq_refl eq_refl).
     specialize (IHrtc2 _ _ _ _ eq_refl eq_refl).
@@ -389,16 +390,14 @@ Lemma aeval_AEvals :
     aeval s a = n -> AEvals s a (AConst n).
 Proof.
   induction a; cbn; intros.
-  - inv H.
-  - inv H.
+  - now inversion H; subst; constructor.
+  - now inversion H; subst; constructor.
   - specialize (IHa1 _ eq_refl).
     specialize (IHa2 _ eq_refl).
     eapply AEvals_trans.
     + eapply AEvals_trans.
-      * apply AEvals_ABinOp_L.
-        now eassumption.
-      * apply AEvals_ABinOp_R.
-        now eassumption.
+      * now apply AEvals_ABinOp_L, IHa1.
+      * now apply AEvals_ABinOp_R, IHa2.
     + now rewrite <- H; apply AEvals_ABinOp.
 Qed.
 
@@ -423,8 +422,7 @@ Lemma AEvals_aeval :
   forall (s : State) (a : AExp) (n : nat),
     AEvals s a (AConst n) -> aeval s a = n.
 Proof.
-  intros.
-  now apply AEvals_aevals in H; cbn in H.
+  now intros; apply AEvals_aevals in H; cbn in H.
 Qed.
 
 #[global] Hint Resolve AEval_aevals : core.
@@ -443,17 +441,17 @@ Lemma beval_BEvals :
   forall (s : State) (e : BExp) (b : bool),
     beval s e = b -> BEvals s e (BConst b).
 Proof.
-  induction e; cbn; intros.
-  - inv H.
-  - inv H. eapply rtc_trans.
+  induction e; cbn; intros; subst.
+  - now constructor.
+  - eapply rtc_trans.
     + now apply BEvals_BRelOp_L, aeval_AEvals.
     + eapply rtc_trans.
       * now apply BEvals_BRelOp_R, aeval_AEvals.
       * now apply BEvals_BRelOp.
-  - inv H. eapply rtc_trans.
+  - eapply rtc_trans.
     + now apply BEvals_Not_Step, IHe.
     + now apply BEvals_Not.
-  - inv H. eapply rtc_trans.
+  - eapply rtc_trans.
     + now apply BEvals_BBinOp_L, IHe1.
     + eapply rtc_trans.
       * now apply BEvals_BBinOp_R, IHe2.
@@ -474,8 +472,7 @@ Lemma BEvals_beval :
   forall (s : State) (e : BExp) (b : bool),
     BEvals s e (BConst b) -> beval s e = b.
 Proof.
-  intros.
-  now apply BEvals_bevals in H; cbn in H.
+  now intros; apply BEvals_bevals in H; cbn in H.
 Qed.
 
 Lemma CEval_cevals :
@@ -484,31 +481,25 @@ Lemma CEval_cevals :
       ceval n (fst cs2) (snd cs2) = Some s ->
       ceval (S n) (fst cs1) (snd cs1) = Some s.
 Proof.
-  induction 1; cbn; intros [| fuel] final Heq;
-    try (now cbn in *; congruence; fail).
-  - cbn in *.
-    rewrite <- Heq.
+  induction 1; cbn; intros [| fuel] final Heq; cbn in Heq;
+    try (now cbn in *; congruence).
+  - rewrite <- Heq.
     do 2 f_equal.
     now apply AEval_aevals.
-  - cbn in Heq.
-    unfold fst, snd in *.
+  - unfold fst, snd in *.
     destruct (ceval fuel c1' s') eqn: Heq'; [| easy].
-    specialize (IHCEval _ _ Heq').
-    rewrite IHCEval.
+    rewrite (IHCEval _ _ Heq').
     change (S fuel) with (1 + fuel).
     now rewrite (ceval_plus' Heq 1).
-  - cbn in Heq.
-    apply BEval_bevals in H.
+  - apply BEval_bevals in H.
     rewrite <- Heq, H.
     now destruct (beval s b');
       rewrite Heq; change (S fuel) with (1 + fuel); rewrite Nat.add_comm;
       apply ceval_plus.
-  - cbn in Heq.
-    destruct (beval s b); destruct fuel; cbn in Heq; [easy | | easy..].
+  - destruct (beval s b); destruct fuel; cbn in Heq; [easy | | easy..].
     destruct (ceval fuel c s) eqn: Heq'; [| easy].
     change (S (S fuel)) with (2 + fuel).
-    rewrite (ceval_plus' Heq' 2).
-    now rewrite (ceval_plus' Heq 2).
+    now rewrite (ceval_plus' Heq' 2), (ceval_plus' Heq 2).
 Qed.
 
 Lemma ceval_CEvals :
@@ -518,30 +509,27 @@ Proof.
   intros n c s.
   functional induction ceval n c s; cbn; intros.
   - easy.
-  - now inversion H; subst; do 2 constructor.
-  - inv H.
+  - now injection H as [= ->]; constructor.
+  - injection H as [= <-].
     eapply rtc_trans.
     + now apply CEvals_Asgn_Step, aeval_AEvals.
     + now eauto.
-  - inv H.
+  - easy.
+  - eapply rtc_trans; [now apply CEvals_Seq_L; eauto |].
+    eapply rtc_trans.
+    + now apply CEvals_Seq_R.
+    + now apply IHo0.
   - eapply rtc_trans.
-    + now apply CEvals_Seq_L; eauto.
-    + eapply rtc_trans.
-      * now apply CEvals_Seq_R.
-      * now apply IHo0.
-  - eapply rtc_trans.
-    + apply CEvals_If_Step, beval_BEvals.
-      now eassumption.
+    + now apply CEvals_If_Step, beval_BEvals; eassumption.
     + eapply rtc_trans.
       * now apply CEvals_If_True.
       * now apply IHo.
   - eapply rtc_trans.
-    + apply CEvals_If_Step, beval_BEvals.
-      now eassumption.
+    + now apply CEvals_If_Step, beval_BEvals; eassumption.
     + eapply rtc_trans.
       * now apply CEvals_If_False.
       * now apply IHo.
-  - inv H.
+  - easy.
   - eapply rtc_trans; [now apply CEvals_While |].
     eapply rtc_trans; [now eapply CEvals_If_Step, beval_BEvals; now eassumption |].
     eapply rtc_trans; [now apply CEvals_If_True |].
@@ -551,7 +539,7 @@ Proof.
   - eapply rtc_trans; [now apply CEvals_While |].
     eapply rtc_trans; [now eapply CEvals_If_Step, beval_BEvals; eassumption |].
     eapply rtc_trans; [now apply CEvals_If_False |].
-    now inversion H; constructor.
+    now injection H as [= ->]; constructor.
 Qed.
 
 Lemma CEvals'_ceval :
@@ -563,13 +551,10 @@ Proof.
   remember (c, s1) as cs1.
   remember (Skip, s2) as cs2.
   revert c s1 s2 Heqcs1 Heqcs2.
-  induction H; intros.
-  - inv Heqcs1.
-    inv Heqcs2.
+  induction H; intros; subst.
+  - inversion Heqcs2; subst.
     now exists 1; cbn.
-  - inv Heqcs1.
-    clear H1.
-    inv H; destruct (IHrtc' _ _ _ eq_refl eq_refl) as [fuel IH].
+  - inversion H; subst; destruct (IHrtc' _ _ _ eq_refl eq_refl) as [fuel IH].
     + exists fuel.
       rewrite <- IH.
       destruct fuel; cbn; [easy |].

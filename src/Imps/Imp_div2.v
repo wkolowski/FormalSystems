@@ -103,7 +103,7 @@ Lemma beval_bcompatible :
     bcompatible e s1 s2 -> beval e s1 = beval e s2.
 Proof.
   unfold bcompatible.
-  induction e; cbn; intros; try f_equal; auto 7.
+  now induction e; cbn; intros; f_equal; auto 6.
 Qed.
 
 Inductive CEval : Com -> State -> option State -> Prop :=
@@ -157,13 +157,13 @@ Lemma CEval_det :
 Proof.
   now induction 1; intros;
     match goal with
-    | H : CEval ?c _ _ |- _ => is_var c + inv H
+    | H : CEval ?c _ _ |- _ => is_var c + (inversion H; subst; clear H)
     end;
     repeat match goal with
     | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
       let H' := fresh "H" in
         assert (H' := IH _ H); clear H; rename H' into H; subst
-    | H : Some _ = Some _ |- _ => inv H
+    | H : Some _ = Some _ |- _ => inversion H; subst; clear H
     end; eauto; try congruence.
 Qed.
 
@@ -211,10 +211,10 @@ Lemma ceval_CEval_inr :
     ceval n c s1 = inr s2 -> CEval c s1 (Some s2).
 Proof.
   intros n c s1.
-  functional induction ceval n c s1; intros; inv H; eauto.
+  functional induction ceval n c s1; inversion 1; subst; try now eauto.
   - specialize (IHs _ H1).
-    econstructor; eauto.
-    now destruct (ceval n' c1 s) eqn: Heq.
+    econstructor; [now eauto |].
+    now destruct (ceval n' c1 s).
   - now destruct (ceval n' c0 s).
 Qed.
 
@@ -224,8 +224,7 @@ Lemma ceval_CEval_Div0 :
   forall (n : nat) (c : Com) (s1 : State),
     ceval n c s1 = inl Div0 -> CEval c s1 None.
 Proof.
-  intros n c s1.
-  functional induction ceval n c s1; intros; inv H; eauto.
+  now intros n c s1; functional induction (ceval n c s1); inversion 1; eauto.
 Qed.
 
 Lemma while_true_do_skip :
@@ -234,5 +233,5 @@ Lemma while_true_do_skip :
 Proof.
   intros s1 s2 H.
   remember (While BTrue Skip) as w; revert Heqw.
-  now induction H; intros; inv Heqw.
+  now induction H; inversion 1; subst.
 Qed.

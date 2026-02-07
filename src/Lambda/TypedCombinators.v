@@ -127,17 +127,17 @@ repeat match goal with
 | |- ~ _ => intro
 | |- _ /\ _ => split
 | H : _ /\ _ |- _ => destruct H
-| H : red (_ @ _) _ |- _ => inv H
-| H : red K       _ |- _ => inv H
-| H : red S       _ |- _ => inv H
-| H : red zero    _ |- _ => inv H
-| H : red succ    _ |- _ => inv H
-| H : red rec     _ |- _ => inv H
+| H : red (_ @ _) _ |- _ => inversion H; subst; clear H
+| H : red K       _ |- _ => inversion H; subst; clear H
+| H : red S       _ |- _ => inversion H; subst; clear H
+| H : red zero    _ |- _ => inversion H; subst; clear H
+| H : red succ    _ |- _ => inversion H; subst; clear H
+| H : red rec     _ |- _ => inversion H; subst; clear H
 | H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
 | |- isNormal _ => do 2 intro
 | H : exists _, _   |- _ => decompose [ex and] H; clear H
-| H : Ne ?x      |- _ => is_var x + inv H
-| H : Ne' ?x      |- _ => is_var x + inv H
+| H : Ne ?x      |- _ => is_var x + (inversion H; subst; clear H)
+| H : Ne' ?x      |- _ => is_var x + (inversion H; subst; clear H)
 | _ => auto
 end.
 
@@ -150,15 +150,15 @@ Proof.
         repeat match goal with
         | |- red _ _ => eauto
         end; eauto).
-    apply Ne_isNormal. assumption.
+    now apply Ne_isNormal.
   - destruct ne.
     + wut.
-      * eapply Ne_isNormal; eauto.
-      * eapply Nf_isNormal; eauto.
+      * now eapply Ne_isNormal; eauto.
+      * now eapply Nf_isNormal; eauto.
     + wut.
-     * eapply Nf_isNormal; cycle 1; eauto.
-     * eapply Nf_isNormal; cycle 1; eauto.
-     * eapply Ne_isNormal; cycle 1; eauto.
+     * now eapply Nf_isNormal; cycle 1; eauto.
+     * now eapply Nf_isNormal; cycle 1; eauto.
+     * now eapply Ne_isNormal; cycle 1; eauto.
 Qed.
 
 Fixpoint Nf'_isNormal {t : Tm} (nf : Nf' t) {struct nf} : isNormal t
@@ -178,8 +178,8 @@ repeat match goal with
 | H : _ -> Nf' _ |- Nf' _ => apply H; do 2 intro
 | |- Nf' (_ @ _) => constructor; auto
 | |- Ne' (_ @ _) => constructor; auto
-| H : Nf' (_ @ _) |- _ => inv H
-| H : Ne' (_ @ _) |- _ => inv H
+| H : Nf' (_ @ _) |- _ => inversion H; subst; clear H
+| H : Ne' (_ @ _) |- _ => inversion H; subst; clear H
 end.
 
 Lemma isNormal_Nf' :
@@ -191,7 +191,6 @@ Goal
   forall t : Tm,
     Nf' t -> hasType t TNat -> t = zero \/ exists t' : Tm, t = succ @ t' /\ hasType t' TNat.
 Proof.
-  induction 1; intros HT; inv HT.
 Abort.
 
 Lemma isNormal_Nf' :

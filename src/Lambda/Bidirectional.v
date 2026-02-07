@@ -39,19 +39,32 @@ Inductive has_type : Ctx -> tm -> type -> Prop :=
       has_type G t1 TBool -> has_type G t2 A -> has_type G t3 A ->
         has_type G (TIf t1 t2 t3) A.
 
-Fixpoint type_eq_dec (t1 t2 : type) : bool :=
-match t1, t2 with
-| TBool, TBool => true
-| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| _, _ => false
-end.
+Fixpoint eq_dec_type (t1 t2 : type) : {t1 = t2} + {t1 <> t2}.
+Proof.
+  decide equality.
+Defined.
+
+#[global]
+#[refine]
+Instance Decidable_eq_type :
+  forall (t1 t2 : type), Decidable (t1 = t2) :=
+{
+  Decidable_witness :=
+    match eq_dec_type t1 t2 with
+    | left _ => true
+    | right _ => false
+    end;
+}.
+Proof.
+  now destruct (eq_dec_type t1 t2).
+Defined.
 
 Fixpoint infer (G : Ctx) (t : tm) : option type :=
 match t with
 | TVar x => G x
 | TApp t1 t2 =>
   match infer G t1, infer G t2 with
-  | Some (TArr A B), Some A' => if type_eq_dec A A' then Some B else None
+  | Some (TArr A B), Some A' => if decide (A = A') then Some B else None
   | _, _ => None
   end
 | TLam x t' => None
@@ -59,26 +72,19 @@ match t with
 | TFalse => Some TBool
 | TIf t1 t2 t3 =>
   match infer G t1, infer G t2, infer G t3 with
-  | Some TBool, Some A, Some A' => if type_eq_dec A A' then Some A else None
+  | Some TBool, Some A, Some A' => if decide (A = A') then Some A else None
   | _, _, _ => None
   end
 end.
-
-Lemma type_eq_dec_refl :
-  forall A : type, type_eq_dec A A = true.
-Proof.
-  induction A; cbn; [easy |].
-  now rewrite IHA1, IHA2; cbn.
-Qed.
 
 Lemma has_type_infer :
   forall (G : Ctx) (x : tm) (A : type),
     has_type G x A -> infer G x = Some A.
 Proof.
   induction 1; cbn; only 1, 4-5: easy.
-  - now rewrite IHhas_type1, IHhas_type2, type_eq_dec_refl.
+  - now rewrite IHhas_type1, IHhas_type2, Decidable_complete.
   - admit.
-  - now rewrite IHhas_type1, IHhas_type2, IHhas_type3, type_eq_dec_refl.
+  - now rewrite IHhas_type1, IHhas_type2, IHhas_type3, Decidable_complete.
 Admitted.
 
 End STLC_with_Booleans.
@@ -134,12 +140,25 @@ with check_type : Ctx -> tm -> type -> Prop :=
 #[global] Hint Constructors infer_type : core.
 #[global] Hint Constructors check_type : core.
 
-Fixpoint type_eq_dec (t1 t2 : type) : bool :=
-match t1, t2 with
-| TBool, TBool => true
-| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| _, _ => false
-end.
+Fixpoint eq_dec_type (t1 t2 : type) : {t1 = t2} + {t1 <> t2}.
+Proof.
+  decide equality.
+Defined.
+
+#[global]
+#[refine]
+Instance Decidable_eq_type :
+  forall (t1 t2 : type), Decidable (t1 = t2) :=
+{
+  Decidable_witness :=
+    match eq_dec_type t1 t2 with
+    | left _ => true
+    | right _ => false
+    end;
+}.
+Proof.
+  now destruct (eq_dec_type t1 t2).
+Defined.
 
 Fixpoint infer (G : Ctx) (t : tm) : option type :=
 match t with
@@ -165,50 +184,32 @@ match t with
 | TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
 | TVar x =>
   match G x with
-  | Some B => type_eq_dec A B
+  | Some B => decide (A = B)
   | _ => false
   end
 | TApp t1 t2 =>
   match infer G t1 with
-  | Some (TArr X Y) => check G t2 X && type_eq_dec Y A
+  | Some (TArr X Y) => check G t2 X && decide (Y = A)
   | _ => false
   end
-| TTrue => type_eq_dec TBool A
-| TFalse => type_eq_dec TBool A
-| TAnn t' A' => check G t' A' && type_eq_dec A A'
+| TTrue => decide (TBool = A)
+| TFalse => decide (TBool = A)
+| TAnn t' A' => check G t' A' && decide (A = A')
 end.
-
-Lemma type_eq_dec_refl :
-  forall A : type, type_eq_dec A A = true.
-Proof.
-  induction A; cbn; [easy |].
-  now rewrite IHA1, IHA2; cbn.
-Qed.
-
-Ltac inv H := inversion H; subst; clear H.
 
 Lemma infer_check :
   forall (G : Ctx) (t : tm) (A : type),
     infer G t = Some A -> check G t A = true.
 Proof.
-  destruct t; cbn; intros; only 3-6: now inversion H.
-  - now rewrite H, type_eq_dec_refl.
-  - destruct (infer G t1) as [[] |]; [easy | | easy].
-    destruct (check G t2 t); cbn; [| easy].
-    injection H as [= ->].
-    now apply type_eq_dec_refl.
+  intros G [] A Hi; cbn in *; only 3-6: now inversion Hi.
+  - now rewrite Hi, Decidable_complete.
+  - destruct (infer G t) as [[] |]; [easy | | easy].
+    destruct (check G t0 t1); cbn; [| easy].
+    injection Hi as [= ->].
+    now apply Decidable_complete.
   - destruct (check G t t0); cbn; [| easy].
-    injection H as [= ->].
-    now apply type_eq_dec_refl.
-Qed.
-
-Lemma type_eq_dec_true :
-  forall A B : type,
-    type_eq_dec A B = true -> A = B.
-Proof.
-  induction A; destruct B; cbn; intros; only 1-3: easy.
-  apply andb_prop in H as [H1 H2].
-  now rewrite (IHA1 B1), (IHA2 B2).
+    injection Hi as [= ->].
+    now apply Decidable_complete.
 Qed.
 
 Lemma infer_correct :
@@ -221,44 +222,41 @@ with check_correct :
 Proof.
   - destruct t; cbn; intros.
     + now constructor.
-    + case_eq (infer G t1); intros; rewrite H0 in H; [| easy].
-      destruct t; inv H.
-      case_eq (check G t2 t3); intro; rewrite H in H2; inv H2.
+    + destruct (infer G t1) eqn: Ht1; [| easy].
+      destruct t; [easy |].
+      destruct (check G t2 t3) eqn: Ht23; [| easy].
+      injection H as [= ->].
       apply infer_App with t3.
       * now apply infer_correct.
       * now apply check_correct.
     + easy.
-    + now inversion H; subst; constructor.
-    + now inversion H; subst; constructor.
+    + now injection H as [= <-]; constructor.
+    + now injection H as [= <-]; constructor.
     + easy.
-    + case_eq (check G t t0); intros; rewrite H0 in H; inv H.
-      constructor.
-      now apply check_correct.
+    + destruct (check G t t0) eqn: Ht; [| easy].
+      injection H as [= ->].
+      now constructor; apply check_correct.
   - destruct t; cbn; intros.
-    + case_eq (G a); intros; rewrite H0 in H; inv H.
-      apply type_eq_dec_true in H2; subst.
+    + destruct (G a) eqn: HGa; [| easy].
+      apply Decidable_sound in H; subst.
       now do 2 constructor.
-    + case_eq (infer G t1); intros; rewrite H0 in H.
-      * destruct t; inv H.
-        case_eq (check G t2 t3); intro; rewrite H in H2; inv H2.
-        apply type_eq_dec_true in H3; subst.
-        constructor.
-        apply infer_App with t3.
-        -- now apply infer_correct.
-        -- now apply check_correct.
-      * now congruence.
-    + destruct A; inversion H.
+    + destruct (infer G t1) eqn: Ht1; [| now congruence].
+      destruct t; [easy |].
+      apply andb_prop in H as [H1 [= ->]%Decidable_sound].
       constructor.
-      now apply check_correct.
-    + destruct A; inversion H.
+      apply infer_App with t3.
+      * now apply infer_correct.
+      * now apply check_correct.
+    + destruct A; [easy |].
+      now constructor; apply check_correct.
+    + destruct A; [| easy].
       now constructor.
-    + destruct A; inversion H.
+    + destruct A; [| easy].
       now constructor.
     + apply andb_prop in H as [[H1 H2]%andb_prop H3].
       now constructor; apply check_correct.
-    + apply andb_prop in H as [H1 [= ->]%type_eq_dec_true].
-      do 2 constructor.
-      now apply check_correct.
+    + apply andb_prop in H as [H1 [= ->]%Decidable_sound].
+      now do 2 constructor; apply check_correct.
 Qed.
 
 Lemma infer_complete :
@@ -269,11 +267,11 @@ with check_complete :
   forall (G : Ctx) (t : tm) (A : type),
     check_type G t A -> check G t A = true.
 Proof.
-  - destruct 1; cbn; intros; only 1, 3-4: easy.
+  - intros G t A []; cbn; only 1, 3-4: easy.
     + apply infer_complete in H as ->.
       now apply check_complete in H0 as ->.
     + now apply check_complete in H as ->.
-  - destruct 1; cbn; intros.
+  - intros G t A []; cbn.
     + now apply check_complete.
     + now rewrite !check_complete; cbn.
     + now apply infer_check, infer_complete.
@@ -335,12 +333,25 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
 #[global] Hint Constructors infer_type : core.
 #[global] Hint Constructors check_type : core.
 
-Fixpoint type_eq_dec (t1 t2 : type) : bool :=
-match t1, t2 with
-| TBool, TBool => true
-| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| _, _ => false
-end.
+Fixpoint eq_dec_type (t1 t2 : type) : {t1 = t2} + {t1 <> t2}.
+Proof.
+  decide equality.
+Defined.
+
+#[global]
+#[refine]
+Instance Decidable_eq_type :
+  forall (t1 t2 : type), Decidable (t1 = t2) :=
+{
+  Decidable_witness :=
+    match eq_dec_type t1 t2 with
+    | left _ => true
+    | right _ => false
+    end;
+}.
+Proof.
+  now destruct (eq_dec_type t1 t2).
+Defined.
 
 Fixpoint infer (G : Ctx) (t : tmEx) : option type :=
 match t with
@@ -365,28 +376,10 @@ match t with
 | TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
 | TEx t' =>
   match infer G t' with
-  | Some B => type_eq_dec A B
+  | Some B => decide (A = B)
   | _ => false
   end
 end.
-
-Lemma type_eq_dec_refl :
-  forall A : type, type_eq_dec A A = true.
-Proof.
-  induction A; cbn; [easy |].
-  now rewrite IHA1, IHA2; cbn.
-Qed.
-
-Lemma type_eq_dec_true :
-  forall A B : type,
-    type_eq_dec A B = true -> A = B.
-Proof.
-  induction A; destruct B; cbn; intros; only 1-3: easy.
-  apply andb_prop in H as [H1 H2].
-  now rewrite (IHA1 B1), (IHA2 B2).
-Qed.
-
-Ltac inv H := inversion H; subst; clear H.
 
 Lemma infer_correct :
   forall (G : Ctx) (t : tmEx) (A : type),
@@ -399,17 +392,17 @@ Proof.
   - destruct t; cbn; intros.
     + now constructor.
     + destruct (infer G t) eqn: Ht; [| easy].
-      destruct t1; try easy.
-      destruct (check G t0 t1_1) eqn: Ht'; [| easy]; injection H as [= ->].
-      eapply infer_App.
-      * now eapply infer_correct; eauto.
+      destruct t1; [easy |].
+      destruct (check G t0 t1_1) eqn: Ht'; [| easy].
+      injection H as [= ->].
+      apply infer_App with t1_1.
+      * now apply infer_correct.
       * now apply check_correct.
-    + injection H as [= <-].
-      now constructor.
-    + injection H as [= <-].
-      now constructor.
-    + case_eq (check G t t0); intro; rewrite H0 in H; inv H.
-      constructor. apply check_correct. assumption.
+    + now injection H as [= <-]; constructor.
+    + now injection H as [= <-]; constructor.
+    + destruct (check G t t0) eqn: Hc; [| easy].
+      injection H as [= ->].
+      now constructor; apply check_correct.
   - destruct t; cbn; intros.
     + destruct A; [easy |].
       now constructor; apply check_correct.
@@ -417,7 +410,7 @@ Proof.
       now constructor; apply check_correct.
     + constructor; apply infer_correct.
       destruct (infer G t); [| easy].
-      now apply type_eq_dec_true in H; subst.
+      now apply Decidable_sound in H as <-.
 Qed.
 
 Lemma infer_complete :
@@ -434,7 +427,7 @@ Proof.
   - destruct 1; cbn; intros.
     + now apply check_complete.
     + now rewrite !check_complete; cbn.
-    + now rewrite (infer_complete _ _ _ H), type_eq_dec_refl.
+    + now rewrite (infer_complete _ _ _ H), Decidable_complete.
 Qed.
 
 End Bidirectional_STLC_with_Booleans_using_mutual_induction.
@@ -539,25 +532,25 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
 #[global] Hint Constructors infer_type : core.
 #[global] Hint Constructors check_type : core.
 
-Fixpoint type_eq_dec (t1 t2 : type) : bool :=
-match t1, t2 with
-| TArr t11 t12, TArr t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| TEmpty, TEmpty => true
-| TUnit, TUnit => true
-| TBool, TBool => true
-| TProd t11 t12, TProd t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| TSum t11 t12, TSum t21 t22 => type_eq_dec t11 t21 && type_eq_dec t12 t22
-| _, _ => false
-end.
-
-Lemma type_eq_dec_spec :
-  forall A B : type, reflect (A = B) (type_eq_dec A B).
+Fixpoint eq_dec_type (t1 t2 : type) : {t1 = t2} + {t1 <> t2}.
 Proof.
-  induction A; destruct B; cbn; try (now constructor; try inversion 1).
-  - now destruct (IHA1 B1), (IHA2 B2); cbn; constructor; congruence.
-  - now destruct (IHA1 B1), (IHA2 B2); cbn; constructor; congruence.
-  - now destruct (IHA1 B1), (IHA2 B2); cbn; constructor; congruence.
-Qed.
+  decide equality.
+Defined.
+
+#[global]
+#[refine]
+Instance Decidable_eq_type :
+  forall (t1 t2 : type), Decidable (t1 = t2) :=
+{
+  Decidable_witness :=
+    match eq_dec_type t1 t2 with
+    | left _ => true
+    | right _ => false
+    end;
+}.
+Proof.
+  now destruct (eq_dec_type t1 t2).
+Defined.
 
 Fixpoint infer (G : Ctx) (t : tmEx) : option type :=
 match t with
@@ -573,7 +566,7 @@ match t with
 | TFalse => Some TBool
 | TIf t1 t2 t3 =>
   match infer G t2, infer G t3 with
-  | Some A, Some B => if check G t1 TBool && type_eq_dec A B then Some A else None
+  | Some A, Some B => if check G t1 TBool && decide (A = B) then Some A else None
   | _, _ => None
   end
 | TPair t1 t2 =>
@@ -594,7 +587,7 @@ match t with
 | TCase t1 t2 t3 =>
   match infer G t1, infer G t2, infer G t3 with
   | Some (TSum A B), Some (TArr A' C), Some (TArr B' C') =>
-      if type_eq_dec A A' && type_eq_dec B B' && type_eq_dec C C'
+      if decide (A = A') && decide (B = B') && decide (C = C')
       then Some C
       else None
   | _, _, _ => None
@@ -605,7 +598,7 @@ with check (G : Ctx) (t : tmIn) (A : type) : bool :=
 match t with
 | TEx t' =>
   match infer G t' with
-  | Some B => type_eq_dec A B
+  | Some B => decide (A = B)
   | _ => false
   end
 | TLam x t =>
@@ -626,8 +619,6 @@ match t with
   end
 end.
 
-Ltac inv H := inversion H; subst; clear H.
-
 Lemma infer_correct :
   forall (G : Ctx) (t : tmEx) (A : type),
     infer G t = Some A -> infer_type G t A
@@ -638,53 +629,52 @@ with check_correct :
 Proof.
   - destruct t; cbn; intros.
     + now constructor.
-    + case_eq (check G t t0); intro H'; rewrite H' in H; inv H.
-      constructor.
-      now apply check_correct.
-    + case_eq (infer G t).
-      * intros C H'.
-        rewrite H' in H.
-        destruct C as []; inv H.
-        case_eq (check G t0 C1); intro H''; rewrite H'' in H1; inv H1.
-        econstructor.
-        -- now eapply infer_correct, H'.
-        -- now apply check_correct.
-      * now intros H'; rewrite H' in H.
+    + destruct (check G t t0) eqn: Hc; [| easy].
+      injection H as [= ->].
+      now constructor; apply check_correct.
+    + destruct (infer G t) eqn: Hi; [| easy].
+      destruct t1; [| easy..].
+      destruct (check G t0 t1_1) eqn: Hc; [| easy].
+      injection H as [= ->].
+      apply infer_App with t1_1.
+      * now apply infer_correct.
+      * now apply check_correct.
     + now injection H as [= <-]; constructor.
     + now injection H as [= <-]; constructor.
     + now injection H as [= <-]; constructor.
-    + destruct (infer G t2) eqn: Ht2; [| easy].
-      destruct (infer G t3) eqn: Ht3; [| easy].
-      destruct (check G t1 TBool) eqn: Ht1; [| easy].
-      destruct (type_eq_dec_spec t t0); subst; [| easy].
+    + destruct (infer G t2) eqn: Hi2; [| easy].
+      destruct (infer G t3) eqn: Hi3; [| easy].
+      destruct (check G t1 TBool) eqn: Hc1; [| easy].
+      decide (t = t0); subst; [| easy].
       cbn in H; injection H as [= <-].
       now constructor; auto.
-    + destruct (infer G t1) eqn: Ht1; [| easy].
-      destruct (infer G t2) eqn: Ht2; [| easy].
+    + destruct (infer G t1) eqn: Hi1; [| easy].
+      destruct (infer G t2) eqn: Hi2; [| easy].
       injection H as [= <-].
       now constructor; apply infer_correct.
-    + destruct (infer G t) eqn: Ht; [| easy].
-      destruct t0; inversion H; subst.
+    + destruct (infer G t) eqn: Hi; [| easy].
+      destruct t0; try easy.
+      injection H as [= <-].
       now econstructor; apply infer_correct; eauto.
-    + destruct (infer G t) eqn: Ht; [| easy].
-      destruct t0; inversion H; subst.
+    + destruct (infer G t) eqn: Hi; [| easy].
+      destruct t0; try easy.
+      injection H as [= <-].
       now econstructor; apply infer_correct; eauto.
-    + destruct (infer G t1) eqn: Ht1; [| easy].
+    + destruct (infer G t1) eqn: Hi1; [| easy].
       destruct t; inversion H; subst; clear H1.
-      destruct (infer G t2) eqn: Ht2; [| easy].
+      destruct (infer G t2) eqn: Hi2; [| easy].
       destruct t; inversion H; subst; clear H1.
-      destruct (infer G t3) eqn: Ht3; [| easy].
-      destruct t; inversion H; subst; clear H1.
-      destruct (type_eq_dec_spec t4 t6), (type_eq_dec_spec t5 t8), (type_eq_dec_spec t7 t9);
+      destruct (infer G t3) eqn: Hi3; [| easy].
+      destruct t; try easy.
+      decide (t4 = t6); decide (t5 = t8); decide (t7 = t9);
         inversion H; subst.
       now econstructor; apply infer_correct; eauto.
   - destruct t; cbn; intros.
     + constructor; apply infer_correct.
       destruct (infer G t); [| easy].
-      now destruct (type_eq_dec_spec A t0); congruence.
+      now apply Decidable_sound in H as <-.
     + destruct A; try easy.
-      constructor.
-      now apply check_correct.
+      now constructor; apply check_correct.
     + now constructor; apply check_correct.
     + destruct A; try easy.
       now constructor; apply check_correct.
@@ -692,102 +682,116 @@ Proof.
       now constructor; apply check_correct.
 Qed.
 
-Lemma infer_correct'' :
+Lemma infer_correct' :
   forall (G : Ctx) (t : tmEx) (A : type),
     infer G t = Some A <-> infer_type G t A
 
-with check_correct'' :
+with check_correct' :
   forall (G : Ctx) (t : tmIn) (A : type),
     reflect (check_type G t A) (check G t A).
 Proof.
   - split.
     + destruct t; cbn; intros.
-      * constructor. assumption.
-      * destruct (check_correct'' G t t0); inv H. constructor. assumption.
-      * case_eq (infer G t); [| now intros H'; rewrite H' in H].
-        intros C H'; rewrite H' in H.
-        destruct C as []; inv H.
-        case_eq (check G t0 C1); intro H''; rewrite H'' in H1; inversion H1; subst.
-        econstructor.
-        -- now apply infer_correct, H'.
-        -- now apply check_correct.
+      * now constructor.
+      * destruct (check_correct' G t t0); [| easy].
+        now injection H as [= ->]; constructor.
+      * destruct (infer G t) eqn: Hi; [| easy].
+        destruct t1; try easy.
+        destruct (check G t0 t1_1) eqn: Hc; [| easy].
+        injection H as [= ->].
+        apply infer_App with t1_1.
+        -- now apply infer_correct'.
+        -- now destruct (check_correct' G t0 t1_1).
       * now injection H as [= <-]; constructor.
       * now injection H as [= <-]; constructor.
       * now injection H as [= <-]; constructor.
-      * case_eq (infer G t2); intros; rewrite H0 in H; inv H.
-        case_eq (infer G t3); intros; rewrite H in H2; inv H2.
-        destruct (check_correct'' G t1 TBool); inv H3.
-        destruct (type_eq_dec_spec t t0); inv H2.
-        constructor; [easy | now apply infer_correct..].
-      * case_eq (infer G t1); intros; rewrite H0 in *; inv H.
-        case_eq (infer G t2); intros; rewrite H in *; inv H2.
-        constructor; rewrite <- infer_correct''; assumption.
-      * case_eq (infer G t); intros; rewrite H0 in *; inv H.
-        destruct t0; inv H2. econstructor. apply infer_correct.
-        cbn. rewrite H0. reflexivity.
-      * case_eq (infer G t); intros; rewrite H0 in *; inv H.
-        destruct t0; inv H2. econstructor. apply infer_correct.
-        cbn. rewrite H0. reflexivity.
-      * case_eq (infer G t1); intros; rewrite H0 in *; try destruct t; inv H.
-        case_eq (infer G t2); intros; rewrite H in *; try destruct t; inv H2.
-        case_eq (infer G t3); intros; rewrite H1 in *; try destruct t; inv H3.
-        destruct
-          (type_eq_dec_spec t4 t6),
-          (type_eq_dec_spec t5 t8),
-          (type_eq_dec_spec t7 t9);
-        cbn in *; subst; inv H4; try congruence.
-        econstructor; apply infer_correct; eassumption.
-    + destruct t; cbn; intro H; inv H.
+      * destruct (infer G t2) eqn: Hi2; [| easy].
+        destruct (infer G t3) eqn: Hi3; [| easy].
+        destruct (check_correct' G t1 TBool); [| easy].
+        decide (t = t0); subst; [| easy].
+        cbn in H; injection H as [= ->].
+        now constructor; [| apply infer_correct'..].
+      * destruct (infer G t1) eqn: Hi1; [| easy].
+        destruct (infer G t2) eqn: Hi2; [| easy].
+        injection H as [= <-].
+        now constructor; rewrite <- infer_correct'.
+      * destruct (infer G t) eqn: Hi; [| easy].
+        destruct t0; try easy.
+        injection H as [= ->].
+        now econstructor; apply infer_correct'; eauto.
+      * destruct (infer G t) eqn: Hi; [| easy].
+        destruct t0; try easy.
+        injection H as [= ->].
+        now econstructor; apply infer_correct'; eauto.
+      * destruct (infer G t1) eqn: Hi1; [| easy].
+        destruct t; try easy.
+        destruct (infer G t2) eqn: Hi2; [| easy].
+        destruct t; try easy.
+        destruct (infer G t3) eqn: Hi3; [| easy].
+        destruct t; try easy.
+        decide (t4 = t6); decide (t5 = t8); decide (t7 = t9);
+          cbn in *; subst; inversion H; subst.
+        now econstructor; apply infer_correct'; eauto.
+    + destruct t; cbn; inversion 1; subst.
       * easy.
-      * now destruct (check_correct'' G t A).
-      * destruct (infer_correct'' G t (TArr A0 A)).
-        rewrite (H0 H3).
-        now destruct (check_correct'' G t0 A0); subst.
+      * now destruct (check_correct' G t A).
+      * destruct (infer_correct' G t (TArr A0 A)) as [_ ->]; [| easy].
+        now destruct (check_correct' G t0 A0).
       * easy.
       * easy.
       * easy.
-      * destruct (infer_correct'' G t2 A), (infer_correct'' G t3 A).
-        rewrite H0, H2 by easy.
-        destruct (check_correct'' G t1 TBool); subst; cbn; [| easy].
-        now destruct (type_eq_dec_spec A A).
-      * destruct (infer_correct'' G t1 A0), (infer_correct'' G t2 B).
-        now rewrite H0, H2.
-      * destruct (infer_correct'' G t (TProd A B)).
-        now rewrite H0.
-      * destruct (infer_correct'' G t (TProd A0 A)).
-        now rewrite (H0 H2).
-      * destruct
-          (infer_correct'' G t1 (TSum A0 B)),
-          (infer_correct'' G t2 (TArr A0 A)),
-          (infer_correct'' G t3 (TArr B A)).
-        rewrite H0, H2, H5 by easy.
-        now destruct
-          (type_eq_dec_spec A0 A0),
-          (type_eq_dec_spec B B),
-          (type_eq_dec_spec A A); subst; cbn.
+      * destruct (infer_correct' G t2 A) as [_ ->]; [| easy].
+        destruct (infer_correct' G t3 A) as [_ ->]; [| easy].
+        destruct (check_correct' G t1 TBool); cbn; [| easy].
+        now rewrite Decidable_complete.
+      * destruct (infer_correct' G t1 A0) as [_ ->]; [| easy].
+        now destruct (infer_correct' G t2 B) as [_ ->].
+      * now destruct (infer_correct' G t (TProd A B)) as [_ ->].
+      * now destruct (infer_correct' G t (TProd A0 A)) as [_ ->].
+      * destruct (infer_correct' G t1 (TSum A0 B)) as [_ ->]; [| easy].
+        destruct (infer_correct' G t2 (TArr A0 A)) as [_ ->]; [| easy].
+        destruct (infer_correct' G t3 (TArr B A)) as [_ ->]; [| easy].
+        now rewrite !Decidable_complete.
   - destruct t; cbn; intros.
-    + case_eq (infer G t); intros.
-      * destruct (type_eq_dec_spec A t0); constructor; subst;
-          [now constructor; apply infer_correct |].
+    + destruct (infer G t) eqn: Hi.
+      * decide (A = t0); constructor; subst;
+          [now constructor; apply infer_correct' |].
         inversion 1; subst.
-        destruct (infer_correct'' G t A).
         now firstorder congruence.
-      * constructor.
-        inversion 1; subst.
-        destruct (infer_correct'' G t A).
+      * constructor; inversion 1; subst.
         now firstorder congruence.
-    + destruct A; try constructor; try inversion 1.
-      destruct (check_correct'' (fun v : Atom => if decide (a = v) then Some A1 else G v) t A2);
-        constructor; [| now inversion 1].
-      now constructor.
-    + destruct (check_correct'' G t TEmpty); subst; constructor; [now constructor |].
-      now inversion 1.
-    + destruct A; try constructor; try inversion 1.
-      destruct (check_correct'' G t A1); constructor; [now constructor |].
-      now inversion 1.
-    + destruct A; try constructor; try inversion 1.
-      destruct (check_correct'' G t A2); constructor; [now constructor |].
-      now inversion 1.
+    + destruct A; try (now constructor; inversion 1).
+      destruct (check_correct' (fun v : Atom => if decide (a = v) then Some A1 else G v) t A2);
+        constructor; [now constructor | now inversion 1].
+    + destruct (check_correct' G t TEmpty); subst;
+        constructor; [now constructor | now inversion 1].
+    + destruct A; try (now constructor; inversion 1).
+      destruct (check_correct' G t A1);
+        constructor; [now constructor | now inversion 1].
+    + destruct A; try (now constructor; inversion 1).
+      destruct (check_correct' G t A2);
+        constructor; [now constructor | now inversion 1].
 Qed.
+
+Inductive reflect_option {A : Type} (P : A -> Prop) : option A -> Type :=
+| reflect_None  : (forall x : A, ~ P x) -> reflect_option P None
+| reflect_Some  : forall x : A, P x -> reflect_option P (Some x).
+
+(* Pretty hard *)
+Lemma infer_correct'' :
+  forall (G : Ctx) (t : tmEx),
+    reflect_option (infer_type G t) (infer G t)
+
+with check_correct'' :
+  forall (G : Ctx) (t : tmIn) (A : type),
+    reflect (check_type G t A) (check G t A).
+Proof.
+  - intros G t.
+    destruct (infer G t) eqn: H; cycle 1.
+    + constructor.
+      intros t'; inversion 1; subst; cbn in *; try now congruence.
+      * now destruct (check_correct'' G t0 t').
+      * destruct (infer_correct'' G t1) as [| []].
+Abort.
 
 End Bidirectional_STLC_with_stuff.

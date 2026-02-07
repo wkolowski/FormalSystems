@@ -44,10 +44,10 @@ Lemma ceval_plus :
     ceval n c s1 = Some s2 -> ceval (n + k) c s1 = Some s2.
 Proof.
   induction n as [| n']; cbn; intros; [easy |].
-  destruct c; auto.
+  destruct c; [easy | easy | | |].
   - destruct (ceval n' c1 s1) eqn: Heq; [| easy].
     now erewrite IHn'; eauto.
-  - destruct (beval s1 b) eqn: Hb; eauto.
+  - now destruct (beval s1 b) eqn: Hb; eauto.
   - destruct (beval s1 b) eqn: Hb; [| easy].
     destruct (ceval n' c s1) eqn: Heq; [| easy].
     now erewrite IHn'; eauto.

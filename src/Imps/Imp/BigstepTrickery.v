@@ -48,9 +48,105 @@ Proof.
   unfold equivalent.
   split; intros.
   - remember (While b c) as w; revert b c Heqw.
-    induction H; intros; inv Heqw; eauto.
-  - inv H; inv H6; eauto.
+    now induction H; intros; inversion Heqw; subst; eauto.
+  - now inversion H; subst; inversion H6; subst; eauto.
 Defined.
+
+(** [equivalent] is an equivalence relation. *)
+
+#[global] Instance Equivalence_equivalent :
+  Equivalence equivalent.
+Proof.
+  split; [easy .. |].
+  unfold equivalent.
+  intros c1 c2 c3 H12 H23 s1 s2.
+  now rewrite H12, H23.
+Qed.
+
+(** [equivalent] is a congruence. *)
+
+Lemma equivalent_Skip :
+  Skip ~ Skip.
+Proof.
+  easy.
+Qed.
+
+Lemma equivalent_Seq_l :
+  forall c c1 c2 : Com,
+    c1 ~ c2 -> Seq c1 c ~ Seq c2 c.
+Proof.
+  unfold equivalent.
+  intros c c1 c2 Hequiv s1 s2.
+  split; inversion 1; subst.
+  - econstructor; [| now eauto].
+    now rewrite <- Hequiv.
+  - econstructor; [| now eauto].
+    now rewrite Hequiv.
+Qed.
+
+Lemma equivalent_Seq_r :
+  forall c c1 c2 : Com,
+    c1 ~ c2 -> Seq c c1 ~ Seq c c2.
+Proof.
+  unfold equivalent.
+  intros c c1 c2 Hequiv s1 s2.
+  split; inversion 1; subst.
+  - econstructor; [now eauto |].
+    now rewrite <- Hequiv.
+  - econstructor; [now eauto |].
+    now rewrite Hequiv.
+Qed.
+
+Lemma equivalent_If_l :
+  forall (b : BExp) (c c1 c2 : Com),
+    c1 ~ c2 -> If b c1 c ~ If b c2 c.
+Proof.
+  unfold equivalent.
+  intros b c c1 c2 Hequiv s1 s2.
+  split.
+  - inversion 1; subst; [now auto |].
+    apply EvalIfTrue; [easy |].
+    now rewrite <- Hequiv.
+  - inversion 1; subst; [now auto |].
+    apply EvalIfTrue; [easy |].
+    now rewrite Hequiv.
+Qed.
+
+Lemma equivalent_If_r :
+  forall (b : BExp) (c c1 c2 : Com),
+    c1 ~ c2 -> If b c c1 ~ If b c c2.
+Proof.
+  unfold equivalent.
+  intros b c c1 c2 Hequiv s1 s2.
+  split.
+  - inversion 1; subst; [| now auto].
+    apply EvalIfFalse; [easy |].
+    now rewrite <- Hequiv.
+  - inversion 1; subst; [| now auto].
+    apply EvalIfFalse; [easy |].
+    now rewrite Hequiv.
+Qed.
+
+Lemma equivalent_While :
+  forall (b : BExp) (c1 c2 : Com),
+    c1 ~ c2 -> While b c1 ~ While b c2.
+Proof.
+  unfold equivalent.
+  intros b c1 c2 Hequiv s1 s2.
+  split; intros Heval.
+  - remember (While b c1) as w; revert Heqw.
+    induction Heval; inversion 1; subst; [now auto |].
+    eapply EvalWhileTrue; [easy | |].
+    + now apply Hequiv, Heval1.
+    + now apply IHHeval2.
+  - remember (While b c2) as w; revert Heqw.
+    induction Heval; inversion 1; subst; [now auto |].
+    eapply EvalWhileTrue; [easy | |].
+    + now apply Hequiv, Heval1.
+    + now apply IHHeval2.
+Qed.
+
+(** * Evaluation contexts *)
 
 Inductive Context : Type :=
 | CContext : Context
@@ -62,12 +158,12 @@ Inductive Context : Type :=
 
 Fixpoint put (G : Context) (c : Com) : Com :=
 match G with
-| CContext => c
-| CSeqL G' c' => Seq (put G' c) c'
-| CSeqR c' G' => Seq c' (put G' c)
+| CContext     => c
+| CSeqL G' c'  => Seq (put G' c) c'
+| CSeqR c' G'  => Seq c' (put G' c)
 | CIfL b G' c' => If b (put G' c) c'
 | CIfR b c' G' => If b c' (put G' c)
-| CWhile b G' => While b (put G' c)
+| CWhile b G'  => While b (put G' c)
 end.
 
 Lemma equivalent_in_Context :
@@ -75,93 +171,12 @@ Lemma equivalent_in_Context :
     c1 ~ c2 -> forall G : Context, put G c1 ~ put G c2.
 Proof.
   intros c1 c2 H G; revert c1 c2 H.
-  induction G; cbn; intros; eauto;
-    unfold equivalent in *; split; intros;
-    match goal with
-    | H : CEval ?c _ _ |- _ =>
-      let c' := fresh "c" in
-      let Heqc' := fresh "Heq" c' in
-        remember c as c'; revert Heqc';
-        induction H; intros; inv Heqc'
-    end.
-    5-6: apply EvalIfTrue; rewrite 1?IHG; eauto; firstorder.
-    all: econstructor; rewrite 1?IHG; eauto; firstorder.
-Qed.
-
-(** [equivalent] is a congruence *)
-
-Lemma equivalent_Seq_l :
-  forall c c1 c2 : Com,
-    c1 ~ c2 -> Seq c1 c ~ Seq c2 c.
-Proof.
-  unfold equivalent.
-  split; intros.
-  - inv H0. econstructor; [| now eauto].
-    now rewrite <- H.
-  - inv H0. econstructor; [| now eauto].
-    now rewrite H.
-Qed.
-
-Lemma equivalent_Seq_r :
-  forall c c1 c2 : Com,
-    c1 ~ c2 -> Seq c c1 ~ Seq c c2.
-Proof.
-  unfold equivalent.
-  split; intros.
-  - inv H0.
-    econstructor; [now eauto |].
-    now rewrite <- H.
-  - inv H0.
-    econstructor; [now eauto |].
-    now rewrite H.
-Qed.
-
-Lemma equivalent_If_l :
-  forall (b : BExp) (c c1 c2 : Com),
-    c1 ~ c2 -> If b c1 c ~ If b c2 c.
-Proof.
-  unfold equivalent.
-  split; intros.
-  - inv H0.
-    apply EvalIfTrue; [easy |].
-    now rewrite <- H.
-  - inv H0.
-    apply EvalIfTrue; [easy |].
-    now rewrite H.
-Qed.
-
-Lemma equivalent_If_r :
-  forall (b : BExp) (c c1 c2 : Com),
-    c1 ~ c2 -> If b c c1 ~ If b c c2.
-Proof.
-  unfold equivalent.
-  split; intros.
-  - inv H0.
-    constructor; [easy |].
-    now rewrite <- H.
-  - inv H0.
-    constructor; [easy |].
-    now rewrite H.
-Qed.
-
-Lemma equivalent_While :
-  forall (b : BExp) (c1 c2 : Com),
-    c1 ~ c2 -> While b c1 ~ While b c2.
-Proof.
-  unfold equivalent.
-  split; intros.
-  - remember (While b c1) as w; revert Heqw.
-    induction H0; intro; inv Heqw.
-    eapply EvalWhileTrue; [easy | |].
-    + rewrite <- H.
-      now eassumption.
-    + now apply IHCEval2.
-  - remember (While b c2) as w; revert Heqw.
-    induction H0; intro; inv Heqw.
-    eapply EvalWhileTrue; [easy | |].
-    + rewrite H.
-      now eassumption.
-    + now apply IHCEval2.
+  induction G; cbn; intros; [easy | ..].
+  - now apply equivalent_Seq_l, IHG.
+  - now apply equivalent_Seq_r, IHG.
+  - now apply equivalent_If_l, IHG.
+  - now apply equivalent_If_r, IHG.
+  - now apply equivalent_While, IHG.
 Qed.
 
 (** * Observational equivalence *)

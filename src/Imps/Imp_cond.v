@@ -148,7 +148,8 @@ Ltac wut :=
 repeat match goal with
 | IH : forall _ _ , AEval _ _ _ -> _, H : AEval _ _ _ |- _ => specialize (IH _ _ H)
 | H : match ?x with _ => _ end |- _ => destruct x
-| H : AEval (desugara _) _ _, H' : desugara _ = _ |- _ => rewrite H' in H; inv H; auto
+| H : AEval (desugara _) _ _, H' : desugara _ = _ |- _ =>
+  rewrite H' in H; inversion H; subst; clear H; auto
 end.
 
 Lemma AEval_desugara :

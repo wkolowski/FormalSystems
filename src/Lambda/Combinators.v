@@ -134,13 +134,13 @@ repeat match goal with
 | |- ~ _ => intro
 | |- _ /\ _ => split
 | H : _ /\ _ |- _ => destruct H
-| H : red (_ @ _) _ |- _ => inv H
-| H : red K       _ |- _ => inv H
-| H : red S       _ |- _ => inv H
+| H : red (_ @ _) _ |- _ => inversion H; subst; clear H
+| H : red K       _ |- _ => inversion H; subst; clear H
+| H : red S       _ |- _ => inversion H; subst; clear H
 | H : isNormal ?t, H' : red ?t _ |- _ => destruct (H _ H')
 | |- isNormal _ => do 2 intro
 | H : exists _, _   |- _ => decompose [ex and] H; clear H
-| H : Ne ?x      |- _ => is_var x + inv H
+| H : Ne ?x      |- _ => is_var x + (inversion H; subst; clear H)
 | _ => auto
 end.
 
@@ -154,7 +154,8 @@ Proof.
       | |- red _ _ => eauto
       end; eauto).
     now apply Ne_isNormal.
-  - destruct ne. wut.
+  - destruct ne.
+    wut.
     + now eapply Ne_isNormal; eauto.
     + now eapply Nf_isNormal; eauto.
 Qed.
@@ -270,9 +271,9 @@ Proof.
   revert c Hpc.
   induction Hpb; intros; unfold parallels in *;
     repeat match goal with
-    | H : parallel K       _ |- _ => inv H
-    | H : parallel S       _ |- _ => inv H
-    | H : parallel (_ @ _) _ |- _ => inv H
+    | H : parallel K       _ |- _ => inversion H; subst; clear H
+    | H : parallel S       _ |- _ => inversion H; subst; clear H
+    | H : parallel (_ @ _) _ |- _ => inversion H; subst; clear H
     | |- context [rtc parallel (S @ ?a @ ?b @ ?c) _] => exists (a @ c @ (b @ c)); split; eauto
     | |- context [rtc parallel (_ @ _) _] => eauto 7
     end;
@@ -280,6 +281,7 @@ Proof.
     pose parallels_AppR;
     pose parallels_App;
     unfold parallels in *.
+  - now eauto.
   - now decompose [ex and] (IHHpb _ H2); eauto 6.
   - now decompose [ex and] (IHHpb _ H1); eauto 6.
   - now decompose [ex and] (IHHpb _ H2); eauto 6.

@@ -81,9 +81,10 @@ Lemma aeval_AEval :
 Proof.
   induction a; cbn; inversion 1; subst;
     [now constructor | now constructor |
-      destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2; inv H1..].
+      destruct (aeval a1 s) eqn: Ha1, (aeval a2 s) eqn: Ha2;
+      inversion H1; subst; clear H1; try now auto..].
   - destruct n1; [easy |].
-    assert (n0 / S n1 = n) by (inv H; auto).
+    assert (n0 / S n1 = n) by (inversion H; subst; clear H; auto).
     now rewrite <- H0; auto.
   - now destruct n0.
 Qed.
@@ -119,7 +120,7 @@ Lemma AEval_acompatible :
         AEval a s2 n.
 Proof.
   unfold acompatible.
-  induction 1; cbn in *; intros; try rewrite H; auto 6.
+  now induction 1; cbn; intros s2 Heq; rewrite ?Heq; auto 6.
 Qed.
 
 Lemma AEval_acompatible_det :
@@ -132,7 +133,7 @@ Lemma AEval_acompatible_det :
 Proof.
   now induction 1; cbn; intros;
     match goal with
-    | H : AEval ?a _ _ |- _ => is_var a + inv H
+    | H : AEval ?a _ _ |- _ => is_var a + (inversion H; subst; clear H)
     end; eauto 10.
 Qed.
 
@@ -190,12 +191,12 @@ Lemma beval_BEval :
   forall {e : BExp} {s : State} {b : bool},
     beval e s = Some b -> BEval e s b.
 Proof.
-  induction e; cbn; intros; inv H; auto.
-  - destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
-  - destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inv H1; auto.
-  - destruct (beval e s) eqn: He; inv H1; auto.
-  - destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
-  - destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inv H1; auto.
+  induction e; cbn; inversion 1; subst; try now auto.
+  - now destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inversion H1; subst; auto.
+  - now destruct (aeval a s) eqn: Ha1, (aeval a0 s) eqn: Ha2; inversion H1; subst; auto.
+  - now destruct (beval e s) eqn: He; inversion H1; subst; auto.
+  - destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inversion H1; subst; auto.
+  - now destruct (beval e1 s) eqn: He1, (beval e2 s) eqn: He2; inversion H1; subst; auto.
 Qed.
 
 Lemma BEval_det :
@@ -230,7 +231,7 @@ Lemma BEval_bcompatible :
       bcompatible e s1 s2 -> BEval e s2 b.
 Proof.
   unfold bcompatible.
-  induction 1; cbn in *; intros; constructor; eauto 6.
+  now induction 1; cbn in *; intros; constructor; eauto 6.
 Qed.
 
 Lemma BEval_bcompatible_det :
@@ -277,9 +278,9 @@ Lemma CEval_det :
   forall (c : Com) (s s1 : State),
     CEval c s s1 -> forall s2 : State, CEval c s s2 -> s1 = s2.
 Proof.
-  induction 1; intros;
+  now induction 1; intros;
     match goal with
-    | H : CEval ?c _ _ |- _ => is_var c + inv H
+    | H : CEval ?c _ _ |- _ => is_var c + (inversion H; subst; clear H)
     end;
     repeat match goal with
     | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
@@ -329,8 +330,8 @@ Lemma ceval_CEval :
     ceval n c s1 = Some s2 -> CEval c s1 s2.
 Proof.
   intros n c s1.
-  functional induction ceval n c s1; intros; inv H; eauto.
-  destruct (aeval a s) eqn: Ha; inv H1; auto.
+  functional induction ceval n c s1; inversion 1; subst; try now eauto.
+  now destruct (aeval a s) eqn: Ha; inversion H1; subst; auto.
 Qed.
 
 Lemma while_true_do_skip :
@@ -338,8 +339,8 @@ Lemma while_true_do_skip :
     ~ CEval (While BTrue Skip) s1 s2.
 Proof.
   intros s1 s2 H.
-  remember (While BTrue Skip) as w. revert Heqw.
-  induction H; intros; inv Heqw. inv H.
+  remember (While BTrue Skip) as w; revert Heqw.
+  now induction H; intros; inversion Heqw; subst; inversion H; subst.
 Qed.
 
 Lemma div_0 :

@@ -1,8 +1,7 @@
 From Stdlib Require Export
   Bool Arith List
   Equality Recdef
-  Classes.DecidableClass
-  Setoid Morphisms Relation_Definitions.
+  Setoid Morphisms Classes.RelationClasses Classes.DecidableClass Relation_Definitions.
 Export ListNotations.
 
 Arguments decide : simpl never.
@@ -10,27 +9,21 @@ Arguments decide : simpl never.
 (* The type of atoms, i.e. names of variables. *)
 Definition Atom : Type := nat.
 
-Ltac inv H :=
-  inversion H; subst; clear H; eauto.
-
 (** * Stuff for dealing with [option]. *)
 
-Definition omap {A B : Type}
-  (f : A -> B) (oa : option A) : option B :=
+Definition omap {A B : Type} (f : A -> B) (oa : option A) : option B :=
 match oa with
 | None => None
 | Some a => Some (f a)
 end.
 
-Definition liftM2 {A B C : Type}
-  (f : A -> B -> C) (oa : option A) (ob : option B) : option C :=
+Definition liftM2 {A B C : Type} (f : A -> B -> C) (oa : option A) (ob : option B) : option C :=
 match oa, ob with
 | Some a, Some b => Some (f a b)
 | _, _ => None
 end.
 
-Definition obind {A B : Type}
-  (oa : option A) (f : A -> option B) : option B :=
+Definition obind {A B : Type} (oa : option A) (f : A -> option B) : option B :=
 match oa with
 | None => None
 | Some a => f a
@@ -55,8 +48,6 @@ Inductive rtc' {A : Type} (R : A -> A -> Prop) : A -> A -> Prop :=
     forall x y z : A, R x y -> rtc' R y z -> rtc' R x z.
 
 #[global] Hint Constructors rtc' : core.
-
-Require Export Setoid Classes.RelationClasses.
 
 #[export]
 Instance Reflexive_rtc' {A : Type} (R : A -> A -> Prop) : Reflexive (rtc' R).

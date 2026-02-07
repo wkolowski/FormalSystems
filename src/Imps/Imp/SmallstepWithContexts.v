@@ -41,15 +41,16 @@ Lemma AExp_to_AContext_aput :
   forall (a1 a2 : AExp) (G : AContext),
     AExp_to_AContext a1 = (G, a2) -> aput G a2 = a1.
 Proof.
-  intros a1.
-  now functional induction AExp_to_AContext a1; intros; inv H; cbn; f_equal; auto.
+  now intros a1; functional induction (AExp_to_AContext a1);
+    inversion 1; subst; cbn; rewrite ?IHp.
 Qed.
 
 Lemma AExp_to_AContext_aput' :
   forall a : AExp,
     aput (fst (AExp_to_AContext a)) (snd (AExp_to_AContext a)) = a.
 Proof.
-  intros. apply AExp_to_AContext_aput.
+  intros.
+  apply AExp_to_AContext_aput.
   now destruct AExp_to_AContext; cbn.
 Qed.
 
@@ -58,29 +59,24 @@ Lemma AEval_Smallstep_AEval :
     AEval s a1 a2 <-> Smallstep.AEval s a1 a2.
 Proof.
   split.
-  - intro. inv H. induction G; cbn; auto. induction H0; auto.
+  - inversion 1; subst.
+    induction G; cbn; [| now auto..].
+    now induction H0; auto.
   - induction 1.
-    + change (Var x)
-        with (aput AC_Var (Var x));
-      change (AConst (s x))
-        with (aput AC_Var (AConst (s x))).
-      do 2 constructor.
-    + inv IHAEval.
-      change (ABinOp f (aput G a0) a2)
-        with (aput (AC_L f G a2) a0).
-      change (ABinOp f (aput G a3) a2)
-        with (aput (AC_L f G a2) a3).
+    + change (Var x) with (aput AC_Var (Var x));
+      change (AConst (s x)) with (aput AC_Var (AConst (s x))).
+      now do 2 constructor.
+    + inversion IHAEval; subst.
+      change (ABinOp f (aput G a0) a2) with (aput (AC_L f G a2) a0).
+      change (ABinOp f (aput G a3) a2) with (aput (AC_L f G a2) a3).
       now constructor.
-    + inv IHAEval.
-      change (ABinOp f (AConst n) (aput G a1))
-        with (aput (AC_R f n G) a1).
-      change (ABinOp f (AConst n) (aput G a0))
-        with (aput (AC_R f n G) a0).
+    + inversion IHAEval; subst.
+      change (ABinOp f (AConst n) (aput G a1)) with (aput (AC_R f n G) a1).
+      change (ABinOp f (AConst n) (aput G a0)) with (aput (AC_R f n G) a0).
       now constructor.
     + change (ABinOp f (AConst n1) (AConst n2))
         with (aput AC_Var (ABinOp f (AConst n1) (AConst n2)));
-      change (AConst (f n1 n2))
-        with (aput AC_Var (AConst (f n1 n2))).
+      change (AConst (f n1 n2))with (aput AC_Var (AConst (f n1 n2))).
       now constructor.
 Qed.
 
@@ -118,7 +114,9 @@ Lemma BEval_Smallstep_BEval :
     BEval b1 b2 <-> Smallstep.BEval s b1 b2.
 Proof.
   split.
-  - intro. inv H. induction G; cbn; auto. inv H0; auto.
+  - inversion 1; subst; clear H.
+    induction G; cbn; [| now auto..].
+    now inversion H0.
   - induction 1.
     + admit.
     + admit.
@@ -127,30 +125,23 @@ Proof.
       change (BConst (f n1 n2 ))
         with (bput BC_Hole (BConst (f n1 n2))).
       now do 2 constructor.
-    + inv IHBEval.
+    + inversion IHBEval; subst.
       change (Not (bput G b1)) with (bput (BC_Not G) b1).
       change (Not (bput G b2)) with (bput (BC_Not G) b2).
       now constructor.
-    + change (Not (BConst b))
-        with (bput BC_Hole (Not (BConst b))).
-      change (BConst (negb b))
-        with (bput BC_Hole (BConst (negb b))).
+    + change (Not (BConst b)) with (bput BC_Hole (Not (BConst b))).
+      change (BConst (negb b)) with (bput BC_Hole (BConst (negb b))).
       now do 2 constructor.
-    + inv IHBEval.
-      change (BBinOp f (bput G b1) e2)
-        with (bput (BC_BBinOp_L f G e2) b1).
-      change (BBinOp f (bput G b2) e2)
-        with (bput (BC_BBinOp_L f G e2) b2).
+    + inversion IHBEval; subst.
+      change (BBinOp f (bput G b1) e2) with (bput (BC_BBinOp_L f G e2) b1).
+      change (BBinOp f (bput G b2) e2) with (bput (BC_BBinOp_L f G e2) b2).
       now constructor.
-    + inv IHBEval.
-      change (BBinOp f (BConst b) (bput G b1))
-        with (bput (BC_BBinOp_R f b G) b1).
-      change (BBinOp f (BConst b) (bput G b2))
-        with (bput (BC_BBinOp_R f b G) b2).
+    + inversion IHBEval; subst.
+      change (BBinOp f (BConst b) (bput G b1)) with (bput (BC_BBinOp_R f b G) b1).
+      change (BBinOp f (BConst b) (bput G b2)) with (bput (BC_BBinOp_R f b G) b2).
       now constructor.
     + change (BBinOp f (BConst b1) (BConst b2))
         with (bput BC_Hole (BBinOp f (BConst b1) (BConst b2))).
-      change (BConst (f b1 b2))
-        with (bput BC_Hole (BConst (f b1 b2))).
+      change (BConst (f b1 b2)) with (bput BC_Hole (BConst (f b1 b2))).
       now do 2 constructor.
 Admitted.

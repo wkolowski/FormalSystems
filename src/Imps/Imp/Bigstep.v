@@ -31,7 +31,7 @@ Lemma AEval_acompatible :
         AEval a s2 n.
 Proof.
   unfold acompatible.
-  now induction 1; cbn in *; intros; try rewrite H; auto 6.
+  now induction 1; cbn in *; intros s2 Heq; rewrite ?Heq; auto 6.
 Qed.
 
 Lemma AEval_acompatible_det :
@@ -42,10 +42,10 @@ Lemma AEval_acompatible_det :
       (forall x : Atom, In x (fva a) -> s1 x = s2 x) ->
         n1 = n2.
 Proof.
-  induction 1; cbn; intros; auto.
-  - inv H.
-  - inv H.
-  - inv H1.
+  induction 1; cbn; intros.
+  - now inversion H; subst.
+  - now inversion H; subst; auto.
+  - inversion H1; subst.
     now erewrite IHAEval1, IHAEval2; eauto.
 Qed.
 
@@ -71,12 +71,12 @@ Lemma BEval_det :
     BEval e s b1 -> forall {b2 : bool}, BEval e s b2 -> b1 = b2.
 Proof.
   induction 1; intros.
-  - inv H.
-  - inv H1.
+  - now inversion H; subst.
+  - inversion H1; subst.
     now rewrite (AEval_det H H7), (AEval_det H0 H8).
-  - inv H0.
+  - inversion H0; subst.
     now rewrite (IHBEval _ H2).
-  - inv H1.
+  - inversion H1; subst.
     now rewrite (IHBEval1 _ H7), (IHBEval2 _ H8).
 Qed.
 
@@ -89,7 +89,7 @@ Lemma BEval_bcompatible :
       bcompatible e s1 s2 -> BEval e s2 b.
 Proof.
   unfold bcompatible.
-  now induction 1; cbn in *; intros; constructor; eauto 6.
+  now induction 1; cbn; intros s2 Heq; constructor; eauto 6.
 Qed.
 
 Lemma BEval_bcompatible_det :
@@ -135,7 +135,7 @@ Example while_true_do_skip :
 Proof.
   intros s1 s2 H.
   remember (While (BConst true) Skip) as w; revert Heqw.
-  now induction H; intros; inv Heqw.
+  now induction H; intros; inversion Heqw; subst; auto.
 Qed.
 
 #[global] Hint Rewrite @AEval_det : core.
@@ -147,7 +147,7 @@ Lemma CEval_det :
 Proof.
   now induction 1; intros;
     match goal with
-    | H : CEval ?c _ _ |- _ => is_var c + inv H
+    | H : CEval ?c _ _ |- _ => is_var c + (inversion H; subst; clear H)
     end;
     repeat match goal with
     | IH : forall _, CEval _ _ _ -> _, H : CEval _ _ _ |- _ =>
@@ -190,7 +190,7 @@ Lemma beval_BEval :
   forall {e : BExp} {s : State} {b : bool},
     beval s e = b -> BEval e s b.
 Proof.
-  induction e; cbn; intros; subst; auto.
+  induction e; cbn; intros; subst; only 1, 3-4: now auto.
   now constructor; apply aeval_AEval.
 Qed.
 
@@ -200,8 +200,7 @@ Lemma ceval_CEval :
   forall (n : nat) (c : Com) (s1 s2 : State),
     ceval n c s1 = Some s2 -> CEval c s1 s2.
 Proof.
-  intros n c s1.
-  now functional induction ceval n c s1; intros; inv H; eauto.
+  now intros n c s1; functional induction (ceval n c s1); inversion 1; subst; eauto.
 Qed.
 
 Lemma CEval_ceval :
@@ -214,7 +213,7 @@ Proof.
     do 2 f_equal.
     now apply AEval_aeval.
   - destruct IHCEval1 as [n1 IH1], IHCEval2 as [n2 IH2].
-    exists (S (n1 + n2)); cbn. (* Should be S (max n1 n2) *)
+    exists (S (n1 + n2)); cbn.
     rewrite (ceval_plus n1 n2 _ _ _ IH1), Nat.add_comm.
     now apply ceval_plus.
   - destruct IHCEval as [n IH].
@@ -226,7 +225,7 @@ Proof.
   - exists 1; cbn.
     now apply BEval_beval in H as ->.
   - destruct IHCEval1 as [n1 IH1], IHCEval2 as [n2 IH2].
-    exists (S (n1 + n2)); cbn. (* Should be S (max n1 n2) *)
+    exists (S (n1 + n2)); cbn.
     apply BEval_beval in H as ->.
     rewrite (ceval_plus _ _ _ _ _ IH1), Nat.add_comm.
     now apply ceval_plus.
