@@ -2,7 +2,7 @@ From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
 | AConst : nat -> AExp
-| Var : Loc -> AExp
+| Var : Atom -> AExp
 | Add : AExp -> AExp -> AExp
 | Sub : AExp -> AExp -> AExp
 | Mul : AExp -> AExp -> AExp
@@ -19,23 +19,23 @@ Inductive BExp : Type :=
 
 Inductive Com : Type :=
 | Skip : Com
-| Asgn : Loc -> AExp -> Com
+| Asgn : Atom -> AExp -> Com
 | Seq : Com -> Com -> Com
 | If : BExp -> Com -> Com -> Com
 | While : BExp -> Com -> Com.
 
-Definition State : Type := Loc -> nat.
+Definition State : Type := Atom -> nat.
 
 Definition initialState : State := fun _ => 0.
 
-Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if decide (x = y) then n else s y.
+Definition changeState (s : State) (x : Atom) (n : nat) : State :=
+  fun y : Atom => if decide (x = y) then n else s y.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
 | EvalAConst :
     forall (n : nat) (s : State), AEval (AConst n) s n
 | EvalVar :
-    forall (v : Loc) (s : State), AEval (Var v) s (s v)
+    forall (v : Atom) (s : State), AEval (Var v) s (s v)
 | EvalAdd :
     forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
       AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
@@ -97,18 +97,18 @@ Proof.
   now congruence.
 Qed.
 
-Fixpoint loca (a : AExp) : list Loc :=
+Fixpoint fva (a : AExp) : list Atom :=
 match a with
 | AConst _ => []
 | Var x => [x]
-| Add a1 a2 => loca a1 ++ loca a2
-| Sub a1 a2 => loca a1 ++ loca a2
-| Mul a1 a2 => loca a1 ++ loca a2
-| Div a1 a2 => loca a1 ++ loca a2
+| Add a1 a2 => fva a1 ++ fva a2
+| Sub a1 a2 => fva a1 ++ fva a2
+| Mul a1 a2 => fva a1 ++ fva a2
+| Div a1 a2 => fva a1 ++ fva a2
 end.
 
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loca a) -> s1 x = s2 x.
+  forall x : Atom, In x (fva a) -> s1 x = s2 x.
 
 #[global] Hint Resolve in_or_app : core.
 
@@ -127,7 +127,7 @@ Lemma AEval_acompatible_det :
     AEval a s1 n1 ->
     forall {s2 : State} {n2 : nat},
       AEval a s2 n2 ->
-      (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
+      (forall x : Atom, In x (fva a) -> s1 x = s2 x) ->
         n1 = n2.
 Proof.
   now induction 1; cbn; intros;
@@ -207,19 +207,19 @@ Proof.
   now congruence.
 Qed.
 
-Fixpoint locb (b : BExp) : list Loc :=
+Fixpoint fvb (b : BExp) : list Atom :=
 match b with
 | BTrue => []
 | BFalse => []
-| Eq a1 a2 => loca a1 ++ loca a2
-| Le a1 a2 => loca a1 ++ loca a2
-| Not b' => locb b'
-| And b1 b2 => locb b1 ++ locb b2
-| Or b1 b2 => locb b1 ++ locb b2
+| Eq a1 a2 => fva a1 ++ fva a2
+| Le a1 a2 => fva a1 ++ fva a2
+| Not b' => fvb b'
+| And b1 b2 => fvb b1 ++ fvb b2
+| Or b1 b2 => fvb b1 ++ fvb b2
 end.
 
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locb b) -> s1 x = s2 x.
+  forall x : Atom, In x (fvb b) -> s1 x = s2 x.
 
 #[global] Hint Resolve AEval_acompatible : core.
 #[global] Hint Unfold acompatible : core.
@@ -248,7 +248,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
 | EvalSkip :
     forall s : State, CEval Skip s s
 | EvalAsgn :
-    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+    forall (v : Atom) (a : AExp) (s : State) (n : nat),
       AEval a s n -> CEval (Asgn v a) s (changeState s v n)
 | EvalSeq :
     forall (c1 c2 : Com) (s1 s2 s3 : State),

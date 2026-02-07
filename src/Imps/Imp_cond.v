@@ -2,7 +2,7 @@ From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
 | AConst : nat -> AExp
-| Var : Loc -> AExp
+| Var : Atom -> AExp
 | Add : AExp -> AExp -> AExp
 | Sub : AExp -> AExp -> AExp
 | Mul : AExp -> AExp -> AExp
@@ -20,23 +20,23 @@ with BExp : Type :=
 
 Inductive Com : Type :=
 | Skip : Com
-| Asgn : Loc -> AExp -> Com
+| Asgn : Atom -> AExp -> Com
 | Seq : Com -> Com -> Com
 | If : BExp -> Com -> Com -> Com
 | While : BExp -> Com -> Com.
 
-Definition State : Type := Loc -> nat.
+Definition State : Type := Atom -> nat.
 
 Definition initialState : State := fun _ => 0.
 
-Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if decide (x = y) then n else s y.
+Definition changeState (s : State) (x : Atom) (n : nat) : State :=
+  fun y : Atom => if decide (x = y) then n else s y.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
 | EvalAConst :
     forall (n : nat) (s : State), AEval (AConst n) s n
 | EvalVar :
-    forall (v : Loc) (s : State), AEval (Var v) s (s v)
+    forall (v : Atom) (s : State), AEval (Var v) s (s v)
 | EvalAdd :
     forall (a1 a2 : AExp) (s : State) (n1 n2 : nat),
       AEval a1 s n1 -> AEval a2 s n2 -> AEval (Add a1 a2) s (n1 + n2)
@@ -86,7 +86,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
 | EvalSkip :
     forall s : State, CEval Skip s s
 | EvalAsgn :
-    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+    forall (v : Atom) (a : AExp) (s : State) (n : nat),
       AEval a s n -> CEval (Asgn v a) s (changeState s v n)
 | EvalSeq :
     forall (c1 c2 : Com) (s1 s2 s3 : State),

@@ -3,7 +3,7 @@ From FormalSystems Require Import Imp.Denotational.
 
 Inductive AEval (s : State) : AExp -> AExp -> Prop :=
 | AEval_Var :
-    forall x : Loc, AEval s (Var x) (AConst (s x))
+    forall x : Atom, AEval s (Var x) (AConst (s x))
 | AEval_ABinOp_L :
     forall (f : nat -> nat -> nat) (a1 a1' a2 : AExp),
       AEval s a1 a1' -> AEval s (ABinOp f a1 a2) (ABinOp f a1' a2)
@@ -55,7 +55,7 @@ Proof.
 Qed.
 
 Lemma AEvalsVar :
-  forall (s : State) (x : Loc), AEvals s (Var x) (AConst (s x)).
+  forall (s : State) (x : Atom), AEvals s (Var x) (AConst (s x)).
 Proof. eauto. Qed.
 
 Lemma AEvals_ABinOp_L :
@@ -236,10 +236,10 @@ Qed.
 
 Inductive CEval : Com * State -> Com * State -> Prop :=
 | CEval_Asgn_Step :
-    forall (s : State) (a a' : AExp) (x : Loc),
+    forall (s : State) (a a' : AExp) (x : Atom),
       AEval s a a' -> CEval (Asgn x a, s) (Asgn x a', s)
 | CEval_Asgn_Val :
-    forall (s : State) (n : nat) (x : Loc),
+    forall (s : State) (n : nat) (x : Atom),
       CEval (Asgn x (AConst n), s) (Skip, changeState s x n)
 | CEval_Seq_L :
     forall (c1 c1' c2 : Com) (s s' : State),
@@ -303,14 +303,14 @@ Definition CEvals (cs1 cs2 : Com * State) : Prop :=
 #[global] Hint Unfold CEvals : core.
 
 Lemma CEvals_Asgn_Step :
-  forall (s : State) (a a' : AExp) (x : Loc),
+  forall (s : State) (a a' : AExp) (x : Atom),
     AEvals s a a' -> CEvals (Asgn x a, s) (Asgn x a', s).
 Proof.
   now induction 1; eauto.
 Qed.
 
 Lemma CEvals_Asgn_Val :
-  forall (s : State) (n : nat) (x : Loc),
+  forall (s : State) (n : nat) (x : Atom),
     CEvals (Asgn x (AConst n), s) (Skip, changeState s x n).
 Proof.
   now eauto.

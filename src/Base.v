@@ -7,9 +7,8 @@ Export ListNotations.
 
 Arguments decide : simpl never.
 
-Parameter Loc : Type.
-Parameter Decidable_dec : forall x y : Loc, Decidable (x = y).
-#[global] Existing Instance Decidable_dec.
+(* The type of atoms, i.e. names of variables. *)
+Definition Atom : Type := nat.
 
 Ltac inv H :=
   inversion H; subst; clear H; eauto.

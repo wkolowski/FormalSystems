@@ -5,7 +5,7 @@ Inductive AEval : AExp -> State -> nat -> Prop :=
 | EvalAConst :
     forall (n : nat) (s : State), AEval (AConst n) s n
 | EvalVar :
-    forall (v : Loc) (s : State), AEval (Var v) s (s v)
+    forall (v : Atom) (s : State), AEval (Var v) s (s v)
 | EvalABinOp :
     forall (f : nat -> nat -> nat) (a1 a2 : AExp) (s : State) (n1 n2 : nat),
       AEval a1 s n1 -> AEval a2 s n2 ->
@@ -39,7 +39,7 @@ Lemma AEval_acompatible_det :
     AEval a s1 n1 ->
     forall {s2 : State} {n2 : nat},
       AEval a s2 n2 ->
-      (forall x : Loc, In x (loca a) -> s1 x = s2 x) ->
+      (forall x : Atom, In x (fva a) -> s1 x = s2 x) ->
         n1 = n2.
 Proof.
   induction 1; cbn; intros; auto.
@@ -107,7 +107,7 @@ Inductive CEval : Com -> State -> State -> Prop :=
 | EvalSkip :
     forall s : State, CEval Skip s s
 | EvalAsgn :
-    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+    forall (v : Atom) (a : AExp) (s : State) (n : nat),
       AEval a s n -> CEval (Asgn v a) s (changeState s v n)
 | EvalSeq :
     forall (c1 c2 : Com) (s1 s2 s3 : State),

@@ -2,7 +2,7 @@ From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
 | AConst : nat -> AExp
-| Var : Loc -> AExp
+| Var : Atom -> AExp
 | ABinOp : (nat -> nat -> nat) -> AExp -> AExp -> AExp.
 
 Inductive BExp : Type :=
@@ -13,61 +13,61 @@ Inductive BExp : Type :=
 
 Inductive Com : Type :=
 | Skip : Com
-| Asgn : Loc -> AExp -> Com
+| Asgn : Atom -> AExp -> Com
 | Seq : Com -> Com -> Com
 | If : BExp -> Com -> Com -> Com
 | While : BExp -> Com -> Com.
 
-Definition State : Type := Loc -> nat.
+Definition State : Type := Atom -> nat.
 
 Definition initialState : State := fun _ => 0.
 
-Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if decide (x = y) then n else s y.
+Definition changeState (s : State) (x : Atom) (n : nat) : State :=
+  fun y : Atom => if decide (x = y) then n else s y.
 
-Fixpoint loca (a : AExp) : list Loc :=
+Fixpoint fva (a : AExp) : list Atom :=
 match a with
 | AConst _ => []
 | Var x => [x]
-| ABinOp f a1 a2 => loca a1 ++ loca a2
+| ABinOp f a1 a2 => fva a1 ++ fva a2
 end.
 
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loca a) -> s1 x = s2 x.
+  forall x : Atom, In x (fva a) -> s1 x = s2 x.
 
-Fixpoint locb (b : BExp) : list Loc :=
+Fixpoint fvb (b : BExp) : list Atom :=
 match b with
 | BConst _ => []
-| BRelOp _ a1 a2 => loca a1 ++ loca a2
-| Not b' => locb b'
-| BBinOp _ b1 b2 => locb b1 ++ locb b2
+| BRelOp _ a1 a2 => fva a1 ++ fva a2
+| Not b' => fvb b'
+| BBinOp _ b1 b2 => fvb b1 ++ fvb b2
 end.
 
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locb b) -> s1 x = s2 x.
+  forall x : Atom, In x (fvb b) -> s1 x = s2 x.
 
 (* The list of all variables which are assigned to by the instruction c. *)
-Fixpoint locw (c : Com) : list Loc :=
+Fixpoint fvw (c : Com) : list Atom :=
 match c with
 | Skip => []
 | Asgn v _ => [v]
-| Seq c1 c2 => locw c1 ++ locw c2
-| If _ c1 c2 => locw c1 ++ locw c2
-| While _ c => locw c
+| Seq c1 c2 => fvw c1 ++ fvw c2
+| If _ c1 c2 => fvw c1 ++ fvw c2
+| While _ c => fvw c
 end.
 
 Definition wcompatible (c : Com) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locw c) -> s1 x = s2 x.
+  forall x : Atom, In x (fvw c) -> s1 x = s2 x.
 
 (* The list of all variables mentioned in c. *)
-Fixpoint loc (c : Com) : list Loc :=
+Fixpoint fv (c : Com) : list Atom :=
 match c with
 | Skip => []
-| Asgn v a => v :: loca a
-| Seq c1 c2 => loc c1 ++ loc c2
-| If b c1 c2 => locb b ++ loc c1 ++ loc c2
-| While b c => locb b ++ loc c
+| Asgn v a => v :: fva a
+| Seq c1 c2 => fv c1 ++ fv c2
+| If b c1 c2 => fvb b ++ fv c1 ++ fv c2
+| While b c => fvb b ++ fv c
 end.
 
 Definition ccompatible (c : Com) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loc c) -> s1 x = s2 x.
+  forall x : Atom, In x (fv c) -> s1 x = s2 x.

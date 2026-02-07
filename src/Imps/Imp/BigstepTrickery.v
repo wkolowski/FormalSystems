@@ -2,9 +2,9 @@ From FormalSystems Require Export Bigstep.
 
 (** Compatibility (acompatible, bcompatible, wcompatible, ccompatible) *)
 
-Lemma CEval_not_In_locw_eq :
+Lemma CEval_not_In_fvw_eq :
   forall (c : Com) (s1 s2 : State),
-    CEval c s1 s2 -> forall x : Loc, ~ In x (locw c) -> s1 x = s2 x.
+    CEval c s1 s2 -> forall x : Atom, ~ In x (fvw c) -> s1 x = s2 x.
 Proof.
   induction 1; cbn in *; intros;
     rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto.
@@ -12,9 +12,9 @@ Proof.
   now decide (v = x); firstorder.
 Qed.
 
-Lemma CEval_not_In_loc_eq :
+Lemma CEval_not_In_fv_eq :
   forall (c : Com) (s1 s2 : State),
-    CEval c s1 s2 -> forall x : Loc, ~ In x (loc c) -> s1 x = s2 x.
+    CEval c s1 s2 -> forall x : Atom, ~ In x (fv c) -> s1 x = s2 x.
 Proof.
   induction 1; cbn in *; intros;
     rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto 7.

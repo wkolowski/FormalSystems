@@ -5,7 +5,7 @@ From FormalSystems Require Imp.Smallstep.
 
 Inductive AStep (s : State) : AExp -> AExp -> Prop :=
 | AStep_Var :
-    forall x : Loc, AStep s (Var x) (AConst (s x))
+    forall x : Atom, AStep s (Var x) (AConst (s x))
 | AStep_ABinOp :
     forall (f : nat -> nat -> nat) (n1 n2 : nat),
       AStep s (ABinOp f (AConst n1) (AConst n2)) (AConst (f n1 n2)).

@@ -2,7 +2,7 @@ From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
 | AConst : nat -> AExp
-| Var : Loc -> AExp
+| Var : Atom -> AExp
 | Add : AExp -> AExp -> AExp
 | Sub : AExp -> AExp -> AExp
 | Mul : AExp -> AExp -> AExp
@@ -19,17 +19,17 @@ Inductive BExp : Type :=
 
 Inductive Com : Type :=
 | Skip : Com
-| Asgn : Loc -> AExp -> Com
+| Asgn : Atom -> AExp -> Com
 | Seq : Com -> Com -> Com
 | If : BExp -> Com -> Com -> Com
 | While : BExp -> Com -> Com.
 
-Definition State : Type := Loc -> nat.
+Definition State : Type := Atom -> nat.
 
 Definition initialState : State := fun _ => 0.
 
-Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if decide (x = y) then n else s y.
+Definition changeState (s : State) (x : Atom) (n : nat) : State :=
+  fun y : Atom => if decide (x = y) then n else s y.
 
 Fixpoint aeval (a : AExp) (s : State) : option nat :=
 match a with
@@ -46,18 +46,18 @@ match a with
   end
 end.
 
-Fixpoint loca (a : AExp) : list Loc :=
+Fixpoint fva (a : AExp) : list Atom :=
 match a with
 | AConst _ => []
 | Var x => [x]
-| Add a1 a2 => loca a1 ++ loca a2
-| Sub a1 a2 => loca a1 ++ loca a2
-| Mul a1 a2 => loca a1 ++ loca a2
-| Div a1 a2 => loca a1 ++ loca a2
+| Add a1 a2 => fva a1 ++ fva a2
+| Sub a1 a2 => fva a1 ++ fva a2
+| Mul a1 a2 => fva a1 ++ fva a2
+| Div a1 a2 => fva a1 ++ fva a2
 end.
 
 Definition acompatible (a : AExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (loca a) -> s1 x = s2 x.
+  forall x : Atom, In x (fva a) -> s1 x = s2 x.
 
 #[global] Hint Resolve in_or_app : core.
 
@@ -81,19 +81,19 @@ match e with
 | Or e1 e2 => liftM2 orb (beval e1 s) (beval e2 s)
 end.
 
-Fixpoint locb (b : BExp) : list Loc :=
+Fixpoint fvb (b : BExp) : list Atom :=
 match b with
 | BTrue => []
 | BFalse => []
-| Eq a1 a2 => loca a1 ++ loca a2
-| Le a1 a2 => loca a1 ++ loca a2
-| Not b' => locb b'
-| And b1 b2 => locb b1 ++ locb b2
-| Or b1 b2 => locb b1 ++ locb b2
+| Eq a1 a2 => fva a1 ++ fva a2
+| Le a1 a2 => fva a1 ++ fva a2
+| Not b' => fvb b'
+| And b1 b2 => fvb b1 ++ fvb b2
+| Or b1 b2 => fvb b1 ++ fvb b2
 end.
 
 Definition bcompatible (b : BExp) (s1 s2 : State) : Prop :=
-  forall x : Loc, In x (locb b) -> s1 x = s2 x.
+  forall x : Atom, In x (fvb b) -> s1 x = s2 x.
 
 #[global] Hint Resolve aeval_acompatible : core.
 #[global] Hint Unfold acompatible : core.
@@ -110,10 +110,10 @@ Inductive CEval : Com -> State -> option State -> Prop :=
 | EvalSkip :
     forall s : State, CEval Skip s (Some s)
 | EvalAsgnNone :
-    forall (v : Loc) (a : AExp) (s : State),
+    forall (v : Atom) (a : AExp) (s : State),
       aeval a s = None -> CEval (Asgn v a) s None
 | EvalAsgnSome :
-    forall (v : Loc) (a : AExp) (s : State) (n : nat),
+    forall (v : Atom) (a : AExp) (s : State) (n : nat),
       aeval a s = Some n -> CEval (Asgn v a) s (Some (changeState s v n))
 | EvalSeqNone :
     forall (c1 c2 : Com) (s1 : State),

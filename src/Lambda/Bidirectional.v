@@ -9,26 +9,26 @@ Inductive type : Type :=
 | TArr : type -> type -> type.
 
 Inductive tm : Type :=
-| TVar : Loc -> tm
+| TVar : Atom -> tm
 | TApp : tm -> tm -> tm
-| TLam : Loc -> tm -> tm
+| TLam : Atom -> tm -> tm
 | TTrue : tm
 | TFalse : tm
 | TIf : tm -> tm -> tm -> tm.
 
-Definition Ctx : Type := Loc -> option type.
+Definition Ctx : Type := Atom -> option type.
 
 Inductive has_type : Ctx -> tm -> type -> Prop :=
 | ht_Var :
-    forall (G : Ctx) (x : Loc) (A : type),
+    forall (G : Ctx) (x : Atom) (A : type),
       G x = Some A -> has_type G (TVar x) A
 | ht_App :
     forall (G : Ctx) (t1 t2 : tm) (A B : type),
       has_type G t1 (TArr A B) -> has_type G t2 A ->
         has_type G (TApp t1 t2) B
 | ht_Abs :
-    forall (G : Ctx) (x : Loc) (t : tm) (A B : type),
-      has_type (fun v : Loc => if decide (x = v) then Some A else G v) t B ->
+    forall (G : Ctx) (x : Atom) (t : tm) (A B : type),
+      has_type (fun v : Atom => if decide (x = v) then Some A else G v) t B ->
         has_type G (TLam x t) (TArr A B)
 | ht_True :
     forall G : Ctx, has_type G TTrue TBool
@@ -92,19 +92,19 @@ Inductive type : Type :=
 | TArr : type -> type -> type.
 
 Inductive tm : Type :=
-| TVar : Loc -> tm
+| TVar : Atom -> tm
 | TApp : tm -> tm -> tm
-| TLam : Loc -> tm -> tm
+| TLam : Atom -> tm -> tm
 | TTrue : tm
 | TFalse : tm
 | TIf : tm -> tm -> tm -> tm
 | TAnn : tm -> type -> tm.
 
-Definition Ctx : Type := Loc -> option type.
+Definition Ctx : Type := Atom -> option type.
 
 Inductive infer_type : Ctx -> tm -> type -> Prop :=
 | infer_Var :
-    forall (G : Ctx) (x : Loc) (A : type),
+    forall (G : Ctx) (x : Atom) (A : type),
       G x = Some A -> infer_type G (TVar x) A
 | infer_App :
     forall (G : Ctx) (t1 t2 : tm) (A B : type),
@@ -120,8 +120,8 @@ Inductive infer_type : Ctx -> tm -> type -> Prop :=
 
 with check_type : Ctx -> tm -> type -> Prop :=
 | check_Lam :
-    forall (G : Ctx) (x : Loc) (t : tm) (A B : type),
-      check_type (fun v : Loc => if decide (x = v) then Some A else G v) t B ->
+    forall (G : Ctx) (x : Atom) (t : tm) (A B : type),
+      check_type (fun v : Atom => if decide (x = v) then Some A else G v) t B ->
         check_type G (TLam x t) (TArr A B)
 | check_If :
     forall (G : Ctx) (t1 t2 t3 : tm) (A : type),
@@ -159,7 +159,7 @@ with check (G : Ctx) (t : tm) (A : type) : bool :=
 match t with
 | TLam x t =>
   match A with
-  | TArr X Y => check (fun v : Loc => if decide (x = v) then Some X else G v) t Y
+  | TArr X Y => check (fun v : Atom => if decide (x = v) then Some X else G v) t Y
   | _ => false
   end
 | TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
@@ -235,7 +235,7 @@ Proof.
       constructor.
       now apply check_correct.
   - destruct t; cbn; intros.
-    + case_eq (G l); intros; rewrite H0 in H; inv H.
+    + case_eq (G a); intros; rewrite H0 in H; inv H.
       apply type_eq_dec_true in H2; subst.
       now do 2 constructor.
     + case_eq (infer G t1); intros; rewrite H0 in H.
@@ -290,22 +290,22 @@ Inductive type : Type :=
 | TArr : type -> type -> type.
 
 Inductive tmEx : Type :=
-| TVar : Loc -> tmEx
+| TVar : Atom -> tmEx
 | TApp : tmEx -> tmIn -> tmEx
 | TTrue : tmEx
 | TFalse : tmEx
 | TAnn : tmIn -> type -> tmEx
 
 with tmIn : Type :=
-| TLam : Loc -> tmIn -> tmIn
+| TLam : Atom -> tmIn -> tmIn
 | TIf : tmIn -> tmIn -> tmIn -> tmIn
 | TEx : tmEx -> tmIn.
 
-Definition Ctx : Type := Loc -> option type.
+Definition Ctx : Type := Atom -> option type.
 
 Inductive infer_type : Ctx -> tmEx -> type -> Prop :=
 | infer_Var :
-    forall (G : Ctx) (x : Loc) (A : type),
+    forall (G : Ctx) (x : Atom) (A : type),
       G x = Some A -> infer_type G (TVar x) A
 | infer_App :
     forall (G : Ctx) (t1 : tmEx) (t2 : tmIn) (A B : type),
@@ -321,8 +321,8 @@ Inductive infer_type : Ctx -> tmEx -> type -> Prop :=
 
 with check_type : Ctx -> tmIn -> type -> Prop :=
 | check_Lam :
-    forall (G : Ctx) (x : Loc) (t : tmIn) (A B : type),
-      check_type (fun v : Loc => if decide (x = v) then Some A else G v) t B ->
+    forall (G : Ctx) (x : Atom) (t : tmIn) (A B : type),
+      check_type (fun v : Atom => if decide (x = v) then Some A else G v) t B ->
         check_type G (TLam x t) (TArr A B)
 | check_If :
     forall (G : Ctx) (t1 t2 t3 : tmIn) (A : type),
@@ -359,7 +359,7 @@ with check (G : Ctx) (t : tmIn) (A : type) : bool :=
 match t with
 | TLam x t =>
   match A with
-  | TArr X Y => check (fun v : Loc => if decide (x = v) then Some X else G v) t Y
+  | TArr X Y => check (fun v : Atom => if decide (x = v) then Some X else G v) t Y
   | _ => false
   end
 | TIf t1 t2 t3 => check G t1 TBool && check G t2 A && check G t3 A
@@ -452,7 +452,7 @@ Inductive type : Type :=
 | TSum   : type -> type -> type.
 
 Inductive tmEx : Type :=
-| TVar : Loc -> tmEx
+| TVar : Atom -> tmEx
 | TAnn : tmIn -> type -> tmEx
 
 | TApp : tmEx -> tmIn -> tmEx
@@ -471,17 +471,17 @@ Inductive tmEx : Type :=
 
 with tmIn : Type :=
 | TEx : tmEx -> tmIn
-| TLam : Loc -> tmIn -> tmIn
+| TLam : Atom -> tmIn -> tmIn
 | TExfalso : tmIn -> tmIn
 
 | TInl : tmIn -> tmIn
 | TInr : tmIn -> tmIn.
 
-Definition Ctx : Type := Loc -> option type.
+Definition Ctx : Type := Atom -> option type.
 
 Inductive infer_type : Ctx -> tmEx -> type -> Prop :=
 | infer_Var :
-    forall (G : Ctx) (x : Loc) (A : type),
+    forall (G : Ctx) (x : Atom) (A : type),
       G x = Some A -> infer_type G (TVar x) A
 | infer_Ann :
     forall (G : Ctx) (t : tmIn) (A : type),
@@ -523,8 +523,8 @@ with check_type : Ctx -> tmIn -> type -> Prop :=
     forall (G : Ctx) (t : tmEx) (A : type),
       infer_type G t A -> check_type G (TEx t) A
 | check_Lam :
-    forall (G : Ctx) (x : Loc) (t : tmIn) (A B : type),
-      check_type (fun v : Loc => if decide (x = v) then Some A else G v) t B ->
+    forall (G : Ctx) (x : Atom) (t : tmIn) (A B : type),
+      check_type (fun v : Atom => if decide (x = v) then Some A else G v) t B ->
         check_type G (TLam x t) (TArr A B)
 | check_Exfalso :
     forall (G : Ctx) (t : tmIn) (A : type),
@@ -610,7 +610,7 @@ match t with
   end
 | TLam x t =>
   match A with
-  | TArr X Y => check (fun v : Loc => if decide (x = v) then Some X else G v) t Y
+  | TArr X Y => check (fun v : Atom => if decide (x = v) then Some X else G v) t Y
   | _ => false
   end
 | TExfalso t' => check G t' TEmpty
@@ -777,7 +777,7 @@ Proof.
         destruct (infer_correct'' G t A).
         now firstorder congruence.
     + destruct A; try constructor; try inversion 1.
-      destruct (check_correct'' (fun v : Loc => if decide (l = v) then Some A1 else G v) t A2);
+      destruct (check_correct'' (fun v : Atom => if decide (a = v) then Some A1 else G v) t A2);
         constructor; [| now inversion 1].
       now constructor.
     + destruct (check_correct'' G t TEmpty); subst; constructor; [now constructor |].
