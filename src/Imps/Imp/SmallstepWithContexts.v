@@ -1,6 +1,4 @@
-From Stdlib Require Import Recdef.
-
-From FormalSystems Require Import Imp.Syntax.
+From FormalSystems Require Export Imp.Syntax.
 From FormalSystems Require Imp.Smallstep.
 
 (** * Structural operational semantics for IMP using (evaluation) contexts *)

@@ -1,7 +1,4 @@
-From Stdlib Require Import Bool Arith List.
-Import ListNotations.
-
-From FormalSystems Require Import Base.
+From FormalSystems Require Export Base.
 
 (** * Types and terms *)
 

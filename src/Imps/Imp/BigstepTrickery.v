@@ -9,7 +9,7 @@ Proof.
   induction 1; cbn in *; intros;
     rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto.
   unfold changeState.
-  now destruct (dec_spec v x); firstorder.
+  now decide (v = x); firstorder.
 Qed.
 
 Lemma CEval_not_In_loc_eq :
@@ -19,7 +19,7 @@ Proof.
   induction 1; cbn in *; intros;
     rewrite ?IHCEval, ?IHCEval1, ?IHCEval2; try now auto 7.
   unfold changeState.
-  now destruct (dec_spec v x); firstorder.
+  now decide (v = x); firstorder.
 Qed.
 
 #[global] Hint Unfold bcompatible : core.

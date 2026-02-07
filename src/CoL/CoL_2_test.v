@@ -1,5 +1,6 @@
-From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
-Import ListNotations.
+From Stdlib Require Import FunctionalExtensionality.
+
+From FormalSystems Require Export Base.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 
@@ -311,8 +312,8 @@ CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame :=
     end;
   MoveM := {n : nat & MoveM (f n)};
   MoveN := {n : nat & MoveN (f n)};
-  nextM '(existT _ n move) := pexists (fun m => if n =? m then nextM (f n) move else f m);
-  nextN '(existT _ n move) := pexists (fun m => if n =? m then nextN (f n) move else f m);
+  nextM '(existT _ n move) := pexists (fun m => if decide (n = m) then nextM (f n) move else f m);
+  nextN '(existT _ n move) := pexists (fun m => if decide (n = m) then nextN (f n) move else f m);
 |}.
 Proof.
   - destruct p, p'; [easy | | | easy].
@@ -341,8 +342,8 @@ CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
     end;
   MoveM := {n : nat & MoveM (f n)};
   MoveN := {n : nat & MoveN (f n)};
-  nextM '(existT _ n move) := pall (fun m : nat => if n =? m then nextM (f n) move else f m);
-  nextN '(existT _ n move) := pall (fun m : nat => if n =? m then nextN (f n) move else f m);
+  nextM '(existT _ n move) := pall (fun m : nat => if decide (n = m) then nextM (f n) move else f m);
+  nextN '(existT _ n move) := pall (fun m : nat => if decide (n = m) then nextN (f n) move else f m);
 |}.
 Proof.
   - destruct p, p'; [easy | | | easy].

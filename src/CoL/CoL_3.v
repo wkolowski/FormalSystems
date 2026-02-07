@@ -11,10 +11,9 @@
     at the same time. Here this would require mutual coinduction and I
     don't know how to do it properly. *)
 
-From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
-Import ListNotations.
+From Stdlib Require Import FunctionalExtensionality.
 
-Axiom LEM : forall P : Prop, P \/ ~ P.
+From FormalSystems Require Export Base.
 
 Inductive Player : Type :=
 | Machine : Player
@@ -247,7 +246,7 @@ CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame :=
     else Nature;
   Labmove := {n : nat & Labmove (f n)};
   who '(existT _ n move) := who (f n) move;
-  next '(existT _ n move) := pexists (fun m : nat => if n =? m then next (f n) move else f m);
+  next '(existT _ n move) := pexists (fun m : nat => if decide (n = m) then next (f n) move else f m);
 |}.
 
 CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
@@ -258,7 +257,7 @@ CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
     else Nature;
   Labmove := {n : nat & Labmove (f n)};
   who '(existT _ n move) := who (f n) move;
-  next '(existT _ n move) := pall (fun m : nat => if n =? m then next (f n) move else f m);
+  next '(existT _ n move) := pall (fun m : nat => if decide (n = m) then next (f n) move else f m);
 |}.
 
 CoFixpoint sor (g1 g2 : ConstantGame) : ConstantGame :=
@@ -378,7 +377,7 @@ CoFixpoint texists' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
     end;
   next move :=
     match move with
-    | inl move' => texists' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inl move' => texists' (fun m : nat => if decide (n = m) then next (f n) move' else f m) n
     | inr m => texists' f m
     end;
 |}.
@@ -394,7 +393,7 @@ CoFixpoint tall' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
     end;
   next move :=
     match move with
-    | inl move' => tall' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inl move' => tall' (fun m : nat => if decide (n = m) then next (f n) move' else f m) n
     | inr m => tall' f m
     end;
 |}.
@@ -487,9 +486,9 @@ Proof.
   - now destruct move; cbn.
   - destruct move as [n move]; cbn.
     replace (pall _)
-       with (pall (fun m : nat => Not (if n =? m then next (f n) move else f m))).
+       with (pall (fun m : nat => Not (if decide (n = m) then next (f n) move else f m))).
     + now apply CH.
     + f_equal.
       extensionality m.
-      now destruct (n =? m).
+      now decide (n = m).
 Qed.

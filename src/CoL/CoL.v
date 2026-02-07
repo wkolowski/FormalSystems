@@ -11,8 +11,9 @@
     at the same time. Here this would require mutual coinduction and I
     don't know how to do it properly. *)
 
-From Stdlib Require Import Bool List Arith Setoid FunctionalExtensionality.
-Import ListNotations.
+From Stdlib Require Import FunctionalExtensionality.
+
+From FormalSystems Require Export Base.
 
 Axiom LEM : forall P : Prop, P \/ ~ P.
 
@@ -321,7 +322,7 @@ CoFixpoint pexists (f : nat -> ConstantGame) : ConstantGame :=
     end;
   Labmove := {n : nat & Labmove (f n)};
   who '(existT _ n move) := who (f n) move;
-  next '(existT _ n move) := pexists (fun m : nat => if n =? m then next (f n) move else f m);
+  next '(existT _ n move) := pexists (fun m : nat => if decide (n = m) then next (f n) move else f m);
 |}.
 Proof.
   - destruct p, p'; [easy | | | easy].
@@ -350,7 +351,7 @@ CoFixpoint pall (f : nat -> ConstantGame) : ConstantGame :=
     end;
   Labmove := {n : nat & Labmove (f n)};
   who '(existT _ n move) := who (f n) move;
-  next '(existT _ n move) := pall (fun m : nat => if n =? m then next (f n) move else f m);
+  next '(existT _ n move) := pall (fun m : nat => if decide (n = m) then next (f n) move else f m);
 |}.
 Proof.
   - destruct p, p'; [easy | | | easy].
@@ -517,7 +518,7 @@ CoFixpoint texists' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
     end;
   next move :=
     match move with
-    | inl move' => texists' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inl move' => texists' (fun m : nat => if decide (n = m) then next (f n) move' else f m) n
     | inr m => texists' f m
     end;
 |}.
@@ -538,7 +539,7 @@ CoFixpoint tall' (f : nat -> ConstantGame) (n : nat) : ConstantGame :=
     end;
   next move :=
     match move with
-    | inl move' => tall' (fun m : nat => if n =? m then next (f n) move' else f m) n
+    | inl move' => tall' (fun m : nat => if decide (n = m) then next (f n) move' else f m) n
     | inr m => tall' f m
     end;
 |}.
@@ -633,11 +634,11 @@ Proof.
   - now destruct move; cbn.
   - destruct move as [n move]; cbn.
     replace (pall _)
-       with (pall (fun m : nat => Not (if n =? m then next (f n) move else f m))).
+       with (pall (fun m : nat => Not (if decide (n = m) then next (f n) move else f m))).
     + now apply CH.
     + f_equal.
       extensionality m.
-      now destruct (n =? m).
+      now decide (n = m).
 Qed.
 
 Lemma Not_pall :
@@ -650,11 +651,11 @@ Proof.
   - now destruct move; cbn.
   - destruct move as [n move]; cbn.
     replace (pexists _)
-       with (pexists (fun m : nat => Not (if n =? m then next (f n) move else f m))).
+       with (pexists (fun m : nat => Not (if decide (n = m) then next (f n) move else f m))).
     + now apply CH.
     + f_equal.
       extensionality m.
-      now destruct (n =? m).
+      now decide (n = m).
 Qed.
 
 Lemma Not_sor :
@@ -753,11 +754,11 @@ Proof.
   - now destruct move; cbn.
   - destruct move; cbn; [| now apply CH].
     replace (tall' _ _)
-       with (tall' (fun m : nat => Not (if n =? m then next (f n) l else f m)) n).
+       with (tall' (fun m : nat => Not (if decide (n = m) then next (f n) l else f m)) n).
     + now apply CH.
     + f_equal.
       extensionality m.
-      now destruct (n =? m).
+      now decide (n = m).
 Qed.
 
 Lemma Not_tall' :
@@ -770,11 +771,11 @@ Proof.
   - now destruct move; cbn.
   - destruct move; cbn; [| now apply CH].
     replace (texists' _ _)
-       with (texists' (fun m : nat => Not (if n =? m then next (f n) l else f m)) n).
+       with (texists' (fun m : nat => Not (if decide (n = m) then next (f n) l else f m)) n).
     + now apply CH.
     + f_equal.
       extensionality m.
-      now destruct (n =? m).
+      now decide (n = m).
 Qed.
 
 Lemma Not_texists :
@@ -1357,12 +1358,12 @@ match p with
 | ConsPosition move p' => prefix (next g move) p'
 end.
 
-Axioms V C : Type.
+Section Wut.
 
-Axioms V_eqb : V -> V -> bool.
-
-Axiom V_eqb_spec :
-  forall v1 v2 : V, reflect (v1 = v2) (V_eqb v1 v2).
+Context
+  (V C : Type)
+  (V_eqb : V -> V -> bool)
+  (V_eqb_spec : forall v1 v2 : V, reflect (v1 = v2) (V_eqb v1 v2)).
 
 Definition Valuation : Type := V -> C.
 
@@ -1411,3 +1412,5 @@ match t with
 | Var v => e v
 | Const c => c
 end.
+
+End Wut.

@@ -1,6 +1,4 @@
-From Stdlib Require Import Recdef.
-
-From FormalSystems Require Import Base.
+From FormalSystems Require Export Base.
 
 Inductive AExp : Type :=
 | AConst : nat -> AExp
@@ -32,7 +30,7 @@ Definition State : Type := Loc -> nat.
 Definition initialState : State := fun _ => 0.
 
 Definition changeState (s : State) (x : Loc) (n : nat) : State :=
-  fun y : Loc => if x =? y then n else s y.
+  fun y : Loc => if decide (x = y) then n else s y.
 
 Inductive AEval : AExp -> State -> nat -> Prop :=
 | EvalAConst :

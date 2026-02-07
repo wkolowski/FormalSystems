@@ -1,12 +1,15 @@
-From Stdlib Require Export Bool Arith List.
+From Stdlib Require Export
+  Bool Arith List
+  Equality Recdef
+  Classes.DecidableClass
+  Setoid Morphisms Relation_Definitions.
 Export ListNotations.
 
-Parameter Loc : Type.
-Parameter dec : Loc -> Loc -> bool.
-Parameter dec_spec :
-  forall x y : Loc, reflect (x = y) (dec x y).
+Arguments decide : simpl never.
 
-Notation "x =? y" := (dec x y) (at level 70).
+Parameter Loc : Type.
+Parameter Decidable_dec : forall x y : Loc, Decidable (x = y).
+#[global] Existing Instance Decidable_dec.
 
 Ltac inv H :=
   inversion H; subst; clear H; eauto.

@@ -1,7 +1,4 @@
-From Stdlib Require Import Bool Arith List Equality Setoid Morphisms Relation_Definitions.
-Import ListNotations.
-
-From FormalSystems Require Import Base.
+From FormalSystems Require Export Base.
 
 (** * Syntax of terms *)
 
