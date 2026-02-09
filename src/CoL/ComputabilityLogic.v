@@ -1,15 +1,17 @@
 (** * Computability Logic *)
 
-(** This is an attempt at formalizing Giorgi Japaridze's Computability
-    Logic based on "In the beginning was game semantics" from the book
-    "Games: Unifying Logic, Language, and Philosophy".
+(**
+  This is an attempt at formalizing Giorgi Japaridze's Computability
+  Logic based on "In the beginning was game semantics" from the book
+  "Games: Unifying Logic, Language, and Philosophy".
 
-    The approach is to replace Japaridze's "classical" definitions with
-    mainly coinductive ones friendly to type theory. Currently it's
-    rather experimental and certainly very broken, because he seems to
-    define game operations by defining their structure and winner mutually
-    at the same time. Here this would require mutual coinduction and I
-    don't know how to do it properly. *)
+  The approach is to replace Japaridze's "classical" definitions with
+  mainly coinductive ones friendly to type theory. Currently it's
+  rather experimental and certainly very broken, because he seems to
+  define game operations by defining their structure and winner mutually
+  at the same time. Here this would require mutual coinduction and I
+  don't know how to do it properly.
+*)
 
 From Stdlib Require Export FunctionalExtensionality.
 
@@ -156,7 +158,7 @@ Proof.
   - now apply sim_trans.
 Defined.
 
-(** Tactics *)
+(** * Tactics *)
 
 #[global] Hint Constructors Player : CoL.
 
@@ -406,7 +408,53 @@ Definition texists (f : nat -> ConstantGame) : ConstantGame :=
 Definition tall (f : nat -> ConstantGame) : ConstantGame :=
   tall' f 0.
 
-(** * De Morgan laws *)
+(** ** Connectives preserve bisimilarity *)
+
+Lemma sim_Not :
+  forall g1 g2 : ConstantGame,
+    sim g1 g2 -> sim (Not g1) (Not g2).
+Proof.
+  cofix CH.
+  intros g1 g2 [].
+  unshelve econstructor; cbn; intros; only 1: easy.
+  - now rewrite winners0.
+  - now rewrite whos0.
+  - now apply CH, nexts0.
+Qed.
+
+Lemma sim_chor :
+  forall g1 g1' g2 g2' : ConstantGame,
+    sim g1 g1' -> sim g2 g2' -> sim (chor g1 g2) (chor g1' g2').
+Proof.
+  unshelve econstructor; cbn; [easy.. |].
+  now destruct move.
+Qed.
+
+Lemma sim_chand :
+  forall g1 g1' g2 g2' : ConstantGame,
+    sim g1 g1' -> sim g2 g2' -> sim (chand g1 g2) (chand g1' g2').
+Proof.
+  unshelve econstructor; cbn; [easy.. |].
+  now destruct move.
+Qed.
+
+Lemma sim_chexists :
+  forall (A : Type) (f1 f2 : A -> ConstantGame),
+    (forall x : A, sim (f1 x) (f2 x)) ->
+      sim (chexists f1) (chexists f2).
+Proof.
+  now unshelve econstructor; cbn.
+Qed.
+
+Lemma sim_chall :
+  forall (A : Type) (f1 f2 : A -> ConstantGame),
+    (forall x : A, sim (f1 x) (f2 x)) ->
+      sim (chall f1) (chall f2).
+Proof.
+  now unshelve econstructor; cbn.
+Qed.
+
+(** ** Some laws *)
 
 Lemma Not_Not :
   forall g : ConstantGame,
@@ -637,39 +685,6 @@ Proof.
   now intros; apply Not_tall'.
 Qed.
 
-(** * Connectives preserve bisimilarity *)
-
-Lemma sim_Not :
-  forall g1 g2 : ConstantGame,
-    sim g1 g2 -> sim (Not g1) (Not g2).
-Proof.
-  cofix CH.
-  intros g1 g2 [].
-  unshelve econstructor; cbn; intros; only 1: easy.
-  - now rewrite winners0.
-  - now rewrite whos0.
-  - now apply CH, nexts0.
-Qed.
-
-Lemma sim_chor :
-  forall g1 g1' g2 g2' : ConstantGame,
-    sim g1 g1' -> sim g2 g2' -> sim (chor g1 g2) (chor g1' g2').
-Proof.
-  unshelve econstructor; cbn; [easy.. |].
-  now destruct move.
-Qed.
-
-Lemma sim_chand :
-  forall g1 g1' g2 g2' : ConstantGame,
-    sim g1 g1' -> sim g2 g2' -> sim (chand g1 g2) (chand g1' g2').
-Proof.
-  unshelve econstructor; cbn; [easy.. |].
-  now destruct move.
-Qed.
-
-(** And so on — congruence for parallel, sequential, toggling connectives
-    would follow the same pattern. *)
-
 (** * Strictness *)
 
 (** A constant game is strict if players make moves in turns. *)
@@ -739,14 +754,15 @@ Proof.
   now constructor; cbn; [right |].
 Qed.
 
-(** Parallel, sequential and toggling connectives (and therefore quantifiers)
-    need not preserve strictness, because:
-    - for parallel, both players can make moves
-    - for sequential, one player may make moves but the other may change
-    - for toggling, the same as for sequential *)
+(**
+  Parallel, sequential and toggling connectives (and therefore quantifiers)
+  need not preserve strictness, because:
+  - for parallel, both players can make moves
+  - for sequential, one player may make moves but the other may change
+  - for toggling, the same as for sequential
+*)
 
 (** * A game should have a winner... *)
-
 
 (** [winsAt g p] holds when player [p] wins at the root of [g]. *)
 Definition winsAt (g : ConstantGame) (p : Player) : Prop :=
@@ -755,46 +771,62 @@ match p with
 | Nature => ~ machineWins g
 end.
 
-(**
-  The [Winner] predicate captures who actually wins a game under
-  optimal play. Beware: a game can have two winners if it is not
-  a static game.
-*)
+Inductive WinnerF
+  (Winner : ConstantGame -> Player -> Prop) (g : ConstantGame) (p : Player) : Prop :=
+| WinnerF_Stay :
+    winsAt g p ->
+    (forall move : Labmove g, who g move = swap p -> Winner (next g move) p) ->
+      WinnerF Winner g p
+| WinnerF_Move :
+    (exists move : Labmove g, who g move = p /\ Winner (next g move) p) ->
+      WinnerF Winner g p.
+
 CoInductive Winner (g : ConstantGame) (p : Player) : Prop :=
 {
-  Winner0 : (Labmove g -> False) -> winsAt g p;
-  Winner1 :
-    Labmove g ->
-      (exists move : Labmove g,
-        who g move = p /\ Winner (next g move) p) \/
-      (forall move : Labmove g,
-        who g move = swap p -> Winner (next g move) p);
+  out : WinnerF Winner g p;
 }.
+
+Lemma Winner_Stay :
+  forall (g : ConstantGame) (p : Player),
+    winsAt g p ->
+    (forall move : Labmove g, who g move = swap p -> Winner (next g move) p) ->
+    Winner g p.
+Proof.
+  now intros; constructor; apply WinnerF_Stay.
+Defined.
+
+Lemma Winner_Move :
+  forall (g : ConstantGame) (p : Player),
+    (exists move : Labmove g, who g move = p /\ Winner (next g move) p) ->
+    Winner g p.
+Proof.
+  now intros; constructor; apply WinnerF_Move.
+Defined.
 
 Lemma Winner_Win_Machine :
   Winner Win Machine.
 Proof.
-  now constructor; cbn.
+  apply Winner_Stay; cbn; [easy |].
+  now intros [].
 Qed.
 
 Lemma Winner_Win_not_Nature :
   ~ Winner Win Nature.
 Proof.
-  intros [W0 W1]; cbn in *.
-  now apply W0.
+  now intros [[? _ | []]]; cbn in *; [easy |].
 Qed.
 
 Lemma Winner_Lose_Nature :
   Winner Lose Nature.
 Proof.
-  now constructor; cbn.
+  apply Winner_Stay; cbn; [easy |].
+  now intros [].
 Qed.
 
 Lemma Winner_Lose_not_Machine :
   ~ Winner Lose Machine.
 Proof.
-  intros [W0 W1]; cbn in *.
-  now apply W0.
+  now intros [[? _ | []]]; cbn in *; [easy |].
 Qed.
 
 Definition nonstatic : ConstantGame :=
@@ -811,11 +843,14 @@ Lemma Winner_not_unique :
 Proof.
   exists nonstatic.
   split.
-  - constructor; cbn; intros _; [easy |].
-    now left; exists true.
-  - constructor; cbn; intros H.
-    + now destruct (H true).
-    + now left; exists false.
+  - apply Winner_Move; cbn.
+    exists true.
+    split; [easy |].
+    now apply Winner_Win_Machine.
+  - apply Winner_Move; cbn.
+    exists false.
+    split; [easy |].
+    now apply Winner_Lose_Nature.
 Qed.
 
 Lemma Winner_sim :
@@ -823,100 +858,100 @@ Lemma Winner_sim :
     sim g1 g2 -> Winner g1 p -> Winner g2 p.
 Proof.
   cofix CH.
-  intros g1 g2 p [w lm whos nexts] [W0 W1].
-  constructor; intros.
-  - now destruct p; cbn in *; rewrite <- w; apply W0; rewrite lm.
-  - assert (Hinh : Labmove g1) by now rewrite lm.
-    decompose [ex or and] (W1 Hinh).
-    + left.
-      exists (@transport _ id _ _ lm x).
-      split.
-      * now rewrite <- whos.
-      * now apply CH with (next g1 x).
-    + right; intros.
-      apply CH with (next g1 (@transport _ id _ _ (eq_sym lm) move)).
-      * specialize (nexts (@transport _ id _ _ (eq_sym lm) move)).
-        now rewrite transport_cat, cat_inv in nexts; cbn in nexts.
-      * apply H.
-        specialize (whos (@transport _ id _ _ (eq_sym lm) move)).
-        rewrite transport_cat, cat_inv in whos; cbn in whos.
-        now rewrite <- whos in H0.
+  intros g1 g2 p [w lm wh nx] [[Hp Hk | (move1 & Hwho1 & Hnext)]].
+  - apply Winner_Stay; [now destruct p; cbn in *; rewrite <- w |].
+    intros move2 Hwho2.
+    eapply CH.
+    + specialize (nx (@transport _ id _ _ (eq_sym lm) move2)).
+      rewrite transport_cat, cat_inv in nx; cbn in nx.
+      now apply nx.
+    + apply Hk.
+      now rewrite wh, transport_cat, cat_inv; cbn.
+  - apply Winner_Move.
+    exists (@transport _ id _ _ lm move1).
+    split; [now rewrite <- wh |].
+    now eapply CH.
+Qed.
+
+#[export] Instance Proper_Winner_sim_eq :
+  Proper (sim ==> eq ==> iff) Winner.
+Proof.
+  intros g1 g2 Hsim p ? <-.
+  split; apply Winner_sim; [easy |].
+  now symmetry.
 Qed.
 
 Lemma Winner_sim' :
   forall (g1 g2 : ConstantGame) (p : Player),
     sim g1 g2 -> Winner g1 p <-> Winner g2 p.
 Proof.
+  intros g1 g2 p Hsim.
   now split; apply Winner_sim.
+Qed.
+
+Lemma winsAt_Not :
+  forall (g : ConstantGame) (p : Player),
+    winsAt (Not g) p <-> winsAt g (swap p).
+Proof.
+  intros g []; cbn; [easy |].
+  now destruct (LEM (machineWins g)); firstorder.
+Qed.
+
+Lemma Winner_Not' :
+  forall (g : ConstantGame) (p : Player),
+    Winner (Not g) p -> Winner g (swap p).
+Proof.
+  cofix CH.
+  intros g p [[Hp Hk | (move & Hwho & Hnext)]]; cbn in *.
+  - apply Winner_Stay; [now apply winsAt_Not |].
+    intros move Hwho.
+    apply CH, Hk.
+    now rewrite Hwho, swap_swap.
+  - apply Winner_Move; exists move; split.
+    + now rewrite <- Hwho, swap_swap.
+    + now apply CH.
 Qed.
 
 Lemma Winner_Not :
   forall (g : ConstantGame) (p : Player),
     Winner (Not g) p <-> Winner g (swap p).
 Proof.
-  split; revert g p.
-  - cofix CH.
-    intros g p [W0 W1]; constructor; cbn in *.
-    + intros Hempty.
-      destruct p; cbn in *; [now apply W0 |].
-      destruct (LEM (machineWins g)); [easy |].
-      now apply W0 in H.
-    + intros move.
-      decompose [and or ex] (W1 move).
-      * left; exists x; split; [| now apply CH].
-        now rewrite <- H, swap_swap.
-      * right; intros.
-        apply CH, H.
-        now rewrite H0, swap_swap.
-  - cofix CH.
-    intros g p [W0 W1]; constructor; cbn in *.
-    + intros Hempty.
-      destruct p; cbn in *; [now apply W0 |].
-      now intros Hnot; apply Hnot, W0.
-    + intros move.
-      decompose [ex or and] (W1 move).
-      * left; exists x; split; [| now apply CH].
-        now rewrite H, swap_swap.
-      * right; intros.
-        apply CH, H.
-        now rewrite <- H0, swap_swap.
+  split; [now apply Winner_Not' |].
+  intros Hw.
+  rewrite <- swap_swap.
+  apply Winner_Not'.
+  now rewrite Not_Not.
 Qed.
 
-Lemma Winner_Not' :
+Lemma Winner_Not_swap :
   forall (g : ConstantGame) (p : Player),
     Winner g p <-> Winner (Not g) (swap p).
 Proof.
-  now intros; rewrite Winner_Not, swap_swap.
+  now intros g p; rewrite Winner_Not, swap_swap.
 Qed.
 
 Lemma Winner_chor_Machine :
   forall (g1 g2 : ConstantGame),
     Winner (chor g1 g2) Machine <-> Winner g1 Machine \/ Winner g2 Machine.
 Proof.
-  split; revert g1 g2.
-  - intros g1 g2 [W0 W1]; cbn in *.
-    specialize (W1 true).
-    destruct W1 as [(move & Hwho & Hwin) | Hnature].
-    + now destruct move; auto.
-    + admit.
-  - intros g1 g2 [].
-    + revert g1 g2 H.
-      cofix CH.
-      intros; constructor; cbn; intros.
-      * now destruct (H0 true).
-      * now left; exists true.
-    + revert g1 g2 H.
-      cofix CH.
-      intros; constructor; cbn; intros.
-      * now destruct (H0 true).
-      * now left; exists false.
-Admitted.
+  split.
+  - intros [[| (b & _ & Hb)]]; cbn in *; [easy |].
+    now destruct b; cbn in *; [left | right].
+  - intros [H | H]; apply Winner_Move; cbn.
+    + now exists true; split.
+    + now exists false; split.
+Qed.
 
 Lemma Winner_chor_Nature :
   forall (g1 g2 : ConstantGame),
     Winner (chor g1 g2) Nature <-> Winner g1 Nature /\ Winner g2 Nature.
 Proof.
-Admitted.
+  split.
+  - intros [[Hp Hk | (b & Hb & _)]]; cbn in *; [| easy].
+    now split; [apply (Hk true) | apply (Hk false)].
+  - intros [H1 H2].
+    now apply Winner_Stay; cbn; [| intros [] _].
+Qed.
 
 Lemma Winner_chor :
   forall (g1 g2 : ConstantGame) (p : Player),
@@ -940,9 +975,7 @@ Lemma Winner_chand :
     end.
 Proof.
   intros.
-  rewrite Winner_Not'.
-  rewrite (Winner_sim' _ (chor (Not g1) (Not g2))) by apply Not_chand.
-  rewrite Winner_chor.
+  rewrite Winner_Not_swap, Not_chand, Winner_chor.
   now destruct p; cbn; rewrite !Winner_Not; cbn.
 Qed.
 
@@ -954,7 +987,18 @@ Lemma Winner_chexists :
     | Nature => forall x : A, Winner (f x) Nature
     end.
 Proof.
-Admitted.
+  intros A f []; cbn.
+  - split.
+    + intros [[| (x & _ & Hx)]]; cbn in *; [easy |].
+      now exists x.
+    + intros (x & Hx).
+      now apply Winner_Move; exists x; split.
+  - split.
+    + intros [[Hp Hk | (x & Hx & _)]]; intros; cbn in *; [| easy].
+      now apply (Hk x).
+    + intros Hall.
+      now apply Winner_Stay; cbn.
+Qed.
 
 Lemma Winner_chall :
   forall (A : Type) (f : A -> ConstantGame) (p : Player),
@@ -964,84 +1008,10 @@ Lemma Winner_chall :
     | Nature => exists x : A, Winner (f x) Nature
     end.
 Proof.
-Admitted.
-
-Lemma Winner_por_1 :
-  forall g1 g2 : ConstantGame,
-    Winner g1 Machine -> Winner g2 Machine -> Winner (por g1 g2) Machine.
-Proof.
-  cofix CH.
-  intros g1 g2 H1 H2.
-  decompose [Winner] H1.
-  decompose [Winner] H2.
-  constructor; cbn in *; [now auto |].
-  destruct 1.
-  - destruct (Winner3 l).
-    + destruct H as [move [H1' H2']]. left. exists (inl move). auto.
-    + destruct (LEM (exists move : Labmove g2, who g2 move = Machine)).
-      * destruct H0.
-        destruct (Winner5 x); [| now right; intros []; cbn; auto].
-        destruct H3.
-        left; exists (inr x0).
-        now destruct H3; auto.
-      * right.
-        destruct move; [now auto |].
-        intro.
-        apply CH; [easy |].
-        destruct (Winner5 l0); [| now apply H4].
-        destruct H4 as [move [H41 H42]]. contradiction H0.
-        now exists move.
-  - destruct (Winner5 l).
-    + destruct H as [move [H1' H2']].
-      now left; exists (inr move); auto.
-    + destruct (LEM (exists move : Labmove g1, who g1 move = Machine)).
-      * destruct H0.
-        destruct (Winner3 x); [| now right; intros []; cbn; auto].
-        destruct H3.
-        now left; exists (inl x0); destruct H3; auto.
-      * right.
-        destruct move; [| now auto].
-        intros.
-        apply CH; [| easy].
-        destruct (Winner3 l0); [| now apply H4].
-        destruct H4 as [move [H41 H42]].
-        contradiction H0.
-        now exists move.
+  intros.
+  rewrite Winner_Not_swap, Not_chall, Winner_chexists.
+  now destruct p; cbn; setoid_rewrite Winner_Not; cbn.
 Qed.
-
-Lemma Winner_por :
-  forall g1 g2 : ConstantGame,
-    Winner (por g1 g2) Nature -> Winner g1 Nature.
-Proof.
-Admitted.
-
-Lemma Winner_pand :
-  forall (g1 g2 : ConstantGame) (p : Player),
-    Winner (pand g1 g2) p <-> False.
-Proof.
-Admitted.
-
-Lemma Winner_pexists :
-  forall (f : nat -> ConstantGame) (p : Player),
-    Winner (pexists f) p <-> False.
-Proof.
-Admitted.
-
-Lemma Winner_pall :
-  forall (f : nat -> ConstantGame) (p : Player),
-    Winner (pall f) p <-> False.
-Proof.
-Admitted.
-
-Lemma excluded_middle :
-  forall g : ConstantGame,
-    Winner (por g (Not g)) Machine.
-Proof.
-Abort.
-
-(** * Static constant games *)
-
-(** A game is static if it has at most one winner. *)
 
 Definition Static (g : ConstantGame) : Prop :=
   forall p1 p2 : Player, Winner g p1 -> Winner g p2 -> p1 = p2.
@@ -1051,10 +1021,9 @@ Lemma Static_Not :
     Static g -> Static (Not g).
 Proof.
   unfold Static.
-  intros.
-  apply Winner_Not in H0, H1.
-  specialize (H _ _ H0 H1).
-  now destruct p1, p2; cbn in *.
+  intros * Heq p1 p2 Hw1 Hw2.
+  apply Winner_Not in Hw1, Hw2.
+  now apply injective_swap, Heq.
 Qed.
 
 Lemma Static_chor :
@@ -1062,9 +1031,9 @@ Lemma Static_chor :
     Static g1 -> Static g2 -> Static (chor g1 g2).
 Proof.
   unfold Static.
-  intros.
-  apply Winner_chor in H1, H2.
-  now destruct p1, p2, H1, H2; cbn in *; auto.
+  intros * Heq1 Heq2 p1 p2 Hw1 Hw2.
+  apply Winner_chor in Hw1, Hw2.
+  now destruct p1, p2, Hw1, Hw2; cbn in *; auto.
 Qed.
 
 Lemma Static_chand :
@@ -1072,9 +1041,9 @@ Lemma Static_chand :
     Static g1 -> Static g2 -> Static (chand g1 g2).
 Proof.
   unfold Static.
-  intros.
-  apply Winner_chand in H1, H2.
-  now destruct p1, p2, H1, H2; auto.
+  intros * Heq1 Heq2 p1 p2 Hw1 Hw2.
+  apply Winner_chand in Hw1, Hw2.
+  now destruct p1, p2, Hw1, Hw2; cbn in *; auto.
 Qed.
 
 Lemma Static_chexists :
@@ -1082,24 +1051,15 @@ Lemma Static_chexists :
     (forall x : A, Static (f x)) -> Static (chexists f).
 Proof.
   unfold Static.
-  intros.
-  apply Winner_chexists in H0, H1.
+  intros * Heq p1 p2 Hw1 Hw2.
+  apply Winner_chexists in Hw1, Hw2.
   destruct p1, p2; [easy | | | easy].
-  - destruct H0 as [x Hwm].
-    now apply (H x).
-  - destruct H1 as [x Hwm].
-    now apply (H x).
+  - destruct Hw1 as [x Hwm].
+    now apply (Heq x).
+  - destruct Hw2 as [x Hwm].
+    now apply (Heq x).
 Qed.
 
-Lemma Static_por :
-  forall g1 g2 : ConstantGame,
-    Static g1 -> Static g2 -> Static (por g1 g2).
-Proof.
-Abort.
-
-(** ** Static 2 *)
-
-(** A game is Static' if it has exactly one winner. *)
 Definition Static' (g : ConstantGame) : Prop :=
   exists p : Player,
     Winner g p /\ forall p2 : Player, Winner g p2 -> p = p2.
@@ -1109,21 +1069,14 @@ Lemma Static'_Not :
     Static' g -> Static' (Not g).
 Proof.
   unfold Static'.
-  destruct 1 as (p & H & Heq).
-  exists (swap p).
-  split; intros; [now rewrite Winner_Not, swap_swap |].
-  rewrite Winner_Not in H0.
-  apply Heq in H0 as ->.
+  intros g (p1 & H & Heq).
+  exists (swap p1).
+  split; [now rewrite Winner_Not, swap_swap |].
+  intros p2 Hw.
+  rewrite Winner_Not in Hw.
+  apply Heq in Hw as ->.
   now rewrite swap_swap.
 Qed.
-
-Lemma Static'_por :
-  forall g1 g2 : ConstantGame,
-    Static' g1 -> Static' g2 -> Static' (por g1 g2).
-Proof.
-Abort.
-
-(** * Miscellaneous *)
 
 Inductive Position (g : ConstantGame) : Type :=
 | EmptyPosition : Position g
@@ -1173,8 +1126,6 @@ match p with
 | EmptyPosition => g
 | ConsPosition move p2 => prefix (next g move) p2
 end.
-
-(** * Non-constant games *)
 
 Section Wut.
 
