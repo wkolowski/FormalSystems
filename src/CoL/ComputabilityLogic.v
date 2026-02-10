@@ -110,11 +110,8 @@ Lemma sim_refl :
   forall g : ConstantGame, sim g g.
 Proof.
   cofix CH.
-  unshelve econstructor; cbn; intros.
-  - easy.
-  - easy.
-  - easy.
-  - now cbn; apply CH.
+  unshelve econstructor; cbn; intros; [easy.. |].
+  now cbn; apply CH.
 Qed.
 
 Lemma sim_sym :
@@ -123,12 +120,9 @@ Lemma sim_sym :
 Proof.
   cofix CH.
   intros g1 g2 [w p whos nexts].
-  unshelve econstructor.
-  - easy.
-  - easy.
-  - now intros; rewrite whos, transport_cat, cat_inv; cbn.
-  - intros.
-    apply CH.
+  unshelve econstructor; intros; [easy.. | |].
+  - now rewrite whos, transport_cat, cat_inv; cbn.
+  - apply CH.
     specialize (nexts (@transport _ id _ _ (eq_sym p) move)).
     now rewrite transport_cat, cat_inv in nexts; cbn in nexts.
 Qed.
@@ -139,12 +133,11 @@ Lemma sim_trans :
 Proof.
   cofix CH.
   intros g1 g2 g3 [w1 p1 whos1 nexts1] [w2 p2 whos2 nexts2].
-  unshelve econstructor.
+  unshelve econstructor; intros.
   - exact (eq_trans p1 p2).
   - now rewrite w1.
-  - now intros; rewrite whos1, whos2, transport_cat.
-  - intros.
-    apply (CH _ (next g2 (@transport _ id _ _ p1 move))).
+  - now rewrite whos1, whos2, transport_cat.
+  - apply (CH _ (next g2 (@transport _ id _ _ p1 move))).
     + now apply nexts1.
     + now rewrite <- transport_cat.
 Qed.
@@ -461,8 +454,7 @@ Lemma Not_Not :
     sim (Not (Not g)) g.
 Proof.
   cofix CH.
-  unshelve econstructor; cbn; intros.
-  - easy.
+  unshelve econstructor; cbn; intros; only 1: easy.
   - now destruct (LEM (machineWins g)).
   - now cbn; destruct (who g move); cbn.
   - now apply CH.
@@ -504,7 +496,7 @@ Lemma Not_por :
 Proof.
   cofix CH.
   unshelve econstructor; cbn; only 1: easy.
-  - now firstorder.
+  - now tauto.
   - now destruct move; cbn.
   - now destruct move; cbn; apply CH.
 Qed.
@@ -515,7 +507,7 @@ Lemma Not_pand :
 Proof.
   cofix CH.
   unshelve econstructor; cbn; intros; only 1: easy.
-  - now destruct (LEM (machineWins g1)), (LEM (machineWins g2)); firstorder.
+  - now destruct (LEM (machineWins g1)), (LEM (machineWins g2)); tauto.
   - now destruct move; cbn.
   - now destruct move; apply CH.
 Qed.
@@ -894,7 +886,7 @@ Lemma winsAt_Not :
     winsAt (Not g) p <-> winsAt g (swap p).
 Proof.
   intros g []; cbn; [easy |].
-  now destruct (LEM (machineWins g)); firstorder.
+  now destruct (LEM (machineWins g)); tauto.
 Qed.
 
 Lemma Winner_Not' :
@@ -1077,110 +1069,3 @@ Proof.
   apply Heq in Hw as ->.
   now rewrite swap_swap.
 Qed.
-
-Inductive Position (g : ConstantGame) : Type :=
-| EmptyPosition : Position g
-| ConsPosition :
-    forall move : Labmove g,
-      Position (next g move) -> Position g.
-
-Arguments EmptyPosition {g}.
-Arguments ConsPosition {g} _ _.
-
-CoInductive Run (g : ConstantGame) : Type :=
-{
-  run : option {move : Labmove g & Run (next g move)}
-}.
-
-Arguments run {g}.
-
-Definition EmptyRun (g : ConstantGame) : Run g :=
-{|
-  run := None;
-|}.
-
-Inductive Finite' : ConstantGame -> nat -> Prop :=
-| Finite'_Win : Finite' Win 0
-| Finite'_Lose : Finite' Lose 0
-| Finite'_move :
-    forall (g : ConstantGame) (n : nat),
-      (forall move : Labmove g, Finite' (next g move) n) ->
-        Finite' g (S n)
-| Finite'_pump :
-    forall (g : ConstantGame) (n : nat),
-      Finite' g n -> Finite' g (S n).
-
-Definition Finite (G : ConstantGame) : Prop :=
-  exists n : nat, Finite' G n.
-
-Inductive Perifinite : ConstantGame -> Prop :=
-| Perfinite_Win : Perifinite Win
-| Perfinite_Lose : Perifinite Lose
-| Perfinite_move :
-    forall g : ConstantGame,
-      (forall move : Labmove g, Perifinite (next g move)) ->
-        Perifinite g.
-
-Fixpoint prefix (g : ConstantGame) (p : Position g) : ConstantGame :=
-match p with
-| EmptyPosition => g
-| ConsPosition move p2 => prefix (next g move) p2
-end.
-
-Section Wut.
-
-Context
-  (V C : Type)
-  (V_eqb : V -> V -> bool)
-  (V_eqb_spec : forall v1 v2 : V, reflect (v1 = v2) (V_eqb v1 v2)).
-
-Definition Valuation : Type := V -> C.
-
-Definition Game : Type := Valuation -> ConstantGame.
-
-Definition ElementaryConstantGame (g : ConstantGame) : Prop :=
-  Labmove g -> False.
-
-Lemma ElementaryConstantGame_Win :
-  ElementaryConstantGame Win.
-Proof.
-  now cbv.
-Qed.
-
-Lemma ElementaryConstantGame_Lose :
-  ElementaryConstantGame Lose.
-Proof.
-  now cbv.
-Qed.
-
-Definition Elementary (g : Game) : Prop :=
-  forall e : Valuation, ElementaryConstantGame (g e).
-
-Definition depends (g : Game) (v : V) : Prop :=
-  exists e1 e2 : Valuation,
-    (forall v' : V, v' <> v -> e1 v' = e2 v') /\ g e1 <> g e2.
-
-Lemma not_depends_ConstantGame :
-  forall (g : ConstantGame) (v : V),
-    ~ depends (fun _ => g) v.
-Proof.
-  unfold depends.
-  now intros g v (e1 & e2 & _ & H2).
-Qed.
-
-Definition Finitary (g : Game) : Prop :=
-  exists l : list V,
-    forall e1 e2 : Valuation,
-      (Forall (fun v => e1 v = e2 v) l) -> g e1 = g e2.
-
-Inductive Term : Type :=
-| Var : V -> Term
-| Const : C -> Term.
-
-Definition extend (e : Valuation) (t : Term) : C :=
-match t with
-| Var v => e v
-| Const c => c
-end.
-
-End Wut.
